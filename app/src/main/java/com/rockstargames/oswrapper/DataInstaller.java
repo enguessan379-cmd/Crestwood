@@ -296,24 +296,60 @@ public final class DataInstaller {
         throw new IOException("Muitos redirecionamentos no download");
     }
 
+    private static String detectCommonRootPrefix(java.util.zip.ZipFile zip) {
+        String commonRoot = null;
+        java.util.Enumeration<? extends ZipEntry> entries = zip.entries();
+        while (entries.hasMoreElements()) {
+            ZipEntry entry = entries.nextElement();
+            String name = entry.getName();
+            if (name == null || name.isEmpty() || name.startsWith("__MACOSX")) continue;
+            int slash = name.indexOf('/');
+            if (slash <= 0) return null; // entrada solta na raiz: não há wrapper único
+            String top = name.substring(0, slash);
+            for (String managed : MANAGED_ROOTS) {
+                if (managed.equalsIgnoreCase(top)) return null; // já é a estrutura esperada
+            }
+            if (commonRoot == null) {
+                commonRoot = top;
+            } else if (!commonRoot.equals(top)) {
+                return null; // múltiplas pastas na raiz: não há wrapper único
+            }
+        }
+        return commonRoot;
+    }
+
     private static void extractZip(File zipFile, File staging, UpdateManifest manifest) throws IOException {
         long extracted = 0L;
         String rootPath = staging.getCanonicalPath() + File.separator;
-        try (ZipInputStream zip = new ZipInputStream(new BufferedInputStream(new FileInputStream(zipFile), 128 * 1024))) {
-            ZipEntry entry;
+        try (java.util.zip.ZipFile zip = new java.util.zip.ZipFile(zipFile)) {
+            String stripPrefix = detectCommonRootPrefix(zip);
+            if (stripPrefix != null) {
+                Log.i(TAG, "Zip com pasta raiz única '" + stripPrefix + "'; será ignorada na extração");
+                stripPrefix = stripPrefix + "/";
+            }
             byte[] buffer = new byte[128 * 1024];
-            while ((entry = zip.getNextEntry()) != null) {
-                File output = safeChild(staging, rootPath, entry.getName());
+            java.util.Enumeration<? extends ZipEntry> entries = zip.entries();
+            while (entries.hasMoreElements()) {
+                ZipEntry entry = entries.nextElement();
+                String name = entry.getName();
+                if (name == null || name.isEmpty() || name.startsWith("__MACOSX")) continue;
+                if (stripPrefix != null) {
+                    if (name.equals(stripPrefix.substring(0, stripPrefix.length() - 1))) continue;
+                    if (!name.startsWith(stripPrefix)) continue;
+                    name = name.substring(stripPrefix.length());
+                    if (name.isEmpty()) continue;
+                }
+                File output = safeChild(staging, rootPath, name);
                 if (entry.isDirectory()) {
                     if (!output.exists() && !output.mkdirs()) throw new IOException("Não foi possível criar a pasta da data");
-                    zip.closeEntry();
                     continue;
                 }
                 File parent = output.getParentFile();
                 if (parent != null && !parent.exists() && !parent.mkdirs()) throw new IOException("Não foi possível criar a pasta da data");
-                try (OutputStream out = new BufferedOutputStream(new FileOutputStream(output), 128 * 1024)) {
+                try (InputStream in = new BufferedInputStream(zip.getInputStream(entry), 128 * 1024);
+                     OutputStream out = new BufferedOutputStream(new FileOutputStream(output), 128 * 1024)) {
                     int read;
-                    while ((read = zip.read(buffer)) != -1) {
+                    while ((read = in.read(buffer)) != -1) {
                         extracted += read;
                         if (extracted > MAX_ALLOWED_EXTRACTED_BYTES) throw new IOException("A data excede o limite de segurança");
                         out.write(buffer, 0, read);
@@ -321,7 +357,6 @@ public final class DataInstaller {
                         report(percent, "Instalando arquivos do jogo", extracted, manifest.extractedBytes);
                     }
                 }
-                zip.closeEntry();
             }
         }
         if (extracted <= 0L) throw new IOException("O pacote não contém arquivos para extrair");
