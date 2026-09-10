@@ -10,15 +10,15 @@
   body{min-height:100vh;display:flex;align-items:center;justify-content:center;
     background:transparent;
     font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;padding:20px;}
-  .phone{width:400px;height:700px;background:transparent;border-radius:60px;padding:14px;position:relative;
-    box-shadow:none;}
+  .phone{width:400px;height:700px;background:linear-gradient(145deg,#30343b,#0b0d10 45%,#1c2026);border-radius:60px;padding:14px;position:relative;
+    box-shadow:0 24px 55px rgba(0,0,0,.5),inset 0 0 0 2px rgba(255,255,255,.15),inset 0 0 0 4px rgba(0,0,0,.5),0 0 0 1px rgba(255,255,255,.08);}
   .phone::before{content:"";position:absolute;inset:0;border-radius:62px;
-    background:transparent;padding:14px;
+    background:linear-gradient(135deg,rgba(255,255,255,.18),rgba(255,255,255,0) 35%,rgba(0,0,0,.35));padding:2px;
     -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);
     -webkit-mask-composite:xor;mask-composite:exclude;z-index:5;pointer-events:none;}
   .screen{width:100%;height:100%;border-radius:48px;overflow:hidden;position:relative;background:#000;}
   .screen::after{content:"";position:absolute;inset:0;border-radius:48px;box-shadow:inset 0 0 0 2px rgba(255,255,255,.06);pointer-events:none;z-index:90;}
-  .pb{position:absolute;background:transparent;right:-3px;z-index:4;}
+  .pb{position:absolute;background:linear-gradient(90deg,#090a0c,#454a52,#111317);right:-3px;z-index:4;box-shadow:inset 0 1px 1px rgba(255,255,255,.18),0 2px 4px rgba(0,0,0,.45);}
   .pb1{top:150px;width:3px;height:70px;border-radius:3px;}
   .pb2{top:235px;width:3px;height:50px;border-radius:3px;}
   .pb3{top:295px;width:3px;height:50px;border-radius:3px;}
@@ -58,9 +58,11 @@
   .app:active .icon{transform:scale(.88);}
   .app .lbl{color:#fff;font-size:10px;text-align:center;text-shadow:0 1px 3px rgba(0,0,0,.85);}
   .dock{position:absolute;left:10px;right:10px;bottom:6px;z-index:3;height:80px;background:rgba(255,255,255,.26);backdrop-filter:blur(18px) saturate(1.4);border-radius:24px;display:flex;align-items:center;justify-content:space-evenly;box-shadow:inset 0 1px 0 rgba(255,255,255,.4),0 8px 24px rgba(0,0,0,.25);}
-  .fcbtn{width:52px;height:52px;border-radius:50%;background:rgba(255,255,255,.22);backdrop-filter:blur(10px);display:flex;align-items:center;justify-content:center;color:#fff;font-size:20px;cursor:pointer;transition:transform .15s,background .2s;border:1px solid rgba(255,255,255,.3)}
+  .fcbtn{width:52px;height:52px;border-radius:50%;background:rgba(255,255,255,.22);backdrop-filter:blur(10px);display:flex;align-items:center;justify-content:center;color:#fff;cursor:pointer;transition:transform .15s,background .2s,color .2s;border:1px solid rgba(255,255,255,.3)}
   .fcbtn:active{transform:scale(.88);}
   .fcbtn.on{background:rgba(255,214,10,.85);color:#3a2a00;}
+  .lockChevron{animation:chevronBounce 1.7s ease-in-out infinite;}
+  @keyframes chevronBounce{0%,100%{transform:translateY(0);opacity:.55}50%{transform:translateY(-6px);opacity:1}}
   .lockNotif{position:absolute;left:16px;right:16px;background:rgba(255,255,255,.16);backdrop-filter:blur(20px) saturate(1.5);border-radius:18px;padding:10px 12px;display:flex;gap:10px;align-items:flex-start;color:#fff;z-index:2;cursor:pointer;box-shadow:0 6px 18px rgba(0,0,0,.25);border:1px solid rgba(255,255,255,.15);animation:notifIn .5s cubic-bezier(.2,.9,.3,1) both;}
   @keyframes notifIn{from{opacity:0;transform:translateY(-14px)}to{opacity:1;transform:translateY(0)}}
   .lockNotif .nIcon{width:32px;height:32px;border-radius:8px;flex:none;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;color:#fff;}
@@ -102,7 +104,8 @@
 
   .btn{background:#007aff;color:#fff;border:none;border-radius:12px;padding:10px;font-size:14px;font-weight:600;width:100%;cursor:pointer;margin-top:8px;}
   .card{background:#fff;border-radius:14px;padding:13px;margin-bottom:10px;box-shadow:0 1px 4px rgba(0,0,0,.08);}
-  .home-bar{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);width:134px;height:5px;background:#fff;mix-blend-mode:difference;border-radius:3px;z-index:100;cursor:pointer;}
+  .home-bar{position:absolute;bottom:7px;left:50%;transform:translateX(-50%);width:118px;height:5px;background:rgba(255,255,255,.96);border-radius:999px;z-index:100;cursor:pointer;box-shadow:0 1px 5px rgba(0,0,0,.35),0 0 1px rgba(255,255,255,.8);transition:width .18s ease,height .18s ease,opacity .18s ease,background .18s ease;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);} 
+.home-bar:active{width:128px;height:6px;opacity:.82;}
   .iosSwitch{width:51px;height:31px;border-radius:16px;background:#e9e9eb;position:relative;transition:background .2s;flex:none;}
   .iosSwitch .knob{position:absolute;top:2px;left:2px;width:27px;height:27px;border-radius:50%;background:#fff;box-shadow:0 2px 5px rgba(0,0,0,.25);transition:transform .2s;}
   .iosSwitch.on{background:#34c759;}
@@ -309,7 +312,7 @@
     </div>
 
     <!-- VERROUILLAGE -->
-    <div class="view dark" id="lock">
+    <div class="view dark active" id="lock">
       <div class="wallpaper" id="lockWp"></div>
       <div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.35),rgba(0,0,0,0) 30%,rgba(0,0,0,0) 65%,rgba(0,0,0,.5));z-index:1;pointer-events:none"></div>
       <div style="position:absolute;top:70px;left:0;right:0;text-align:center;color:#fff;z-index:2">
@@ -317,17 +320,23 @@
         <div style="font-size:15px;opacity:.95;margin-top:6px" id="lockDate">lundi 1 mars</div>
       </div>
       <div id="lockNotifs" style="position:absolute;top:180px;left:0;right:0;z-index:2;display:flex;flex-direction:column;gap:8px"></div>
-      <div style="position:absolute;bottom:165px;left:0;right:0;text-align:center;color:#fff;font-size:13px;opacity:.9;z-index:2;text-shadow:0 1px 4px rgba(0,0,0,.5)">⬆ balayer ou cliquer pour déverrouiller</div>
-      <div id="swipeZone" style="position:absolute;bottom:95px;left:50%;transform:translateX(-50%);width:70%;height:80px;border-radius:44px;background:rgba(255,255,255,.2);backdrop-filter:blur(12px);display:flex;align-items:center;justify-content:center;color:#fff;z-index:2;cursor:grab;touch-action:none;font-size:26px;border:1px solid rgba(255,255,255,.35)">🔓</div>
-      <div style="position:absolute;bottom:24px;left:24px;right:24px;display:flex;justify-content:space-between;z-index:2">
-        <div class="fcbtn" id="torchBtn" onclick="toggleTorch(event)">🔦</div>
-        <div class="fcbtn" onclick="lockCamera(event)">📷</div>
+      <div id="swipeZone" style="position:absolute;bottom:0;left:0;right:0;height:170px;z-index:2;cursor:grab;touch-action:none;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;padding-bottom:30px">
+        <div class="lockChevron"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"></polyline></svg></div>
+        <div style="color:#fff;font-size:13px;opacity:.9;margin-top:6px;text-shadow:0 1px 4px rgba(0,0,0,.5);font-weight:500">Glisser vers le haut pour ouvrir</div>
+      </div>
+      <div style="position:absolute;bottom:24px;left:24px;right:24px;display:flex;justify-content:space-between;z-index:3;pointer-events:none">
+        <div class="fcbtn" id="torchBtn" onclick="toggleTorch(event)" style="pointer-events:auto">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M9.5 1.5h5a1 1 0 0 1 1 1v2.6a2 2 0 0 1-.4 1.2L14 8.5v2h.5A2.5 2.5 0 0 1 17 13v7.5a2 2 0 0 1-2 2h-6a2 2 0 0 1-2-2V13a2.5 2.5 0 0 1 2.5-2.5h.5v-2L8.9 6.3a2 2 0 0 1-.4-1.2V2.5a1 1 0 0 1 1-1z"></path></svg>
+        </div>
+        <div class="fcbtn" onclick="lockCamera(event)" style="pointer-events:auto">
+          <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.2A2.2 2.2 0 0 1 5.2 6h1.1L7.6 4h6.8l1.3 2h1.1A2.2 2.2 0 0 1 19 8.2v9.6A2.2 2.2 0 0 1 16.8 20H5.2A2.2 2.2 0 0 1 3 17.8V8.2z"></path><circle cx="11" cy="13" r="3.6"></circle></svg>
+        </div>
       </div>
     </div>
     <div class="flashOverlay" id="flashOverlay"></div>
 
     <!-- ACCUEIL -->
-    <div class="view dark active" id="home">
+    <div class="view dark" id="home">
       <div class="wallpaper" id="homeWp"></div>
       <div class="homegrid" id="homeGrid"></div>
       <div class="dock" id="dock"></div>
@@ -523,7 +532,7 @@ function settingsBodyHTML(){
 
 /* ================= CONSTRUCTION ACCUEIL ================= */
 // Le téléphone démarre avec 3 apps installées ; on télécharge les autres dans l'Ystore
-const installedApps=new Set(['appstore','photos','settings','yt']);
+const installedApps=new Set(['appstore','photos','settings','yt','whatsapp','safari']);
 function renderHome(){
   const grid=document.getElementById('homeGrid');grid.innerHTML='';
   apps.filter(a=>installedApps.has(a.id)).forEach(a=>{
@@ -706,7 +715,22 @@ const USER_IMGS={
 
 /* ================= TIKTOK ================= */
 function fmtCount(n){return n>=1000?(n/1000).toFixed(1).replace('.0','')+'k':String(n);}
+
+/*
+  TikTok-style feed:
+  - Existing photo posts are preserved.
+  - New vertical stock-video posts are added.
+  - If a remote video is unavailable, its poster image remains visible.
+  - The "Publier" button now accepts photos OR videos from the gallery.
+*/
 const TT_FEED=[
+  {id:'v1',user:'@citynight',caption:'La ville la nuit 🌃✨',video:'https://assets.mixkit.co/videos/preview/mixkit-two-avenues-with-many-cars-traveling-at-night-34562-large.mp4',img:'https://images.unsplash.com/photo-1519501025264-65ba15a82390?auto=format&fit=crop&w=900&q=80',likes:18400,comments:612},
+  {id:'v2',user:'@urbanlife',caption:'Vue aérienne de la ville 🏙️',video:'https://assets.mixkit.co/videos/preview/mixkit-big-city-at-night-from-an-aerial-shot-49878-large.mp4',img:'https://images.unsplash.com/photo-1514565131-fce0801e5785?auto=format&fit=crop&w=900&q=80',likes:23100,comments:840},
+  {id:'v3',user:'@nightdrive',caption:'Night drive 🚘💨',video:'https://assets.mixkit.co/videos/preview/mixkit-old-street-at-night-3456-large.mp4',img:'https://images.unsplash.com/photo-1500534623283-312aade485b7?auto=format&fit=crop&w=900&q=80',likes:15600,comments:477},
+  {id:'v4',user:'@cityviews',caption:'Les lumières de la ville ✨',video:'https://assets.mixkit.co/videos/preview/mixkit-aerial-view-of-a-highway-in-a-big-city-1231-large.mp4',img:'https://images.unsplash.com/photo-1449824913935-59a10b8d2000?auto=format&fit=crop&w=900&q=80',likes:19800,comments:703},
+  {id:'v5',user:'@carsdaily',caption:'Cars + neon = 🔥',video:'https://assets.mixkit.co/videos/preview/mixkit-stylish-woman-leaning-in-a-camaro-39895-large.mp4',img:'https://images.unsplash.com/photo-1492144534655-ae79c964c9d7?auto=format&fit=crop&w=900&q=80',likes:27400,comments:991},
+  {id:'v6',user:'@streetvibes',caption:'Ambiance street 🌆',video:'https://assets.mixkit.co/videos/preview/mixkit-aerial-view-of-city-roads-and-big-illuminated-city-buildings-at-night-3457-large.mp4',img:'https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?auto=format&fit=crop&w=900&q=80',likes:11900,comments:351},
+
   {id:'t1',user:'@voyage.fr',caption:'Coucher de soleil incroyable 🌅',img:'https://picsum.photos/id/1015/420/740',likes:1240,comments:88},
   {id:'t2',user:'@cuisine.maison',caption:'Recette de pâtes en 60 secondes 🍝',img:'https://picsum.photos/id/292/420/740',likes:3260,comments:212},
   {id:'t3',user:'@fitness.life',caption:'3 exercices pour le dos 💪',img:'https://picsum.photos/id/1074/420/740',likes:890,comments:41},
@@ -746,43 +770,70 @@ const TT_FEED=[
   {id:'u34',user:'@toi',caption:'Rest in peace 🖤',img:USER_IMGS['340424'],likes:21400,comments:1650},
   {id:'u35',user:'@toi',caption:'Bunny mood 🐰',img:USER_IMGS['340425'],likes:3600,comments:190},
 ];
+
 let ttLiked={};
+
 function ttToggleLike(id){
   const b=document.getElementById('ttLike_'+id),c=document.getElementById('ttCount_'+id);
   const item=TT_FEED.find(v=>v.id===id);
+  if(!item)return;
   if(!ttLiked[id]){ttLiked[id]=true;b.textContent='❤️';c.textContent=fmtCount(item.likes+1);}
   else{ttLiked[id]=false;b.textContent='🤍';c.textContent=fmtCount(item.likes);}
 }
+
 function ttPickPhoto(){
   const inp=document.createElement('input');
-  inp.type='file';inp.accept='image/*';
+  inp.type='file';inp.accept='image/*,video/*';
   inp.onchange=(e)=>{
     const file=e.target.files&&e.target.files[0];if(!file)return;
+    const isVideo=file.type.startsWith('video/');
     const reader=new FileReader();
     reader.onload=(ev)=>{
-      TT_FEED.unshift({id:'p'+Date.now(),user:'@toi',caption:'Nouvelle publication 📸',img:ev.target.result,likes:0,comments:0});
+      const item={
+        id:'p'+Date.now(),
+        user:'@toi',
+        caption:isVideo?'Nouvelle vidéo 🎬':'Nouvelle publication 📸',
+        img:isVideo?'':ev.target.result,
+        video:isVideo?ev.target.result:'',
+        likes:0,
+        comments:0
+      };
+      TT_FEED.unshift(item);
       ttRefresh();
-      toast('Photo publiée !');
+      toast(isVideo?'Vidéo publiée !':'Photo publiée !');
     };
     reader.readAsDataURL(file);
   };
   inp.click();
 }
-function ttRefresh(){const w=document.getElementById('ttWrap');if(w)w.innerHTML=ttHTML();}
+
+function ttRefresh(){
+  const w=document.getElementById('ttWrap');
+  if(w)w.innerHTML=ttHTML();
+}
+
 function ttHTML(){
-  return `<div style="margin:0;overflow-y:auto;height:100%;scroll-snap-type:y mandatory;position:relative">
-  <div onclick="ttPickPhoto()" style="position:sticky;top:0;z-index:5;display:flex;align-items:center;justify-content:center;gap:8px;background:#1c1c1e;color:#fff;border-radius:14px;padding:12px;margin-bottom:8px;cursor:pointer;font-weight:600;font-size:14px">
-    <span style="font-size:18px">➕</span> Publier une photo depuis la galerie
+  return `<div style="margin:0;overflow-y:auto;height:100%;scroll-snap-type:y mandatory;position:relative;background:#000">
+  <div onclick="ttPickPhoto()" style="position:sticky;top:0;z-index:20;display:flex;align-items:center;justify-content:center;gap:8px;background:rgba(28,28,30,.88);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);color:#fff;border-radius:14px;padding:11px;margin:7px 8px 8px;cursor:pointer;font-weight:600;font-size:13px;box-shadow:0 6px 18px rgba(0,0,0,.25)">
+    <span style="font-size:17px">＋</span> Publier une photo ou vidéo
   </div>
   ${TT_FEED.map(v=>`
-  <div style="position:relative;height:100%;min-height:480px;scroll-snap-align:start;background:#000;margin-bottom:6px;border-radius:16px;overflow:hidden">
-    <img src="${v.img}" style="width:100%;height:100%;object-fit:cover;display:block;opacity:.85" loading="lazy" onerror="this.style.display='none'">
-    <div style="position:absolute;inset:0;background:linear-gradient(0deg,rgba(0,0,0,.6),transparent 40%)"></div>
-    <div style="position:absolute;left:14px;right:70px;bottom:16px;color:#fff">
+  <div style="position:relative;height:100%;min-height:560px;scroll-snap-align:start;background:#000;margin-bottom:6px;border-radius:16px;overflow:hidden">
+    ${v.video
+      ? `<video src="${v.video}" poster="${v.img||''}" autoplay muted loop playsinline preload="metadata"
+           style="width:100%;height:100%;object-fit:cover;display:block;opacity:.94;background:#000"
+           onerror="this.style.display='none';this.nextElementSibling.style.display='block'"></video>
+         <img src="${v.img||''}" style="display:none;width:100%;height:100%;object-fit:cover;opacity:.85" loading="lazy"
+           onerror="this.style.display='none'">`
+      : `<img src="${v.img}" style="width:100%;height:100%;object-fit:cover;display:block;opacity:.88" loading="lazy" onerror="this.style.display='none'">`
+    }
+    <div style="position:absolute;inset:0;background:linear-gradient(0deg,rgba(0,0,0,.68),transparent 38%,rgba(0,0,0,.08) 75%,rgba(0,0,0,.25))"></div>
+    ${v.video?`<div style="position:absolute;top:52px;left:12px;background:rgba(0,0,0,.45);backdrop-filter:blur(10px);color:#fff;border-radius:999px;padding:5px 9px;font-size:10px;font-weight:700;letter-spacing:.2px">▶ VIDÉO</div>`:''}
+    <div style="position:absolute;left:14px;right:72px;bottom:18px;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.6)">
       <div style="font-weight:700;margin-bottom:6px">${v.user}</div>
-      <div style="font-size:13px;opacity:.95">${v.caption}</div>
+      <div style="font-size:13px;opacity:.96">${v.caption}</div>
     </div>
-    <div style="position:absolute;right:12px;bottom:20px;display:flex;flex-direction:column;align-items:center;gap:18px;color:#fff">
+    <div style="position:absolute;right:12px;bottom:20px;display:flex;flex-direction:column;align-items:center;gap:18px;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.55)">
       <div style="text-align:center;cursor:pointer" onclick="ttToggleLike('${v.id}')"><div id="ttLike_${v.id}" style="font-size:26px">🤍</div><div id="ttCount_${v.id}" style="font-size:11px">${fmtCount(v.likes)}</div></div>
       <div style="text-align:center;cursor:pointer" onclick="toast('${v.comments} commentaires')"><div style="font-size:24px">💬</div><div style="font-size:11px">${v.comments}</div></div>
       <div style="text-align:center;cursor:pointer" onclick="toast('Partagé')"><div style="font-size:24px">↗️</div></div>
@@ -790,7 +841,6 @@ function ttHTML(){
   </div>`).join('')}
   </div>`;
 }
-
 /* ================= X (TWITTER) ================= */
 const XF_TWEETS=[
   {id:'x1',user:'Actu Monde',handle:'@actumonde',color:'#1d9bf0',text:"Dernière minute : nouvelle avancée technologique annoncée ce matin. Les détails arrivent très vite. 🧵",likes:412,rt:88,replies:34},
@@ -1565,10 +1615,10 @@ function goHomeFromBar(){
 function unlock(){document.getElementById('lock').classList.remove('active');document.getElementById('home').classList.add('active');}
 (function(){
   const zone=document.getElementById('swipeZone');
-  let startY=null,sy=0;
-  zone.addEventListener('pointerdown',e=>{startY=e.clientY;sy=0;zone.setPointerCapture(e.pointerId);});
-  zone.addEventListener('pointermove',e=>{if(startY==null)return;sy=Math.max(0,e.clientY-startY);zone.style.transform=`translateX(-50%) translateY(${sy}px)`;});
-  zone.addEventListener('pointerup',()=>{zone.style.transform='';if(sy>50)unlock();else sy=0;});
+  let startY=null,dy=0;
+  zone.addEventListener('pointerdown',e=>{startY=e.clientY;dy=0;zone.setPointerCapture(e.pointerId);});
+  zone.addEventListener('pointermove',e=>{if(startY==null)return;dy=Math.max(0,startY-e.clientY);zone.style.transform=`translateY(${-dy}px)`;zone.style.opacity=String(Math.max(.25,1-dy/140));});
+  zone.addEventListener('pointerup',()=>{zone.style.transform='';zone.style.opacity='';if(dy>50)unlock();else dy=0;});
   // un simple clic/tap déverrouille aussi
   zone.addEventListener('click',()=>unlock());
 })();
