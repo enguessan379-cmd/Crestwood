@@ -70,7 +70,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="1dp"
-                android:text="51.68.107.75:14302"
+                android:text="51.68.107.75:15915"
                 android:textColor="#E8E8E8"
                 android:textSize="8sp" />
             <View

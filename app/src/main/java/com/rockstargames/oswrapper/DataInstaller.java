@@ -157,7 +157,7 @@ public final class DataInstaller {
             File marker = new File(target, ".gtasa_data_version");
             if (marker.isFile() && markerValue.equals(readSmallFile(marker)) && isComplete(target)) {
                 cleanupLegacyPrivateData(context, target);
-                complete(target, manifest);
+                complete(target, manifest.extractedBytes);
                 return;
             }
 
@@ -187,11 +187,19 @@ public final class DataInstaller {
                 throw new IOException("O arquivo baixado não passou na verificação de integridade");
             }
 
+            // Tamanho real do conteúdo extraído, lido direto do zip, em vez do placeholder
+            // MAX_ALLOWED_EXTRACTED_BYTES (11.18 GB) usado só como teto de segurança.
+            long realExtractedBytes = computeExtractedSize(zipFile);
+            if (realExtractedBytes <= 0L) realExtractedBytes = manifest.extractedBytes;
+
             ensureExtractionSpace(target, manifest);
             deleteRecursively(staging);
             if (!staging.mkdirs()) throw new IOException("Não foi possível preparar a instalação");
-            extractZip(zipFile, staging, manifest);
-            if (!isComplete(staging)) throw new IOException("A extração terminou sem os arquivos obrigatórios do jogo");
+            extractZip(zipFile, staging, realExtractedBytes);
+            if (!isComplete(staging)) {
+                Log.e(TAG, "Arquivos ausentes após extração. Conteúdo de " + staging + ": " + listRecursively(staging));
+                throw new IOException("A extração terminou sem os arquivos obrigatórios do jogo");
+            }
 
             deleteRecursively(target);
             if (!staging.renameTo(target)) {
@@ -202,7 +210,7 @@ public final class DataInstaller {
             if (!isComplete(target)) throw new IOException("A instalação final não contém todos os arquivos necessários");
             deleteRecursively(zipFile);
             deleteRecursively(partialFile);
-            complete(target, manifest);
+            complete(target, realExtractedBytes);
         } catch (Throwable error) {
             deleteRecursively(staging);
             fail(error);
@@ -323,7 +331,7 @@ public final class DataInstaller {
         return commonRoot;
     }
 
-    private static void extractZip(File zipFile, File staging, UpdateManifest manifest) throws IOException {
+    private static void extractZip(File zipFile, File staging, long extractedBytesTotal) throws IOException {
         long extracted = 0L;
         String rootPath = staging.getCanonicalPath() + File.separator;
         try (java.util.zip.ZipFile zip = new java.util.zip.ZipFile(zipFile)) {
@@ -358,14 +366,47 @@ public final class DataInstaller {
                         extracted += read;
                         if (extracted > MAX_ALLOWED_EXTRACTED_BYTES) throw new IOException("A data excede o limite de segurança");
                         out.write(buffer, 0, read);
-                        int percent = 71 + (int) Math.min(28L, extracted * 28L / Math.max(1L, manifest.extractedBytes));
-                        report(percent, "Instalando arquivos do jogo", extracted, manifest.extractedBytes);
+                        int percent = 71 + (int) Math.min(28L, extracted * 28L / Math.max(1L, extractedBytesTotal));
+                        report(percent, "Instalando arquivos do jogo", extracted, extractedBytesTotal);
                     }
                 }
             }
         }
         if (extracted <= 0L) throw new IOException("O pacote não contém arquivos para extrair");
-        report(99, "Arquivos extraídos; finalizando instalação", extracted, manifest.extractedBytes);
+        report(99, "Arquivos extraídos; finalizando instalação", extracted, extractedBytesTotal);
+    }
+
+    /** Soma o tamanho descompactado real de todas as entradas do zip (mais preciso que o manifesto). */
+    private static long computeExtractedSize(File zipFile) {
+        long total = 0L;
+        try (java.util.zip.ZipFile zip = new java.util.zip.ZipFile(zipFile)) {
+            java.util.Enumeration<? extends ZipEntry> entries = zip.entries();
+            while (entries.hasMoreElements()) {
+                ZipEntry entry = entries.nextElement();
+                if (!entry.isDirectory() && entry.getSize() > 0L) total += entry.getSize();
+            }
+        } catch (IOException error) {
+            Log.w(TAG, "Não foi possível calcular o tamanho real da data extraída", error);
+            return 0L;
+        }
+        return total;
+    }
+
+    /** Lista o conteúdo de um diretório (usado só para diagnóstico em log quando a extração falha). */
+    private static String listRecursively(File dir) {
+        StringBuilder result = new StringBuilder();
+        listRecursively(dir, dir.getPath().length() + 1, result);
+        return result.length() == 0 ? "(vazio)" : result.toString();
+    }
+
+    private static void listRecursively(File dir, int prefixLength, StringBuilder result) {
+        File[] files = dir.listFiles();
+        if (files == null) return;
+        for (File file : files) {
+            String relative = file.getPath().length() >= prefixLength ? file.getPath().substring(prefixLength) : file.getName();
+            result.append(relative).append(file.isDirectory() ? "/" : "").append(" ");
+            if (file.isDirectory()) listRecursively(file, prefixLength, result);
+        }
     }
 
     private static UpdateManifest fetchManifest() throws Exception {
@@ -513,10 +554,10 @@ public final class DataInstaller {
         return true;
     }
 
-    private static void complete(File target, UpdateManifest manifest) {
+    private static void complete(File target, long extractedBytesTotal) {
         success = true;
         installing = false;
-        report(100, "Data instalada", manifest.extractedBytes, manifest.extractedBytes);
+        report(100, "Data instalada", extractedBytesTotal, extractedBytesTotal);
         readyLatch.countDown();
         Listener current = listener;
         if (current != null) current.onComplete(target);

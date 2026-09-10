@@ -48,7 +48,7 @@ import java.io.IOException;
 public class MainActivity extends AppCompatActivity {
     private static final String TAG = "MainActivity";
     private static final String SERVER_HOST = "51.68.107.75";
-    private static final int SERVER_PORT = 14302;
+    private static final int SERVER_PORT = 15915;
     private static final String LAUNCHER_PREFERENCES = "crestwood_launcher";
     private static final String SAVED_NICKNAME_KEY = "saved_nickname";
     private static final String LOADING_URL = "file:///android_asset/loading/index.html";

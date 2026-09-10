@@ -9,6 +9,7 @@
   const formatBytes=value=>{const bytesValue=Math.max(0,Number(value)||0);if(bytesValue<1024*1024)return `${Math.round(bytesValue/1024)} KB`;if(bytesValue<1024*1024*1024)return `${(bytesValue/(1024*1024)).toFixed(1)} MB`;return `${(bytesValue/(1024*1024*1024)).toFixed(2)} GB`};
   const formatTime=value=>{const seconds=Math.max(0,Math.round(Number(value)||0));if(seconds<60)return `${seconds}s restantes`;const minutes=Math.floor(seconds/60);return minutes<60?`${minutes}min ${seconds%60}s restantes`:`${Math.floor(minutes/60)}h ${minutes%60}min restantes`};
   const isDownload=phase=>/baixando|download concluído|retomando/i.test(phase||'');
+  const isVerify=phase=>/verificando integridade|verificando arquivo/i.test(phase||'');
   const isExtract=phase=>/instalando|extraíd|extraindo|finalizando/i.test(phase||'');
   function setHealthy(){if(dot){dot.style.background='#50e2a0';dot.style.boxShadow='0 0 12px rgba(80,226,160,.75)'}if(track)track.setAttribute('aria-valuenow',String(Math.round(current.percent)))}
   function setProgress(value,phase,done,total,speed){
@@ -18,8 +19,8 @@
     if(message&&current.phase)message.textContent=current.phase;
     if(retry)retry.hidden=true;
     setHealthy();
-    const downloading=isDownload(current.phase),extracting=isExtract(current.phase);
-    if(stage)stage.textContent=downloading?'DOWNLOAD DA DATA':extracting?'INSTALAÇÃO DA DATA':current.percent>=100?'CONCLUÍDO':'PREPARANDO';
+    const downloading=isDownload(current.phase),verifying=isVerify(current.phase),extracting=isExtract(current.phase);
+    if(stage)stage.textContent=downloading?'DOWNLOAD DA DATA':verifying?'VERIFICAÇÃO':extracting?'INSTALAÇÃO DA DATA':current.percent>=100?'CONCLUÍDO':'PREPARANDO';
     if(bytes){
       if(current.total>0)bytes.textContent=`${formatBytes(current.done)} de ${formatBytes(current.total)}`;
       else bytes.textContent='Aguardando dados do servidor';
@@ -28,6 +29,10 @@
       if(status)status.textContent='Baixando arquivos do jogo';
       if(detail)detail.textContent='Transferência direta para o armazenamento privado do aplicativo.';
       if(transfer)transfer.textContent=current.speed>0?`${formatBytes(current.speed)}/s · ${formatTime((current.total-current.done)/current.speed)}`:'Calculando velocidade de transferência...';
+    }else if(verifying){
+      if(status)status.textContent='Verificando integridade do arquivo';
+      if(detail)detail.textContent='Conferindo se o arquivo baixado não está corrompido antes de instalar.';
+      if(transfer)transfer.textContent='Isso pode levar alguns segundos.';
     }else if(extracting){
       if(status)status.textContent='Instalando arquivos do jogo';
       if(detail)detail.textContent='A data está sendo extraída em uma área protegida antes de liberar o jogo.';
