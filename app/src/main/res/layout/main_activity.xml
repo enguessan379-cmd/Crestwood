@@ -1,0 +1,158 @@
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/launcher_background"
+    android:padding="14dp">
+
+    <LinearLayout
+        android:id="@+id/socialBar"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentStart="true"
+        android:layout_alignParentTop="true"
+        android:layout_marginStart="10dp"
+        android:layout_marginTop="10dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+        <ImageButton android:id="@+id/planetButton" android:layout_width="36dp" android:layout_height="36dp" android:background="@drawable/social_button" android:padding="8dp" android:src="@drawable/ic_planet_svg" android:tint="#E7B55A" android:contentDescription="Planeta"/>
+        <ImageButton android:id="@+id/youtubeButton" android:layout_width="36dp" android:layout_height="36dp" android:layout_marginStart="8dp" android:background="@drawable/social_button" android:padding="8dp" android:src="@drawable/ic_youtube_svg" android:tint="#E7B55A" android:contentDescription="YouTube"/>
+        <ImageButton android:id="@+id/discordButton" android:layout_width="36dp" android:layout_height="36dp" android:layout_marginStart="8dp" android:background="@drawable/social_button" android:padding="8dp" android:src="@drawable/ic_discord_svg" android:tint="#E7B55A" android:contentDescription="Discord"/>
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/title1"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:visibility="gone"
+        android:text="CRESTWOOD ROLEPLAY" />
+    <TextView
+        android:id="@+id/title2"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:visibility="gone"
+        android:text="SA:MP 2.11" />
+
+    <LinearLayout
+        android:id="@+id/serverCard"
+        android:layout_width="210dp"
+        android:layout_height="54dp"
+        android:layout_alignParentStart="true"
+        android:layout_alignParentBottom="true"
+        android:layout_marginStart="10dp"
+        android:layout_marginBottom="66dp"
+        android:padding="7dp"
+        android:background="@drawable/menu_panel"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+        <ImageView
+            android:layout_width="31dp"
+            android:layout_height="31dp"
+            android:padding="2dp"
+            android:src="@drawable/ic_city_svg"
+            android:contentDescription="Crestwood" />
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:layout_marginStart="6dp"
+            android:gravity="center_vertical"
+            android:orientation="vertical">
+            <TextView
+                android:id="@+id/serverName"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Crestwood Roleplay"
+                android:textColor="#FFFFFF"
+                android:textSize="11sp"
+                android:textStyle="bold" />
+            <TextView
+                android:id="@+id/serverAddress"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="1dp"
+                android:text="51.68.107.75:14302"
+                android:textColor="#E8E8E8"
+                android:textSize="8sp" />
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="2dp"
+                android:layout_marginTop="4dp"
+                android:background="#553F3F3F" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/userCard"
+        android:layout_width="210dp"
+        android:layout_height="42dp"
+        android:layout_alignParentStart="true"
+        android:layout_alignParentBottom="true"
+        android:layout_marginStart="10dp"
+        android:layout_marginBottom="18dp"
+        android:paddingStart="8dp"
+        android:paddingEnd="8dp"
+        android:gravity="center_vertical"
+        android:background="@drawable/menu_panel"
+        android:orientation="horizontal">
+        <ImageView
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:padding="3dp"
+            android:src="@drawable/ic_user_svg"
+            android:contentDescription="Jogador" />
+        <EditText
+            android:id="@+id/nickInput"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:background="@android:color/transparent"
+            android:hint="Nick_Name"
+            android:inputType="textPersonName"
+            android:maxLength="24"
+            android:singleLine="true"
+            android:textColor="#FFFFFF"
+            android:textColorHint="#CFCFCF"
+            android:textSize="10sp" />
+    </LinearLayout>
+
+    <Button
+        android:id="@+id/startButton"
+        android:layout_width="155dp"
+        android:layout_height="42dp"
+        android:layout_alignParentEnd="true"
+        android:layout_alignParentBottom="true"
+        android:layout_marginEnd="22dp"
+        android:layout_marginBottom="18dp"
+        android:background="@drawable/menu_play_outline"
+        android:drawableEnd="@drawable/ic_arrow_svg"
+        android:drawablePadding="6dp"
+        android:paddingStart="12dp"
+        android:paddingEnd="10dp"
+        android:elevation="8dp"
+        android:text="JOGAR"
+        android:textAllCaps="false"
+        android:textColor="#E7B55A"
+        android:textSize="13sp"
+        android:textStyle="bold" />
+
+    <TextView
+        android:id="@+id/connectionStatus"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:visibility="gone"
+        android:text=""
+        android:textColor="#E7C77A" />
+
+    <TextView
+        android:id="@+id/bugText"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:visibility="gone"
+        android:text="" />
+    <TextView
+        android:id="@+id/authorText"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:visibility="gone"
+        android:text="" />
+</RelativeLayout>

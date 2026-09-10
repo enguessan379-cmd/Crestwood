@@ -1,0 +1,97 @@
+# Project TODO
+
+- [x] Implementar HUD HTML/CSS/JavaScript com controles personalizados
+- [x] Integrar atualizador remoto via manifesto HTTPS e remover a data embutida do APK
+- [x] Persistir o nome digitado na Home do Launcher entre aberturas
+- [x] Atualizar o servidor fixo para 51.68.107.75:14302
+- [x] Reforçar a validação de integridade e o reparo seguro da data
+- [x] Corrigir o cálculo de progresso da extração para refletir bytes descompactados reais
+- [x] Não ocultar a tela de atualização antes de o navegador confirmar o estado de 100%
+- [x] Compilar e validar o APK contra o fluxo de progresso corrigido
+- [x] Restaurar as imagens e recursos visuais ausentes na Home e no HUD
+- [x] Identificar o caminho ou arquivo ausente que causa crash após tocar em JOGAR
+- [x] Impedir a inicialização nativa quando os recursos obrigatórios do jogo não estiverem prontos
+- [x] Compilar e validar o APK com imagens restauradas e início de jogo estabilizado
+- [x] Recuperar apenas imagens originais ou recursos próprios da Home/HUD, sem usar capturas de jogo como fundo
+- [x] Confirmar o diretório de data efetivamente usado pela biblioteca nativa após tocar em JOGAR
+- [x] Recompilar a biblioteca nativa com o caminho privado validado pelo Launcher
+- [ ] Validar a inicialização do SAMP somente após a data obrigatória estar acessível nesse mesmo caminho
+- [x] Verificar a integridade, estrutura e tamanhos reais de `2.11gtasa.zip`
+- [x] Hospedar o ZIP de data fornecido no armazenamento da API publicada
+- [x] Atualizar o manifesto público com URL, versão, SHA-256 e tamanhos reais do pacote
+- [ ] Validar em Android que o Launcher baixa, verifica e extrai integralmente o novo pacote externo
+- [x] Diagnosticar a mensagem de instalação interrompida do Android e gerar um APK compatível
+- [x] Iniciar imediatamente o download e a extração da data real ao abrir o Launcher
+- [x] Manter a verificação de dados em segundo plano, sem uma etapa visual separada antes da instalação
+- [ ] Validar a instalação do APK e o fluxo direto de data no Android
+- [x] Exibir bytes reais, velocidade e tempo estimado durante o download do ZIP de data
+- [x] Separar visualmente download de 580 MB e extração de 2,46 GB sem liberar a Home antes do fim
+- [x] Compilar e validar o APK com downloader detalhado
+- [x] Diagnosticar e corrigir a interrupção do download relatada perto de 82%
+- [x] Impedir que a Home e o jogo sejam liberados enquanto houver data incompleta ou inválida
+- [x] Restaurar a imagem de fundo da Home no Launcher
+- [x] Restaurar a imagem de fundo da tela de atualização
+- [x] Compilar, assinar e validar o APK com as correções de download e fundos
+- [x] Corrigir o tamanho extraído declarado que interrompe a instalação na metade
+- [x] Preservar o ZIP completo e reiniciar apenas a extração ao tocar em TENTAR NOVAMENTE
+- [x] Compilar e validar o APK com a correção de extração e retomada
+- [x] Reconstruir do zero o instalador da data com etapas simples e independentes
+- [x] Validar localmente o ZIP pelo mesmo leitor de extração usado no Android
+- [x] Compilar, assinar e validar o APK reconstruído
+- [x] Inspecionar o modelo de tela de carregamento fornecido pelo usuário
+- [x] Reconstruir a tela de atualização em HTML, CSS e JavaScript com progresso físico de 0% a 100%
+- [x] Abrir obrigatoriamente a atualização antes da Home ao iniciar o APK
+- [x] Instalar a data autorizada somente no diretório privado do aplicativo, sem usar /storage/emulated/0/GTA
+- [x] Validar download, hash, extração e disponibilidade da data antes de liberar JOGAR
+- [x] Diagnosticar o crash após tocar em JOGAR com a data instalada
+- [x] Corrigir a inicialização nativa para usar o diretório privado validado
+- [x] Compilar e validar o APK com proteção contra crash pós-JOGAR
+- [x] Solicitar e validar o acesso de armazenamento necessário para Android moderno
+- [x] Migrar a instalação da data para /storage/emulated/0/GTA
+- [x] Alinhar o Launcher e o motor nativo ao caminho público GTA
+- [x] Compilar e validar o APK com a pasta pública GTA
+- [x] Diagnosticar a interrupção automática de download perto de 554 MB
+- [x] Retomar automaticamente o ZIP parcial sem mostrar erro ao usuário
+- [x] Compilar e validar o APK com repetição automática de download
+- [x] Diagnosticar o bloqueio no primeiro byte do download
+- [x] Diferenciar falha de rede inicial de falhas recuperáveis posteriores
+- [x] Compilar e validar o APK com início de download em 0% corrigido
+- [x] Detectar e remover a cópia antiga em Android/data antes da migração
+- [x] Limpar arquivos temporários e staging incompletos antes de baixar
+- [x] Recalcular e informar o espaço mínimo real para download e extração
+- [x] Compilar e validar o APK com limpeza preventiva de armazenamento
+- [x] Exibir no carregamento a etapa exata anterior ao primeiro byte
+- [x] Corrigir o bloqueio de preparação que mantém o download em 0%
+- [x] Compilar e validar o APK com diagnóstico de início de download
+- [x] Restaurar a logo Crestwood no topo do HUD
+- [x] Restaurar coração e energia com estados reais no HUD
+- [x] Restaurar o menu de configurações pelo botão do HUD
+- [x] Restaurar a roleta de interação e seus controles
+- [x] Compilar e validar o APK com o HUD restaurado
+- [x] Remover o botão HB mantendo velocímetro, aceleração e direção
+- [x] Aplicar a imagem Crestwood Roleplay fornecida como logo do HUD
+- [x] Reconstruir configurações no estilo translúcido de abas da referência
+- [x] Compilar e validar o APK com HUD e configurações atualizados
+- [x] Remover velocímetro, direção, acelerador e freio do HUD veicular
+- [x] Analisar o vídeo de referência para reproduzir configurações e resolução
+- [x] Integrar o sistema Blazer ao menu de interação
+- [x] Integrar a interface de celular enviada ao menu de interação
+- [x] Compilar e validar o APK sem HUD veicular
+- [x] Listar e extrair somente a WebView original de bet_system.rar
+- [x] Substituir a tela Blazer recriada pela interface original do pacote
+- [x] Reposicionar o celular para um canto do HUD em escala de telefone real
+- [x] Compilar e validar o APK com as interfaces corrigidas
+- [x] Substituir somente a imagem de fundo da Home pela arte Crestwood fornecida
+- [x] Compilar e validar o APK sem alterações adicionais no Launcher
+- [x] Corrigir a WebView Blazer que abre invisível ou congelada
+- [x] Corrigir a proporção do celular para não cortar a área central
+- [x] Compilar e validar o APK com Blazer e celular visíveis
+- [x] Reduzir o celular e estreitar suas laterais no canto da tela
+- [x] Garantir que todas as duas linhas de aplicativos apareçam acima do dock
+- [x] Compilar e validar o APK com o celular completo visível
+- [x] Reinspecionar os arquivos HTML, CSS, JavaScript e assets originais de bet_system.rar
+- [x] Reintegrar o Blazer usando somente os arquivos originais do pacote
+- [x] Compilar e validar a abertura da WebView original pela roleta
+- [x] Produzir relatório técnico das modificações da source
+- [ ] Gerar pacote de código-fonte sem chaves, APKs e arquivos de build
+- [ ] Verificar o conteúdo e a integridade do pacote de source

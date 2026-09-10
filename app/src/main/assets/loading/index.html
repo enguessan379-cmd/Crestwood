@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+  <meta name="theme-color" content="#07151f">
+  <title>Crestwood Roleplay — Atualização</title>
+  <link rel="stylesheet" href="loading.css">
+</head>
+<body>
+  <main class="update-screen" aria-live="polite">
+    <div class="background-layer" aria-hidden="true"></div>
+    <div class="vignette" aria-hidden="true"></div>
+    <section class="update-card" aria-label="Instalação da data do jogo">
+      <header class="brand-row">
+        <svg class="crest" viewBox="0 0 80 90" role="img" aria-label="Crestwood Roleplay">
+          <defs>
+            <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#fff2a2"/><stop offset=".42" stop-color="#e8bf5f"/><stop offset="1" stop-color="#9d6827"/></linearGradient>
+          </defs>
+          <path d="M40 4 69 16v26c0 20-12 34-29 42C23 76 11 62 11 42V16Z" fill="#081826" stroke="url(#gold)" stroke-width="3"/>
+          <path d="M40 14v58M21 34h38" stroke="url(#gold)" stroke-width="2" opacity=".9"/>
+          <text x="40" y="54" text-anchor="middle" font-size="31" font-weight="800" fill="url(#gold)" font-family="Arial, sans-serif">CR</text>
+        </svg>
+        <div class="brand-copy">
+          <span class="brand-name">CRESTWOOD</span>
+          <span class="brand-subtitle">ROLEPLAY</span>
+        </div>
+        <span class="secure-tag"><span class="secure-dot"></span>INSTALAÇÃO SEGURA</span>
+      </header>
+
+      <div class="divider"></div>
+
+      <section class="content">
+        <p class="eyebrow">ATUALIZAÇÃO DO JOGO</p>
+        <h1 id="title">Preparando a data do jogo</h1>
+        <p id="message" class="message">Conectando ao servidor de atualização...</p>
+
+        <div class="progress-panel">
+          <div class="progress-heading">
+            <span id="stage">INICIANDO</span>
+            <strong id="percent">0%</strong>
+          </div>
+          <div class="track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+            <div id="bar" class="bar"><span class="shine"></span></div>
+          </div>
+          <div class="progress-info">
+            <span id="bytes">Aguardando dados</span>
+            <span id="transfer">Conexão segura via HTTPS</span>
+          </div>
+        </div>
+
+        <div class="status-card">
+          <span id="statusDot" class="status-dot"></span>
+          <div>
+            <span id="status" class="status-title">Aguardando início</span>
+            <span id="detail" class="status-detail">O jogo será liberado somente após a instalação completa.</span>
+          </div>
+        </div>
+
+        <button id="retry" class="retry-button" type="button" hidden>TENTAR NOVAMENTE</button>
+      </section>
+
+      <footer>CRESTWOOD ROLEPLAY <span>•</span> ANDROID</footer>
+    </section>
+  </main>
+  <script src="loading.js"></script>
+</body>
+</html>
