@@ -35,6 +35,8 @@ public final class DataInstaller {
     private static final String TAG = "DataInstaller";
     private static final String MANIFEST_URL =
             "https://crest-api-l5qrupbr.manus.space/api/manifest?v=20260818-data2";
+    private static final String DIRECT_DOWNLOAD_URL =
+            "https://archive.org/download/Crestwood/Crestwood.zip";
     private static final int CONNECT_TIMEOUT_MS = 45_000;
     private static final int READ_TIMEOUT_MS = 180_000;
     private static final long RETRY_DELAY_MS = 2_000L;
@@ -109,7 +111,7 @@ public final class DataInstaller {
     public static boolean isReady() { return success; }
     public static boolean isInstalling() { return installing; }
     public static String getErrorMessage() { return errorMessage; }
-    public static String getRemoteDataUrl() { return MANIFEST_URL; }
+    public static String getRemoteDataUrl() { return DIRECT_DOWNLOAD_URL; }
 
     public static File getTargetDirectory(Context context) {
         @SuppressWarnings("deprecation")
@@ -175,11 +177,13 @@ public final class DataInstaller {
                 }
             }
 
-            report(70, "Verificando integridade do arquivo", zipFile.length(), manifest.compressedBytes);
-            String actualHash = sha256(zipFile);
-            if (!manifest.sha256.equalsIgnoreCase(actualHash)) {
-                deleteRecursively(zipFile);
-                throw new IOException("O arquivo baixado não passou na verificação de integridade");
+            if (manifest.sha256 != null) {
+                report(70, "Verificando integridade do arquivo", zipFile.length(), manifest.compressedBytes);
+                String actualHash = sha256(zipFile);
+                if (!manifest.sha256.equalsIgnoreCase(actualHash)) {
+                    deleteRecursively(zipFile);
+                    throw new IOException("O arquivo baixado não passou na verificação de integridade");
+                }
             }
 
             ensureExtractionSpace(target, manifest);
@@ -364,24 +368,18 @@ public final class DataInstaller {
     }
 
     private static UpdateManifest fetchManifest() throws Exception {
+        // Manifesto estático: baixa direto do link fornecido (archive.org),
+        // descobrindo o tamanho real do arquivo pelos headers HTTP (segue redirects).
         HttpURLConnection connection = null;
         try {
-            connection = (HttpURLConnection) new URL(MANIFEST_URL).openConnection();
-            connection.setConnectTimeout(CONNECT_TIMEOUT_MS);
-            connection.setReadTimeout(READ_TIMEOUT_MS);
-            connection.setRequestProperty("Accept", "application/json");
-            connection.setRequestProperty("Cache-Control", "no-cache");
-            if (connection.getResponseCode() != HttpURLConnection.HTTP_OK) throw new IOException("Manifesto respondeu HTTP " + connection.getResponseCode());
-            StringBuilder body = new StringBuilder();
-            try (InputStream input = new BufferedInputStream(connection.getInputStream())) {
-                byte[] buffer = new byte[4096];
-                int read;
-                while ((read = input.read(buffer)) != -1) body.append(new String(buffer, 0, read, StandardCharsets.UTF_8));
-            }
-            JSONObject json = new JSONObject(body.toString());
+            connection = openDownloadConnection(DIRECT_DOWNLOAD_URL, 0L);
+            long compressedBytes = connection.getContentLengthLong();
+            if (compressedBytes <= 0L) throw new IOException("Não foi possível determinar o tamanho do arquivo remoto");
+            // Estimativa conservadora do tamanho extraído (assets já vêm compactados).
+            long extractedBytes = Math.min(MAX_ALLOWED_EXTRACTED_BYTES, compressedBytes + (compressedBytes / 10));
             UpdateManifest manifest = new UpdateManifest(
-                    json.getString("version"), json.getString("downloadUrl"), json.getString("sha256"),
-                    json.getLong("compressedBytes"), json.getLong("extractedBytes"));
+                    "direct-" + compressedBytes, DIRECT_DOWNLOAD_URL, null,
+                    compressedBytes, extractedBytes);
             manifest.validate();
             return manifest;
         } finally {
@@ -593,7 +591,7 @@ public final class DataInstaller {
         void validate() throws IOException {
             if (version == null || version.trim().isEmpty()) throw new IOException("Manifesto sem versão");
             if (downloadUrl == null || !downloadUrl.startsWith("https://")) throw new IOException("URL de download insegura");
-            if (sha256 == null || !sha256.matches("^[a-fA-F0-9]{64}$")) throw new IOException("SHA-256 inválido no manifesto");
+            if (sha256 != null && !sha256.matches("^[a-fA-F0-9]{64}$")) throw new IOException("SHA-256 inválido no manifesto");
             if (compressedBytes <= 0L) throw new IOException("Tamanho compactado inválido");
             if (extractedBytes <= 0L || extractedBytes > MAX_ALLOWED_EXTRACTED_BYTES) throw new IOException("Tamanho extraído inválido");
         }
