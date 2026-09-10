@@ -10,6 +10,12 @@ import android.util.Log;
 
 import org.json.JSONObject;
 
+import com.downloader.Error;
+import com.downloader.OnDownloadListener;
+import com.downloader.PRDownloader;
+import com.downloader.PRDownloaderConfig;
+import com.downloader.Progress;
+
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.File;
@@ -65,8 +71,23 @@ public final class DataInstaller {
     private static volatile boolean success;
     private static volatile String errorMessage = "";
     private static volatile Listener listener;
+    private static volatile boolean prDownloaderInitialized;
 
     private DataInstaller() { }
+
+    private static void ensurePRDownloaderInitialized(Context context) {
+        if (prDownloaderInitialized) return;
+        synchronized (DataInstaller.class) {
+            if (prDownloaderInitialized) return;
+            PRDownloader.initialize(context.getApplicationContext(),
+                    PRDownloaderConfig.newBuilder()
+                            .setDatabaseEnabled(true)
+                            .setConnectTimeout(CONNECT_TIMEOUT_MS)
+                            .setReadTimeout(READ_TIMEOUT_MS)
+                            .build());
+            prDownloaderInitialized = true;
+        }
+    }
 
     public static synchronized void prepare(final Context context) {
         if (installing || success) return;
@@ -78,6 +99,7 @@ public final class DataInstaller {
         success = false;
         errorMessage = "";
         readyLatch = new CountDownLatch(1);
+        ensurePRDownloaderInitialized(context);
         new Thread(() -> install(context.getApplicationContext()), "crestwood-data-installer").start();
     }
 
@@ -169,13 +191,10 @@ public final class DataInstaller {
             if (zipFile.isFile() && zipFile.length() == manifest.compressedBytes) {
                 report(70, "Arquivo já baixado; verificando integridade", zipFile.length(), manifest.compressedBytes);
             } else {
-                if (zipFile.exists()) deleteRecursively(zipFile);
-                report(0, "Baixando data do servidor", partialFile.isFile() ? partialFile.length() : 0L, manifest.compressedBytes);
-                downloadToFile(partialFile, manifest);
-                if (!partialFile.renameTo(zipFile)) {
-                    copyFile(partialFile, zipFile);
-                    deleteRecursively(partialFile);
-                }
+                deleteRecursively(zipFile);
+                deleteRecursively(partialFile);
+                report(0, "Baixando data do servidor", 0L, manifest.compressedBytes);
+                downloadWithPRDownloader(zipFile, manifest);
             }
 
             report(70, "Verificando integridade do arquivo", zipFile.length(), manifest.compressedBytes);
@@ -187,15 +206,14 @@ public final class DataInstaller {
                 throw new IOException("O arquivo baixado não passou na verificação de integridade");
             }
 
-            // Tamanho real do conteúdo extraído, lido direto do zip, em vez do placeholder
-            // MAX_ALLOWED_EXTRACTED_BYTES (11.18 GB) usado só como teto de segurança.
-            long realExtractedBytes = computeExtractedSize(zipFile);
-            if (realExtractedBytes <= 0L) realExtractedBytes = manifest.extractedBytes;
+            // Tamanho do zip baixado (confiável, já verificado por SHA-256) usado como referência
+            // de exibição durante a extração — evita mostrar um total "extraído" incorreto.
+            long displayTotalBytes = zipFile.length();
 
             ensureExtractionSpace(target, manifest);
             deleteRecursively(staging);
             if (!staging.mkdirs()) throw new IOException("Não foi possível preparar a instalação");
-            extractZip(zipFile, staging, realExtractedBytes);
+            extractZip(zipFile, staging, displayTotalBytes);
             if (!isComplete(staging)) {
                 Log.e(TAG, "Arquivos ausentes após extração. Conteúdo de " + staging + ": " + listRecursively(staging));
                 throw new IOException("A extração terminou sem os arquivos obrigatórios do jogo");
@@ -210,77 +228,81 @@ public final class DataInstaller {
             if (!isComplete(target)) throw new IOException("A instalação final não contém todos os arquivos necessários");
             deleteRecursively(zipFile);
             deleteRecursively(partialFile);
-            complete(target, realExtractedBytes);
+            complete(target, displayTotalBytes);
         } catch (Throwable error) {
             deleteRecursively(staging);
             fail(error);
         }
     }
 
-    private static final int MAX_STALLED_ATTEMPTS = 15;
+    private static final int MAX_DOWNLOAD_ATTEMPTS = 5;
 
-    private static void downloadToFile(File partialFile, UpdateManifest manifest) throws IOException {
-        int failuresWithoutProgress = 0;
-        while (partialFile.length() < manifest.compressedBytes) {
-            long before = partialFile.length();
+    /**
+     * Baixa o arquivo usando PRDownloader (biblioteca já testada, com gerenciamento de rede
+     * mais robusto que a implementação manual anterior). Roda de forma síncrona neste thread
+     * de instalação via CountDownLatch, com algumas tentativas automáticas em caso de falha.
+     */
+    private static void downloadWithPRDownloader(File targetFile, UpdateManifest manifest) throws IOException {
+        File parent = targetFile.getParentFile();
+        if (parent != null && !parent.exists() && !parent.mkdirs()) {
+            throw new IOException("Não foi possível preparar a pasta de download");
+        }
+        IOException lastError = null;
+        for (int attempt = 1; attempt <= MAX_DOWNLOAD_ATTEMPTS; attempt++) {
+            final CountDownLatch latch = new CountDownLatch(1);
+            final IOException[] failure = new IOException[1];
+            final int downloadId = PRDownloader
+                    .download(manifest.downloadUrl, parent.getAbsolutePath(), targetFile.getName())
+                    .build()
+                    .setOnProgressListener(progress -> {
+                        long total = Math.max(progress.totalBytes, manifest.compressedBytes);
+                        report(downloadPercent(progress.currentBytes, total), "Baixando data do servidor",
+                                progress.currentBytes, total);
+                    })
+                    .start(new OnDownloadListener() {
+                        @Override
+                        public void onDownloadComplete() {
+                            latch.countDown();
+                        }
+
+                        @Override
+                        public void onError(Error error) {
+                            String detail = error != null && error.getServerErrorMessage() != null
+                                    ? error.getServerErrorMessage() : "erro de rede desconhecido";
+                            failure[0] = new IOException("Falha no download: " + detail);
+                            latch.countDown();
+                        }
+                    });
+            boolean finished;
             try {
-                downloadAttempt(partialFile, manifest);
-            } catch (IOException error) {
-                if (!isRecoverableDownloadError(error)) throw error;
+                finished = latch.await(READ_TIMEOUT_MS * 4L, TimeUnit.MILLISECONDS);
+            } catch (InterruptedException error) {
+                Thread.currentThread().interrupt();
+                throw new IOException("Download interrompido", error);
             }
-            long after = partialFile.length();
-            if (after >= manifest.compressedBytes) break;
-            if (after > before) failuresWithoutProgress = 0;
-            else failuresWithoutProgress++;
-            if (failuresWithoutProgress >= MAX_STALLED_ATTEMPTS) {
-                throw new IOException("Download travado sem progresso após várias tentativas. " +
-                        "Verifique sua conexão ou tente novamente mais tarde.");
+            if (!finished) {
+                PRDownloader.cancel(downloadId);
+                lastError = new IOException("Download expirou (tempo limite excedido)");
+            } else if (failure[0] != null) {
+                lastError = failure[0];
+            } else if (!targetFile.isFile() || targetFile.length() <= 0L) {
+                lastError = new IOException("Download concluído mas o arquivo está vazio");
+            } else {
+                report(70, "Download concluído", targetFile.length(), manifest.compressedBytes);
+                return;
             }
-            long waitMs = Math.min(MAX_RETRY_DELAY_MS, RETRY_DELAY_MS * Math.max(1L, failuresWithoutProgress));
-            report(downloadPercent(after, manifest.compressedBytes),
-                    "Conexão interrompida; retomando automaticamente", after, manifest.compressedBytes);
+            Log.w(TAG, "Tentativa " + attempt + "/" + MAX_DOWNLOAD_ATTEMPTS + " de download falhou: " + lastError.getMessage());
+            if (attempt >= MAX_DOWNLOAD_ATTEMPTS) break;
+            report(downloadPercent(0, manifest.compressedBytes),
+                    "Conexão interrompida; tentando novamente (" + attempt + "/" + MAX_DOWNLOAD_ATTEMPTS + ")", 0L, manifest.compressedBytes);
             try {
-                Thread.sleep(waitMs);
+                Thread.sleep(Math.min(MAX_RETRY_DELAY_MS, RETRY_DELAY_MS * attempt));
             } catch (InterruptedException error) {
                 Thread.currentThread().interrupt();
                 throw new IOException("Download interrompido", error);
             }
         }
-        if (partialFile.length() != manifest.compressedBytes) throw new IOException("Download incompleto");
-        report(70, "Download concluído", partialFile.length(), manifest.compressedBytes);
-    }
-
-    private static void downloadAttempt(File partialFile, UpdateManifest manifest) throws IOException {
-        long existing = partialFile.isFile() ? partialFile.length() : 0L;
-        HttpURLConnection connection = null;
-        try {
-            connection = openDownloadConnection(manifest.downloadUrl, existing);
-            int response = connection.getResponseCode();
-            boolean append = existing > 0L && response == HttpURLConnection.HTTP_PARTIAL;
-            if (response != HttpURLConnection.HTTP_OK && !append) throw new IOException("Servidor respondeu HTTP " + response);
-            if (!append) {
-                existing = 0L;
-                deleteRecursively(partialFile);
-            }
-            try (InputStream input = new BufferedInputStream(connection.getInputStream(), 128 * 1024);
-                 OutputStream output = new BufferedOutputStream(new FileOutputStream(partialFile, append), 128 * 1024)) {
-                byte[] buffer = new byte[128 * 1024];
-                long done = existing;
-                int read;
-                while ((read = input.read(buffer)) != -1) {
-                    long remaining = manifest.compressedBytes - done;
-                    if (remaining <= 0L) throw new IOException("O servidor enviou bytes além do tamanho esperado");
-                    int accepted = (int) Math.min((long) read, remaining);
-                    output.write(buffer, 0, accepted);
-                    done += accepted;
-                    report(downloadPercent(done, manifest.compressedBytes), "Baixando data do servidor", done, manifest.compressedBytes);
-                    if (accepted != read) break;
-                }
-                output.flush();
-            }
-        } finally {
-            if (connection != null) connection.disconnect();
-        }
+        throw lastError != null ? lastError : new IOException("Falha no download após várias tentativas");
     }
 
     private static HttpURLConnection openDownloadConnection(String urlString, long existing) throws IOException {
@@ -331,10 +353,12 @@ public final class DataInstaller {
         return commonRoot;
     }
 
-    private static void extractZip(File zipFile, File staging, long extractedBytesTotal) throws IOException {
+    private static void extractZip(File zipFile, File staging, long displayTotalBytes) throws IOException {
         long extracted = 0L;
         String rootPath = staging.getCanonicalPath() + File.separator;
         try (java.util.zip.ZipFile zip = new java.util.zip.ZipFile(zipFile)) {
+            int totalEntries = Math.max(1, zip.size());
+            int processedEntries = 0;
             String stripPrefix = detectCommonRootPrefix(zip);
             if (stripPrefix != null) {
                 Log.i(TAG, "Zip com pasta raiz única '" + stripPrefix + "'; será ignorada na extração");
@@ -344,6 +368,7 @@ public final class DataInstaller {
             java.util.Enumeration<? extends ZipEntry> entries = zip.entries();
             while (entries.hasMoreElements()) {
                 ZipEntry entry = entries.nextElement();
+                processedEntries++;
                 String name = entry.getName();
                 if (name == null || name.isEmpty() || name.startsWith("__MACOSX")) continue;
                 if (stripPrefix != null) {
@@ -366,30 +391,16 @@ public final class DataInstaller {
                         extracted += read;
                         if (extracted > MAX_ALLOWED_EXTRACTED_BYTES) throw new IOException("A data excede o limite de segurança");
                         out.write(buffer, 0, read);
-                        int percent = 71 + (int) Math.min(28L, extracted * 28L / Math.max(1L, extractedBytesTotal));
-                        report(percent, "Instalando arquivos do jogo", extracted, extractedBytesTotal);
                     }
                 }
+                // Progresso baseado na contagem de entradas do zip (confiável), não no tamanho
+                // "extractedBytes" declarado no zip (pode estar incorreto/desatualizado no pacote).
+                int percent = 71 + (int) Math.min(28L, processedEntries * 28L / totalEntries);
+                report(percent, "Instalando arquivos do jogo", Math.min(extracted, displayTotalBytes), displayTotalBytes);
             }
         }
         if (extracted <= 0L) throw new IOException("O pacote não contém arquivos para extrair");
-        report(99, "Arquivos extraídos; finalizando instalação", extracted, extractedBytesTotal);
-    }
-
-    /** Soma o tamanho descompactado real de todas as entradas do zip (mais preciso que o manifesto). */
-    private static long computeExtractedSize(File zipFile) {
-        long total = 0L;
-        try (java.util.zip.ZipFile zip = new java.util.zip.ZipFile(zipFile)) {
-            java.util.Enumeration<? extends ZipEntry> entries = zip.entries();
-            while (entries.hasMoreElements()) {
-                ZipEntry entry = entries.nextElement();
-                if (!entry.isDirectory() && entry.getSize() > 0L) total += entry.getSize();
-            }
-        } catch (IOException error) {
-            Log.w(TAG, "Não foi possível calcular o tamanho real da data extraída", error);
-            return 0L;
-        }
-        return total;
+        report(99, "Arquivos extraídos; finalizando instalação", displayTotalBytes, displayTotalBytes);
     }
 
     /** Lista o conteúdo de um diretório (usado só para diagnóstico em log quando a extração falha). */
