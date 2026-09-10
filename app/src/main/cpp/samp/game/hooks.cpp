@@ -150,6 +150,9 @@ void Render2dStuff_hook()
         if (pTextDrawPool && pTextDrawPool->GetState() == false) {
             pTextDrawPool->SnapshotProcess();
         }
+        if (pTextDrawPool) {
+            pTextDrawPool->Draw();
+        }
     }
 
     if (pUI) pUI->render();
