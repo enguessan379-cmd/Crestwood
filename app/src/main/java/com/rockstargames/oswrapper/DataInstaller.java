@@ -177,8 +177,16 @@ public final class DataInstaller {
             UpdateManifest manifest = fetchManifestWithRetry();
             String markerValue = manifest.version + ":" + manifest.sha256;
             File marker = new File(target, ".gtasa_data_version");
-            if (marker.isFile() && markerValue.equals(readSmallFile(marker)) && isComplete(target)) {
+
+            // Se a pasta GTA já contém todos os arquivos obrigatórios (copiada manualmente,
+            // instalação anterior, outro launcher, etc.), não baixa nada de novo — só grava
+            // o marcador para acelerar a próxima verificação.
+            if (isComplete(target)) {
+                Log.i(TAG, "Data já presente em " + target + "; pulando download");
                 cleanupLegacyPrivateData(context, target);
+                if (!marker.isFile() || !markerValue.equals(readSmallFile(marker))) {
+                    writeSmallFile(marker, markerValue);
+                }
                 complete(target, manifest.extractedBytes);
                 return;
             }
