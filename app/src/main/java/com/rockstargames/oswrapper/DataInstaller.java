@@ -42,8 +42,8 @@ public final class DataInstaller {
     private static final String MANIFEST_URL =
             "https://crest-api-l5qrupbr.manus.space/api/manifest?v=20260818-data2";
     private static final boolean USE_STATIC_ARCHIVE_SOURCE = true;
-    private static final String STATIC_DOWNLOAD_URL = "https://archive.org/download/Crestwood/Crestwood.zip";
-    private static final String STATIC_VERSION = "static-archive-crestwood-1";
+    private static final String STATIC_DOWNLOAD_URL = "https://dn1.sharemods.com/cgi-bin/dl.cgi/dsnlrs3fw4ja6fjthrt2u6pdbbk3bs6odvzar2rcquu2odl4tngavgy/Data_file_Lite___40_samp__41_.zip";
+    private static final String STATIC_VERSION = "static-sharemods-data-lite-1";
     private static final int CONNECT_TIMEOUT_MS = 45_000;
     private static final int READ_TIMEOUT_MS = 180_000;
     private static final long RETRY_DELAY_MS = 2_000L;
