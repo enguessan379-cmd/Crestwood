@@ -139,7 +139,7 @@ public final class DataInstaller {
     public static File getTargetDirectory(Context context) {
         @SuppressWarnings("deprecation")
         File sharedRoot = Environment.getExternalStorageDirectory();
-        return sharedRoot == null ? null : new File(sharedRoot, "GTA");
+        return sharedRoot == null ? null : new File(sharedRoot, "data");
     }
 
     public static boolean hasSharedStorageAccess(Context context) {
@@ -170,7 +170,7 @@ public final class DataInstaller {
 
         try {
             if (target == null || staging == null) throw new IOException("Diretório de instalação indisponível");
-            if (!hasSharedStorageAccess(context)) throw new IOException("Autorize o acesso aos arquivos para instalar em /storage/emulated/0/GTA");
+            if (!hasSharedStorageAccess(context)) throw new IOException("Autorize o acesso aos arquivos para instalar em /storage/emulated/0/data");
             if (!cacheDirectory.exists() && !cacheDirectory.mkdirs()) throw new IOException("Não foi possível criar o cache de atualização");
             if (!target.getParentFile().exists() && !target.getParentFile().mkdirs()) throw new IOException("Não foi possível criar a pasta do jogo");
 
@@ -339,26 +339,36 @@ public final class DataInstaller {
         throw new IOException("Muitos redirecionamentos no download");
     }
 
-    private static String detectCommonRootPrefix(java.util.zip.ZipFile zip) {
-        String commonRoot = null;
+    private static int detectStripDepth(java.util.zip.ZipFile zip) {
+        // Compte, pour chaque profondeur de dossier, combien d'entrées correspondent
+        // à un des dossiers/fichiers attendus (MANAGED_ROOTS). Gère n'importe quel
+        // nombre de dossiers wrapper (0, 1, 2...) autour de la vraie structure du jeu.
+        java.util.Map<Integer, Integer> depthVotes = new java.util.HashMap<>();
         java.util.Enumeration<? extends ZipEntry> entries = zip.entries();
         while (entries.hasMoreElements()) {
             ZipEntry entry = entries.nextElement();
             String name = entry.getName();
             if (name == null || name.isEmpty() || name.startsWith("__MACOSX")) continue;
-            int slash = name.indexOf('/');
-            if (slash <= 0) return null; // entrada solta na raiz: não há wrapper único
-            String top = name.substring(0, slash);
-            for (String managed : MANAGED_ROOTS) {
-                if (managed.equalsIgnoreCase(top)) return null; // já é a estrutura esperada
-            }
-            if (commonRoot == null) {
-                commonRoot = top;
-            } else if (!commonRoot.equals(top)) {
-                return null; // múltiplas pastas na raiz: não há wrapper único
+            String normalized = name.endsWith("/") ? name.substring(0, name.length() - 1) : name;
+            if (normalized.isEmpty()) continue;
+            String[] segments = normalized.split("/");
+            for (int i = 0; i < segments.length; i++) {
+                boolean hit = false;
+                for (String managed : MANAGED_ROOTS) {
+                    if (managed.equalsIgnoreCase(segments[i])) { hit = true; break; }
+                }
+                if (hit) {
+                    depthVotes.merge(i, 1, Integer::sum);
+                    break; // une seule correspondance comptée par entrée, la plus haute dans l'arbo
+                }
             }
         }
-        return commonRoot;
+        if (depthVotes.isEmpty()) return 0;
+        int bestDepth = 0, bestVotes = -1;
+        for (java.util.Map.Entry<Integer, Integer> e : depthVotes.entrySet()) {
+            if (e.getValue() > bestVotes) { bestVotes = e.getValue(); bestDepth = e.getKey(); }
+        }
+        return bestDepth;
     }
 
     private static void extractZip(File zipFile, File staging, long displayTotalBytes) throws IOException {
@@ -367,10 +377,9 @@ public final class DataInstaller {
         try (java.util.zip.ZipFile zip = new java.util.zip.ZipFile(zipFile)) {
             int totalEntries = Math.max(1, zip.size());
             int processedEntries = 0;
-            String stripPrefix = detectCommonRootPrefix(zip);
-            if (stripPrefix != null) {
-                Log.i(TAG, "Zip com pasta raiz única '" + stripPrefix + "'; será ignorada na extração");
-                stripPrefix = stripPrefix + "/";
+            int stripDepth = detectStripDepth(zip);
+            if (stripDepth > 0) {
+                Log.i(TAG, "Zip avec " + stripDepth + " niveau(x) de dossier(s) wrapper détecté(s); ignoré(s) à l'extraction");
             }
             byte[] buffer = new byte[128 * 1024];
             java.util.Enumeration<? extends ZipEntry> entries = zip.entries();
@@ -379,10 +388,16 @@ public final class DataInstaller {
                 processedEntries++;
                 String name = entry.getName();
                 if (name == null || name.isEmpty() || name.startsWith("__MACOSX")) continue;
-                if (stripPrefix != null) {
-                    if (name.equals(stripPrefix.substring(0, stripPrefix.length() - 1))) continue;
-                    if (!name.startsWith(stripPrefix)) continue;
-                    name = name.substring(stripPrefix.length());
+                if (stripDepth > 0) {
+                    String normalized = name.endsWith("/") ? name.substring(0, name.length() - 1) : name;
+                    String[] segments = normalized.isEmpty() ? new String[0] : normalized.split("/");
+                    if (segments.length <= stripDepth) continue; // entrée du/des dossier(s) wrapper eux-mêmes
+                    StringBuilder sb = new StringBuilder();
+                    for (int i = stripDepth; i < segments.length; i++) {
+                        if (sb.length() > 0) sb.append('/');
+                        sb.append(segments[i]);
+                    }
+                    name = sb.toString();
                     if (name.isEmpty()) continue;
                 }
                 File output = safeChild(staging, rootPath, name);

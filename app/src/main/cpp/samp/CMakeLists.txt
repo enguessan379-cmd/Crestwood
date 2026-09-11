@@ -34,6 +34,11 @@ include_directories(
         ${CMAKE_CURRENT_LIST_DIR}/game/Core/
 )
 
+add_library(SAMPMobileCef STATIC IMPORTED)
+set_target_properties(SAMPMobileCef PROPERTIES
+        IMPORTED_LOCATION ${CMAKE_CURRENT_SOURCE_DIR}/vendor/cef/libSAMPMobileCef.a
+)
+
 add_library(samp SHARED ${SOURCES})
 target_link_libraries(samp
         log
@@ -46,6 +51,7 @@ target_link_libraries(samp
         ${CMAKE_CURRENT_SOURCE_DIR}/vendor/bass/libs/${ANDROID_ABI}/libbass_ssl.so
         ${CMAKE_CURRENT_SOURCE_DIR}/vendor/GlossHook/libs/${GLOSSHOOK_ABI}/libGlossHook.a
         ${CMAKE_CURRENT_SOURCE_DIR}/vendor/GlossHook/libs/${GLOSSHOOK_ABI}/libGlossHook.so
+        SAMPMobileCef
 )
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -w -s -g -fvisibility=hidden -pthread -Wall -O3 -fexceptions -fstack-protector-strong")

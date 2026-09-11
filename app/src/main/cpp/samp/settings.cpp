@@ -12,7 +12,7 @@ CSettings::CSettings()
 	Log("Loading settings..");	
 
 	char buff[512];
-	const char* storage = (g_pszStorage && g_pszStorage[0]) ? g_pszStorage : "/storage/emulated/0/GTA/";
+	const char* storage = (g_pszStorage && g_pszStorage[0]) ? g_pszStorage : "/storage/emulated/0/data/";
 	snprintf(buff, sizeof(buff), "%sSAMP/settings.ini", storage);
 
 	INIReader reader(buff);

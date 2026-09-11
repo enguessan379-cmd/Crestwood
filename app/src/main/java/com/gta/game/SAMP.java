@@ -17,9 +17,14 @@ import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.Toast;
+import android.view.ViewGroup;
 import com.rockstargames.oswrapper.GameThread;
 import org.json.JSONObject;
 import androidx.constraintlayout.widget.ConstraintLayout;
+
+// TODO: ajuster ce package selon celui fourni par le .aar sampmobilecef-...-release.aar
+import com.akazuki.sampmobilecef.CefJavaManager;
+import com.akazuki.sampmobilecef.CefClientManager;
 
 //import com.google.firebase.crashlytics.FirebaseCrashlytics;
 import com.joom.paranoid.Obfuscate;
@@ -47,6 +52,9 @@ public class SAMP extends GTASA implements HeightProvider.HeightListener {
     private volatile int pharmacyBalance = 0;
     private String lastHudJson = "";
     private long lastHudDispatchMs;
+
+    private CefJavaManager mJavaManager;
+    private CefClientManager mClientManager;
 
     public static SAMP getInstance() {
         return instance;
@@ -76,6 +84,13 @@ public class SAMP extends GTASA implements HeightProvider.HeightListener {
                         mDialog.showWithOldContent();
                     if (mAttachEdit.isShow)
                         mAttachEdit.showWithoutReset();
+                }
+
+                if (mJavaManager != null && mJavaManager.isShow()) {
+                    if (pause)
+                        mJavaManager.hideBrowserView();
+                    else
+                        mJavaManager.showBrowserView();
                 }
             }
         });
@@ -114,6 +129,12 @@ public class SAMP extends GTASA implements HeightProvider.HeightListener {
         instance = this;
         initializeChatInput();
         initializeHudWebView();
+
+        ViewGroup rootFrame = (ViewGroup) getWindow().getDecorView().findViewById(android.R.id.content);
+        mJavaManager = new CefJavaManager((FrameLayout) rootFrame, getInstance());
+        mClientManager = new CefClientManager(getInstance());
+        mJavaManager.setClientManager(mClientManager);
+        mClientManager.setJavaManager(mJavaManager);
 
         try {
             setNativeStoragePath(GetGameBaseDirectory());

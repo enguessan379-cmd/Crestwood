@@ -104,5 +104,6 @@ public class LoadingScreen {
 
     private final class LoadingBridge {
         @JavascriptInterface public void start() { DataInstaller.prepare(activity); }
+        @JavascriptInterface public void retry() { DataInstaller.repair(activity); }
     }
 }

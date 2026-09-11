@@ -30,6 +30,7 @@
 #include "crashlytics.h"
 #include "game/CFirstPersonCamera.hpp"
 #include "CServerManager.h"
+#include "vendor/cef/SAMPMobileCef.h"
 
 /*
 Peerapol Unarak
@@ -38,7 +39,7 @@ Peerapol Unarak
 JavaVM* javaVM;
 
 
-static char g_storageBuffer[512] = "/storage/emulated/0/GTA/";
+static char g_storageBuffer[512] = "/storage/emulated/0/data/";
 char* g_pszStorage = g_storageBuffer;
 
 UI* pUI = nullptr;
@@ -203,6 +204,8 @@ void DoInitStuff()
 	if (!pGame || !pUI) return;
 	if (bGameInited == false)
 	{
+		cef::setGamePath(g_pszStorage);
+
 		pPlayerTags = new CPlayerTags();
 		pSnapShotHelper = new CSnapShotHelper();
 		pMaterialTextGenerator = new MaterialTextGenerator();
@@ -487,7 +490,7 @@ void Log(const char* fmt, ...)
 
 	if (flLog == nullptr && pszStorage != nullptr)
 	{
-		snprintf(buffer, sizeof(buffer), "%slogcat.txt", (pszStorage && pszStorage[0]) ? pszStorage : "/storage/emulated/0/GTA/");
+		snprintf(buffer, sizeof(buffer), "%slogcat.txt", (pszStorage && pszStorage[0]) ? pszStorage : "/storage/emulated/0/data/");
 		flLog = fopen(buffer, "a");
 	}
 
@@ -516,7 +519,7 @@ void LogVoice(const char* fmt, ...)
 
 	if (flLog == nullptr)
 	{
-		const char* base = (pszStorage && pszStorage[0]) ? pszStorage : "/storage/emulated/0/GTA/";
+		const char* base = (pszStorage && pszStorage[0]) ? pszStorage : "/storage/emulated/0/data/";
 		snprintf(buffer, sizeof(buffer), "%sSAMP/svlog.txt", base);
 		flLog = fopen(buffer, "a");
 	}

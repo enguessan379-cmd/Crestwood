@@ -13,6 +13,9 @@
 #include "CLocalisation.h"
 #include "textdrawpool.h"
 #include "gangzonepool.h"
+#include "../vendor/cef/SAMPMobileCef.h"
+
+#define ID_CUSTOM_CEF 252
 
 //#define AUTH_BS "39FB2DEEDB49ACFB8D4EECE6953D2507988CCCF4410"//main
 #define AUTH_BS "E02262CF28BC542486C558D4BE9EFB716592AFAF8B"
@@ -66,6 +69,8 @@ CNetGame::CNetGame(const char* szHostOrIp, int iPort, const char *szPlayerName, 
 
 	m_pRakClient = RakNetworkFactory::GetRakClientInterface();
 	InitializePools();
+
+	cef::initNetwork(m_pRakClient, ID_CUSTOM_CEF);
 
 	GetPlayerPool()->SetLocalPlayerName(szPlayerName);
 
@@ -307,6 +312,10 @@ void CNetGame::UpdateNetwork()
 
 			case ID_TRAILER_SYNC:
 				Packet_TrailerSync(pkt);
+				break;
+
+			case ID_CUSTOM_CEF:
+				cef::handlePacket(pkt);
 				break;
 		}
 		// voice
@@ -612,6 +621,8 @@ void CNetGame::Packet_ConnectionSucceeded(Packet *pkt)
 	// voice
 	SpeakerList::Hide();
 	MicroIcon::Hide();
+
+	cef::handleServerConnection();
 }
 // 0.3.7
 void CNetGame::Packet_FailedInitializeEncription(Packet *pkt)
