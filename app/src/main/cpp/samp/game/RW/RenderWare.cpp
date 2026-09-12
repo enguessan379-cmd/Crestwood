@@ -116,8 +116,8 @@ void InitRenderWareFunctions()
 	*(void **)(&RwIm2DRenderIndexedPrimitive)	= (void*)(CHook::getSym("_Z35RwIm2DRenderIndexedPrimitive_BUGFIX15RwPrimitiveTypeP14RwOpenGLVertexiPti"));
 
 	/* rtpng.h */
-	*(void **)(&RtPNGImageWrite)				= (void*)(CHook::getSym("RtPNGImageWrite"));
-	*(void **)(&RtPNGImageRead)					= (void*)(CHook::getSym("RtPNGImageRead"));
+	*(void **)(&RtPNGImageWrite)				= (void*)(CHook::getSym("_Z15RtPNGImageWriteP7RwImagePKc"));
+	*(void **)(&RtPNGImageRead)					= (void*)(CHook::getSym("_Z14RtPNGImageReadPKc"));
 
 	*(void**)(&RwTextureDestroy) 				= (void*)(CHook::getSym("_Z16RwTextureDestroyP9RwTexture"));
 }

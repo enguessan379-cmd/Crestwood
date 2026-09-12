@@ -17,7 +17,7 @@ android {
         multiDexEnabled = true
 
         ndk {
-            abiFilters.add("armeabi-v7a")
+            abiFilters.add("arm64-v8a")
         }
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
