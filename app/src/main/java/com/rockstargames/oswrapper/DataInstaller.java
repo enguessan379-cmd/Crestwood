@@ -42,8 +42,8 @@ public final class DataInstaller {
     private static final String MANIFEST_URL =
             "https://crest-api-l5qrupbr.manus.space/api/manifest?v=20260818-data2";
     private static final boolean USE_STATIC_ARCHIVE_SOURCE = true;
-    private static final String STATIC_DOWNLOAD_URL = "https://dn1.sharemods.com/cgi-bin/dl.cgi/dsnlrs3fw4ja6fjthrt2u6pdbbk3bs6odvzar2rcquu2odl4tngavgy/Data_file_Lite___40_samp__41_.zip";
-    private static final String STATIC_VERSION = "static-sharemods-data-lite-1";
+    private static final String STATIC_DOWNLOAD_URL = "https://github.com/enguessan379-cmd/Crestwood/releases/download/Samp/files.zip";
+    private static final String STATIC_VERSION = "static-github-data-lite-1";
     private static final int CONNECT_TIMEOUT_MS = 45_000;
     private static final int READ_TIMEOUT_MS = 180_000;
     private static final long RETRY_DELAY_MS = 2_000L;
@@ -196,9 +196,12 @@ public final class DataInstaller {
             long existingDownload = zipFile.isFile() ? zipFile.length() : (partialFile.isFile() ? partialFile.length() : 0L);
             ensureDownloadAndExtractionSpace(target, existingDownload, manifest);
 
-            if (zipFile.isFile() && zipFile.length() == manifest.compressedBytes) {
+            if (zipFile.isFile() && zipFile.length() == manifest.compressedBytes && isValidZipArchive(zipFile)) {
                 report(70, "Arquivo já baixado; verificando integridade", zipFile.length(), manifest.compressedBytes);
             } else {
+                if (zipFile.isFile() && zipFile.length() == manifest.compressedBytes) {
+                    Log.w(TAG, "Arquivo em cache tinha o tamanho esperado mas não é um ZIP válido; baixando novamente");
+                }
                 deleteRecursively(zipFile);
                 deleteRecursively(partialFile);
                 report(0, "Baixando data do servidor", 0L, manifest.compressedBytes);
@@ -206,6 +209,11 @@ public final class DataInstaller {
             }
 
             report(70, "Verificando integridade do arquivo", zipFile.length(), manifest.compressedBytes);
+            if (!isValidZipArchive(zipFile)) {
+                deleteRecursively(zipFile);
+                deleteRecursively(partialFile);
+                throw new IOException("O link de download não retornou um arquivo ZIP válido (provável expiração/bloqueio do link de origem). Tente novamente mais tarde.");
+            }
             String actualHash = sha256(zipFile);
             if (manifest.sha256 == null) {
                 Log.i(TAG, "Pacote sem SHA-256 de referência (fonte estática); hash calculado: " + actualHash);
@@ -369,6 +377,29 @@ public final class DataInstaller {
             if (e.getValue() > bestVotes) { bestVotes = e.getValue(); bestDepth = e.getKey(); }
         }
         return bestDepth;
+    }
+
+    /**
+     * Verifica rapidamente se o arquivo baixado é mesmo um ZIP (assinatura "PK") e se o
+     * java.util.zip consegue abrir seu diretório central. Evita cair no meio da extração
+     * com "zip END header not found" quando o servidor devolveu uma página HTML (link
+     * expirado, bloqueio de anti-bot, redirecionamento inesperado, etc.) em vez do pacote.
+     */
+    private static boolean isValidZipArchive(File file) {
+        if (file == null || !file.isFile() || file.length() < 4L) return false;
+        try (InputStream input = new FileInputStream(file)) {
+            byte[] signature = new byte[4];
+            if (input.read(signature) != 4) return false;
+            if (signature[0] != 'P' || signature[1] != 'K') return false;
+        } catch (IOException error) {
+            return false;
+        }
+        try (java.util.zip.ZipFile probe = new java.util.zip.ZipFile(file)) {
+            return probe.size() > 0;
+        } catch (Exception error) {
+            Log.w(TAG, "Arquivo baixado não é um ZIP válido: " + error.getMessage());
+            return false;
+        }
     }
 
     private static void extractZip(File zipFile, File staging, long displayTotalBytes) throws IOException {
