@@ -121,11 +121,6 @@ void handler(int signum, siginfo_t *info, void* contextPtr)
 {
 	ucontext* context = (ucontext_t*)contextPtr;
 
-	if (act_old.sa_sigaction)
-	{
-		act_old.sa_sigaction(signum, info, contextPtr);
-	}
-
 	if(info->si_signo == SIGSEGV)
 	{
 		Log("SIGSEGV | Fault address: 0x%x", info->si_addr);
@@ -135,17 +130,17 @@ void handler(int signum, siginfo_t *info, void* contextPtr)
 		CStackTrace::printBacktrace();
 	}
 
+	if (act_old.sa_sigaction)
+	{
+		act_old.sa_sigaction(signum, info, contextPtr);
+	}
+
 	return;
 }
 
 void handler1(int signum, siginfo_t *info, void* contextPtr)
 {
 	ucontext* context = (ucontext_t*)contextPtr;
-
-	if (act1_old.sa_sigaction)
-	{
-		act1_old.sa_sigaction(signum, info, contextPtr);
-	}
 
 	if(info->si_signo == SIGABRT)
 	{
@@ -156,17 +151,17 @@ void handler1(int signum, siginfo_t *info, void* contextPtr)
 		CStackTrace::printBacktrace();
 	}
 
+	if (act1_old.sa_sigaction)
+	{
+		act1_old.sa_sigaction(signum, info, contextPtr);
+	}
+
 	return;
 }
 
 void handler2(int signum, siginfo_t *info, void* contextPtr)
 {
 	ucontext* context = (ucontext_t*)contextPtr;
-
-	if (act2_old.sa_sigaction)
-	{
-		act2_old.sa_sigaction(signum, info, contextPtr);
-	}
 
 	if(info->si_signo == SIGFPE)
 	{
@@ -177,17 +172,17 @@ void handler2(int signum, siginfo_t *info, void* contextPtr)
 		CStackTrace::printBacktrace();
 	}
 
+	if (act2_old.sa_sigaction)
+	{
+		act2_old.sa_sigaction(signum, info, contextPtr);
+	}
+
 	return;
 }
 
 void handler3(int signum, siginfo_t *info, void* contextPtr)
 {
 	ucontext* context = (ucontext_t*)contextPtr;
-
-	if (act3_old.sa_sigaction)
-	{
-		act3_old.sa_sigaction(signum, info, contextPtr);
-	}
 
 	if(info->si_signo == SIGBUS)
 	{
@@ -196,6 +191,11 @@ void handler3(int signum, siginfo_t *info, void* contextPtr)
 		PRINT_CRASH_STATES(context);
 
 		CStackTrace::printBacktrace();
+	}
+
+	if (act3_old.sa_sigaction)
+	{
+		act3_old.sa_sigaction(signum, info, contextPtr);
 	}
 
 	return;
