@@ -52,12 +52,12 @@ public final class DataInstaller {
     private static final long MAX_ALLOWED_EXTRACTED_BYTES = 12_000_000_000L;
     private static final long STORAGE_MARGIN_BYTES = 96L * 1024L * 1024L;
     private static final String[] MANAGED_ROOTS = {
-            "anim", "audio", "data", "models", "texdb", "text", "textures", "SAMP",
-            "CINFO.BIN", "GTASAsf10.b", "fonts", "gta_sa.set", "stream.ini"
+            "anim", "audio", "data", "models", "texdb", "SAMP",
+            "CINFO.BIN", "GTASAMP10.b", "fonts", "gta_sa.set", "stream.ini"
     };
     private static final String[] REQUIRED_FILES = {
             "anim/ped.ifp", "audio/STREAMS/AA.osw", "data/gta.dat", "data/default.dat",
-            "SAMP/main.scm", "SAMP/script.img", "texdb/gta3.img", "texdb/player.img", "text/american.gxt"
+            "SAMP/main.scm", "SAMP/script.img", "texdb/gta3.img", "texdb/player.img"
     };
 
     public interface Listener {
@@ -231,8 +231,9 @@ public final class DataInstaller {
             if (!staging.mkdirs()) throw new IOException("Não foi possível preparar a instalação");
             extractZip(zipFile, staging, displayTotalBytes);
             if (!isComplete(staging)) {
+                java.util.List<String> missing = describeMissing(staging);
                 Log.e(TAG, "Arquivos ausentes após extração. Conteúdo de " + staging + ": " + listRecursively(staging));
-                throw new IOException("A extração terminou sem os arquivos obrigatórios do jogo");
+                throw new IOException("Faltam no pacote: " + String.join(", ", missing));
             }
 
             deleteRecursively(target);
@@ -241,7 +242,9 @@ public final class DataInstaller {
                 deleteRecursively(staging);
             }
             writeSmallFile(new File(target, ".gtasa_data_version"), markerValue);
-            if (!isComplete(target)) throw new IOException("A instalação final não contém todos os arquivos necessários");
+            if (!isComplete(target)) {
+                throw new IOException("Faltam após mover para o destino final: " + String.join(", ", describeMissing(target)));
+            }
             deleteRecursively(zipFile);
             deleteRecursively(partialFile);
             complete(target, displayTotalBytes);
@@ -611,12 +614,18 @@ public final class DataInstaller {
     }
 
     private static boolean isComplete(File root) {
-        for (String name : MANAGED_ROOTS) if (!new File(root, name).exists()) return false;
+        return describeMissing(root).isEmpty();
+    }
+
+    /** Retourne la liste des dossiers/fichiers obrigatoires absents (ou vides) sous root. */
+    private static java.util.List<String> describeMissing(File root) {
+        java.util.List<String> missing = new java.util.ArrayList<>();
+        for (String name : MANAGED_ROOTS) if (!new File(root, name).exists()) missing.add(name + "/");
         for (String name : REQUIRED_FILES) {
             File file = new File(root, name);
-            if (!file.isFile() || file.length() <= 0L) return false;
+            if (!file.isFile() || file.length() <= 0L) missing.add(name);
         }
-        return true;
+        return missing;
     }
 
     private static void complete(File target, long extractedBytesTotal) {
