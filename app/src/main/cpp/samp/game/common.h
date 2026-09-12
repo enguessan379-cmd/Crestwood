@@ -427,7 +427,7 @@ struct CWeapon
 	uintptr_t *m_pWeaponFxSys;
 };
 #pragma pack(pop)
-static_assert(sizeof(CWeapon) == 0x20, "Invalid size CPlaceable");
+static_assert(sizeof(CWeapon) == (VER_x32 ? 0x1C : 0x20), "Invalid size CWeapon");
 
 //-----------------------------------------------------------
 
