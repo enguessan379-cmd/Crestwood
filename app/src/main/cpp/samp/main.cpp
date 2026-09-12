@@ -30,7 +30,9 @@
 #include "crashlytics.h"
 #include "game/CFirstPersonCamera.hpp"
 #include "CServerManager.h"
+#ifdef HAS_CEF
 #include "vendor/cef/SAMPMobileCef.h"
+#endif
 
 /*
 Peerapol Unarak
@@ -204,7 +206,9 @@ void DoInitStuff()
 	if (!pGame || !pUI) return;
 	if (bGameInited == false)
 	{
+#ifdef HAS_CEF
 		cef::setGamePath(g_pszStorage);
+#endif
 
 		pPlayerTags = new CPlayerTags();
 		pSnapShotHelper = new CSnapShotHelper();

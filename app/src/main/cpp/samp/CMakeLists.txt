@@ -6,9 +6,12 @@ set(CMAKE_CXX_STANDARD 20)
 if(${ANDROID_ABI} STREQUAL "armeabi-v7a")
     add_definitions(-DVER_x32=true)
     set(GLOSSHOOK_ABI "ARM")
+    add_definitions(-DHAS_CEF=1)
 elseif(${ANDROID_ABI} STREQUAL "arm64-v8a")
     add_definitions(-DVER_x32=false)
     set(GLOSSHOOK_ABI "ARM64")
+    # libSAMPMobileCef.a n'existe qu'en ARM 32-bit (ELF32), pas de variante arm64.
+    # On désactive le module CEF pour cet ABI plutôt que de faire planter le lien.
 endif()
 
 file(GLOB_RECURSE SOURCES
@@ -34,11 +37,6 @@ include_directories(
         ${CMAKE_CURRENT_LIST_DIR}/game/Core/
 )
 
-add_library(SAMPMobileCef STATIC IMPORTED)
-set_target_properties(SAMPMobileCef PROPERTIES
-        IMPORTED_LOCATION ${CMAKE_CURRENT_SOURCE_DIR}/vendor/cef/libSAMPMobileCef.a
-)
-
 add_library(samp SHARED ${SOURCES})
 target_link_libraries(samp
         log
@@ -51,8 +49,15 @@ target_link_libraries(samp
         ${CMAKE_CURRENT_SOURCE_DIR}/vendor/bass/libs/${ANDROID_ABI}/libbass_ssl.so
         ${CMAKE_CURRENT_SOURCE_DIR}/vendor/GlossHook/libs/${GLOSSHOOK_ABI}/libGlossHook.a
         ${CMAKE_CURRENT_SOURCE_DIR}/vendor/GlossHook/libs/${GLOSSHOOK_ABI}/libGlossHook.so
-        SAMPMobileCef
 )
+
+if(${ANDROID_ABI} STREQUAL "armeabi-v7a")
+    add_library(SAMPMobileCef STATIC IMPORTED)
+    set_target_properties(SAMPMobileCef PROPERTIES
+            IMPORTED_LOCATION ${CMAKE_CURRENT_SOURCE_DIR}/vendor/cef/libSAMPMobileCef.a
+    )
+    target_link_libraries(samp SAMPMobileCef)
+endif()
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -w -s -g -fvisibility=hidden -pthread -Wall -O3 -fexceptions -fstack-protector-strong")
 target_compile_options(samp PRIVATE
