@@ -441,6 +441,7 @@ jint JNI_OnLoad(JavaVM* vm, void* reserved)
 
 	CHook::InitHookStuff();
 	InstallSpecialHooks();
+	InstallCrashFixHooks();
 	ApplyPatches_level0();
     //SetUpGLHooks();
     InitRenderWareFunctions();
