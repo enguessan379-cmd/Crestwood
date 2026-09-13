@@ -1,6 +1,10 @@
 ﻿#include <jni.h>
 #include <pthread.h>
 #include <syscall.h>
+#include <signal.h>
+#include <cstdlib>
+#include <cstdint>
+#include <stdexcept>
 
 #include "main.h"
 #include "game/game.h"
@@ -247,13 +251,32 @@ void DoInitStuff()
 			if (!pSettings) return;
 			//CServerInstance::initConnection(1);
 
-	        pNetGame = new CNetGame(
+		Log("Pre-CNetGame: host='%s' port=%d nick='%s'",
+			pSettings->Get().szHost,
+			pSettings->Get().iPort,
+			pSettings->Get().szNickName);
 
-                pSettings->Get().szHost,
-                pSettings->Get().iPort,
-                pSettings->Get().szNickName,
-                pSettings->Get().szPassword
-        );
+		try
+		{
+			pNetGame = new CNetGame(
+					pSettings->Get().szHost,
+					pSettings->Get().iPort,
+					pSettings->Get().szNickName,
+					pSettings->Get().szPassword
+			);
+		}
+		catch (const std::exception& e)
+		{
+			Log("[FATAL]: exception C++ pendant la creation de CNetGame: %s", e.what());
+			throw;
+		}
+		catch (...)
+		{
+			Log("[FATAL]: exception inconnue (non std::exception) pendant la creation de CNetGame");
+			throw;
+		}
+
+		Log("Post-CNetGame: pNetGame=%p", (void*)pNetGame);
 
 		bNetworkInited = true;
 
@@ -454,29 +477,60 @@ jint JNI_OnLoad(JavaVM* vm, void* reserved)
 	//pthread_t thread;
 	//pthread_create(&thread, 0, Init, 0);
 
+	// IMPORTANT: sans pile alternative, un crash qui survient pendant un
+	// stack overflow ne peut PAS etre livre a nos handlers (le noyau n'a
+	// plus de place sur la pile courante pour empiler le contexte du
+	// signal). Resultat: le process meurt en silence, sans aucun de nos
+	// logs "SIGSEGV | Fault address...". On alloue donc une pile dediee
+	// et on l'active avec SA_ONSTACK sur chaque handler.
+	static uint8_t altStackBuffer[SIGSTKSZ * 4];
+	stack_t altStack;
+	altStack.ss_sp = altStackBuffer;
+	altStack.ss_size = sizeof(altStackBuffer);
+	altStack.ss_flags = 0;
+	if (sigaltstack(&altStack, nullptr) != 0)
+	{
+		Log("[WARN]: sigaltstack a echoue, les crashs stack-overflow ne seront pas logues");
+	}
+
 	struct sigaction act;
 	act.sa_sigaction = handler;
 	sigemptyset(&act.sa_mask);
-	act.sa_flags = SA_SIGINFO;
+	act.sa_flags = SA_SIGINFO | SA_ONSTACK;
 	sigaction(SIGSEGV, &act, &act_old);
 
 	struct sigaction act1;
 	act1.sa_sigaction = handler1;
 	sigemptyset(&act1.sa_mask);
-	act1.sa_flags = SA_SIGINFO;
+	act1.sa_flags = SA_SIGINFO | SA_ONSTACK;
 	sigaction(SIGABRT, &act1, &act1_old);
 
 	struct sigaction act2;
 	act2.sa_sigaction = handler2;
 	sigemptyset(&act2.sa_mask);
-	act2.sa_flags = SA_SIGINFO;
+	act2.sa_flags = SA_SIGINFO | SA_ONSTACK;
 	sigaction(SIGFPE, &act2, &act2_old);
 
 	struct sigaction act3;
 	act3.sa_sigaction = handler3;
 	sigemptyset(&act3.sa_mask);
-	act3.sa_flags = SA_SIGINFO;
+	act3.sa_flags = SA_SIGINFO | SA_ONSTACK;
 	sigaction(SIGBUS, &act3, &act3_old);
+
+	// SIGILL et SIGTRAP n'etaient pas du tout interceptes auparavant.
+	// Un hook ARM/patch memoire mal ecrit (mauvais opcode, mauvais mode
+	// thumb/arm) declenche typiquement SIGILL, pas SIGSEGV -> c'etait un
+	// angle mort complet de ce systeme de logging.
+	static struct sigaction act4_old;
+	struct sigaction act4;
+	act4.sa_sigaction = [](int signum, siginfo_t* info, void* contextPtr) {
+		Log("SIGILL | Fault address: 0x%x", info->si_addr);
+		CStackTrace::printBacktrace();
+		if (act4_old.sa_sigaction) act4_old.sa_sigaction(signum, info, contextPtr);
+	};
+	sigemptyset(&act4.sa_mask);
+	act4.sa_flags = SA_SIGINFO | SA_ONSTACK;
+	sigaction(SIGILL, &act4, &act4_old);
 		
 	return JNI_VERSION_1_6;
 }
