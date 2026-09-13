@@ -43,7 +43,7 @@ CSettings::CSettings()
 	m_Settings.bOnline = reader.GetBoolean("debug", "online", true);
 
 	// gui
-	length = reader.Get("gui", "Font", "arial.ttf").copy(m_Settings.szFont, MAX_SETTINGS_STRING);
+	length = reader.Get("gui", "Font", "arial.ttf").copy(m_Settings.szFont, sizeof(m_Settings.szFont) - 1);
 	m_Settings.szFont[length] = '\0';
 	m_Settings.fFontSize = reader.GetReal("gui", "FontSize", 30.0f);
 	m_Settings.iFontOutline = reader.GetInteger("gui", "FontOutline", 2);
