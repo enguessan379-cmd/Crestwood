@@ -1,0 +1,111 @@
+/* O visual abaixo reutiliza as medidas, o skew, as cores e os assets do
+   recurso C:\NOVOS SITEMAS\VELOCIMETRO\Hud+Velocimetro. */
+
+.literal-status-bars[hidden],
+.vehicle-speedometer[hidden] {
+  display: none !important;
+}
+
+.literal-status-bars {
+  position: absolute;
+  left: max(18px, env(safe-area-inset-left));
+  bottom: max(24px, env(safe-area-inset-bottom));
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  z-index: 4;
+  transform: skew(-10deg, 0deg);
+}
+
+.literal-life-box {
+  --status-fill: 100%;
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  width: 35px;
+  height: 35px;
+  overflow: hidden;
+  border-radius: 6px;
+  background-color: rgba(0, 0, 0, 0.5);
+}
+
+.literal-life-box .literal-life-bar {
+  position: absolute;
+  bottom: 0;
+  width: 100%;
+  height: var(--status-fill);
+  border-radius: 6px;
+  transition: height 0.2s ease-in-out;
+}
+
+.literal-life-box .literal-image-box {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.literal-life-box .literal-image-box img {
+  max-width: 17px;
+  height: 15px;
+  transform: skew(10deg, 0deg);
+}
+
+.literal-life-box.health .literal-life-bar {
+  background: linear-gradient(to top right, #991111 0%, #ff2e2e 100%);
+}
+
+.literal-life-box.hunger .literal-life-bar {
+  background: linear-gradient(to top right, #a0530c 0%, #f18926 100%);
+}
+
+.literal-life-box.thirst .literal-life-bar {
+  background: linear-gradient(to top right, #0d3e75 0%, #1571db 100%);
+}
+
+.literal-life-box.energy .literal-life-bar {
+  background: linear-gradient(to top right, #ac8211 0%, #ffe057 100%);
+}
+
+.literal-life-box.armour .literal-life-bar {
+  background: linear-gradient(to top right, #23137c 0%, #3e25ca 100%);
+}
+
+.hud-root:not(.vehicle-hud-active) .animations-toggle-button {
+  left: max(237px, calc(env(safe-area-inset-left) + 237px));
+}
+
+.vehicle-speedometer {
+  position: absolute !important;
+  left: 50% !important;
+  right: auto !important;
+  top: auto;
+  bottom: calc(env(safe-area-inset-bottom) - 10px) !important;
+  width: 320px !important;
+  height: 250px !important;
+  z-index: 4;
+  transform: translateX(-50%);
+  transform-origin: top left;
+  overflow: hidden;
+  border: 0;
+  background: transparent;
+  filter: none !important;
+  pointer-events: none;
+}
+
+.literal-speedometer-frame {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: transparent;
+  pointer-events: none;
+}
+
+.hud-editing .vehicle-speedometer {
+  overflow: visible;
+}

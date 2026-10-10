@@ -1939,6 +1939,13 @@ int CTextureDatabaseRuntime__GetEntry_hook(TextureDatabaseRuntime *a1, const cha
 }
 void InstallCrashFixHooks()
 {
+    // FIX: cette fonction est appelee 2 fois (JNI_OnLoad puis CGame::StartGame -> InstallHooks).
+    // CHook::InstallPLT relit le slot GOT pour remplir 'orig'. Au 2e appel le slot contient deja
+    // notre hook -> orig == hook -> recursion infinie -> stack overflow (crash silencieux).
+    static bool s_installed = false;
+    if (s_installed) return;
+    s_installed = true;
+
     // some crashfixes
     CHook::InstallPLT(g_libGTASA + 0x845C20, &CCustomRoadsignMgr_RenderRoadsignAtomic_hook, &CCustomRoadsignMgr_RenderRoadsignAtomic);
     CHook::InstallPLT(g_libGTASA + 0x83F7F0, &_RwTextureDestroy_hook, &_RwTextureDestroy);

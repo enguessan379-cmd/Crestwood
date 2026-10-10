@@ -3,7 +3,16 @@ package com.gta.game;
 import android.os.Bundle;
 import android.os.SystemClock;
 import android.util.Log;
+import android.graphics.Bitmap;
 import android.graphics.Color;
+import android.graphics.Rect;
+import android.content.SharedPreferences;
+import android.os.Handler;
+import android.os.Looper;
+import android.util.Base64;
+import android.view.PixelCopy;
+import android.view.SurfaceView;
+import java.io.ByteArrayOutputStream;
 import android.view.View;
 import android.view.Gravity;
 import android.view.KeyEvent;
@@ -47,6 +56,7 @@ public class SAMP extends GTASA implements HeightProvider.HeightListener {
     private EditText chatInput;
     private boolean configOpen;
     private boolean pharmacyOpen;
+    private boolean cameraOpen;
     private volatile int hudHunger = 100;
     private volatile int hudThirst = 100;
     private volatile int pharmacyBalance = 0;
@@ -130,11 +140,19 @@ public class SAMP extends GTASA implements HeightProvider.HeightListener {
         initializeChatInput();
         initializeHudWebView();
 
-        ViewGroup rootFrame = (ViewGroup) getWindow().getDecorView().findViewById(android.R.id.content);
-        mJavaManager = new CefJavaManager((FrameLayout) rootFrame, getInstance());
-        mClientManager = new CefClientManager(getInstance());
-        mJavaManager.setClientManager(mClientManager);
-        mClientManager.setJavaManager(mJavaManager);
+        // Build arm64 : libSAMPMobileCef.a n'existe qu'en 32 bits, donc CefClientManager.initJava()
+        // (natif) n'a aucune implementation et levait UnsatisfiedLinkError a l'ouverture du jeu.
+        try {
+            ViewGroup rootFrame = (ViewGroup) getWindow().getDecorView().findViewById(android.R.id.content);
+            mJavaManager = new CefJavaManager((FrameLayout) rootFrame, getInstance());
+            mClientManager = new CefClientManager(getInstance());
+            mJavaManager.setClientManager(mClientManager);
+            mClientManager.setJavaManager(mJavaManager);
+        } catch (UnsatisfiedLinkError | NoClassDefFoundError e) {
+            Log.w(TAG, "CEF natif indisponible sur cet ABI, navigateur CEF desactive", e);
+            mJavaManager = null;
+            mClientManager = null;
+        }
 
         try {
             setNativeStoragePath(GetGameBaseDirectory());
@@ -268,6 +286,7 @@ public class SAMP extends GTASA implements HeightProvider.HeightListener {
         settings.setLoadWithOverviewMode(false);
         settings.setUseWideViewPort(false);
         hudWebView.addJavascriptInterface(new HudAndroidBridge(), "AndroidHUD");
+        hudWebView.addJavascriptInterface(new SampHudBridge(), "SampHud");
         hudWebView.setVisibility(View.VISIBLE);
         hudWebView.loadUrl("file:///android_asset/hud/index.html");
     }
@@ -413,6 +432,7 @@ public class SAMP extends GTASA implements HeightProvider.HeightListener {
             if (hudWebView == null) return;
             configOpen = false;
             pharmacyOpen = false;
+            cameraOpen = false;
             hudWebView.setFullscreenPage(false);
             hudWebView.setPhonePage(false);
             hudWebView.setVisibility(View.VISIBLE);
@@ -422,6 +442,10 @@ public class SAMP extends GTASA implements HeightProvider.HeightListener {
 
     @Override
     public void onBackPressed() {
+        if (cameraOpen) {
+            closePhoneCamera();
+            return;
+        }
         if (pharmacyOpen) {
             closePharmacy();
             return;
@@ -498,6 +522,10 @@ public class SAMP extends GTASA implements HeightProvider.HeightListener {
                 openPhonePage();
                 return;
             }
+            if ("camera:open".equals(action)) {
+                openPhoneCamera();
+                return;
+            }
             if ("blazer:open".equals(action)) {
                 openInteractionPage("blazer/index.html");
                 return;
@@ -552,6 +580,256 @@ public class SAMP extends GTASA implements HeightProvider.HeightListener {
             }
             Log.d(TAG, "HUD action=" + action + " payload=" + payload);
         }
+    }
+
+
+    // ------------------------------------------------------------------
+    // Caméra du téléphone Crestwood (capture de l'écran de jeu -> galerie Photos du téléphone)
+    // ------------------------------------------------------------------
+    private void openPhoneCamera() {
+        runOnUiThread(() -> {
+            if (hudWebView == null) return;
+            configOpen = true;
+            pharmacyOpen = false;
+            cameraOpen = true;
+            hudWebView.setWheelOpen(false);
+            hudWebView.setPhonePage(false);
+            hudWebView.setFullscreenPage(true);
+            hudWebView.setVisibility(View.VISIBLE);
+            hudWebView.loadUrl("file:///android_asset/hud/index.html?camera=phone");
+        });
+    }
+
+    /** Ferme la caméra et revient sur le téléphone (la page Photos s'ouvre si une photo a été prise). */
+    private void closePhoneCamera() {
+        runOnUiThread(() -> {
+            cameraOpen = false;
+            openPhonePage();
+        });
+    }
+
+    private void hudJs(final String script) {
+        runOnUiThread(() -> {
+            if (hudWebView != null && !isFinishing()) hudWebView.evaluateJavascript(script, null);
+        });
+    }
+
+    private void cameraStatus(String status, String url, String message) {
+        hudJs("window.HudApp && HudApp.rgCameraNativeStatus("
+                + JSONObject.quote(status) + "," + JSONObject.quote(url == null ? "" : url) + ","
+                + JSONObject.quote(message == null ? "" : message) + ")");
+    }
+
+    /** Copie la zone demandée (coordonnées CSS du HUD) depuis la SurfaceView du jeu. */
+    private void captureGameRegion(final int left, final int top, final int width, final int height, final int innerW, final int innerH) {
+        runOnUiThread(() -> {
+            View gameView = findViewById(R.id.viewGame);
+            if (!(gameView instanceof SurfaceView) || hudWebView == null || innerW <= 0 || innerH <= 0 || width <= 0 || height <= 0) {
+                cameraStatus("error", "", "Impossible de capturer l'image.");
+                return;
+            }
+            final SurfaceView game = (SurfaceView) gameView;
+            Rect frame = game.getHolder().getSurfaceFrame();
+            int surfaceW = frame.width();
+            int surfaceH = frame.height();
+            if (surfaceW <= 0 || surfaceH <= 0 || game.getWidth() <= 0 || game.getHeight() <= 0) {
+                cameraStatus("error", "", "Le jeu n'est pas prêt.");
+                return;
+            }
+            float sx = hudWebView.getWidth() / (float) innerW;
+            float sy = hudWebView.getHeight() / (float) innerH;
+            float fx0 = (left * sx - game.getLeft()) / game.getWidth();
+            float fy0 = (top * sy - game.getTop()) / game.getHeight();
+            float fx1 = ((left + width) * sx - game.getLeft()) / game.getWidth();
+            float fy1 = ((top + height) * sy - game.getTop()) / game.getHeight();
+            int x0 = Math.max(0, Math.min(surfaceW - 1, Math.round(fx0 * surfaceW)));
+            int y0 = Math.max(0, Math.min(surfaceH - 1, Math.round(fy0 * surfaceH)));
+            int x1 = Math.max(x0 + 2, Math.min(surfaceW, Math.round(fx1 * surfaceW)));
+            int y1 = Math.max(y0 + 2, Math.min(surfaceH, Math.round(fy1 * surfaceH)));
+            final Rect src = new Rect(x0, y0, x1, y1);
+            int outW = Math.min(src.width(), 640);
+            int outH = Math.max(1, Math.round(outW * (src.height() / (float) src.width())));
+            final Bitmap bitmap = Bitmap.createBitmap(outW, outH, Bitmap.Config.ARGB_8888);
+            cameraStatus("capturing", "", "");
+            try {
+                PixelCopy.request(game, src, bitmap, result -> {
+                    if (result != PixelCopy.SUCCESS) {
+                        bitmap.recycle();
+                        cameraStatus("error", "", "Capture impossible, réessaie.");
+                        return;
+                    }
+                    new Thread(() -> {
+                        try {
+                            ByteArrayOutputStream out = new ByteArrayOutputStream();
+                            bitmap.compress(Bitmap.CompressFormat.JPEG, 72, out);
+                            bitmap.recycle();
+                            String url = "data:image/jpeg;base64," + Base64.encodeToString(out.toByteArray(), Base64.NO_WRAP);
+                            cameraStatus("captured", url, "");
+                        } catch (Throwable t) {
+                            cameraStatus("error", "", "Impossible d'enregistrer la photo.");
+                        }
+                    }, "hud-photo").start();
+                }, new Handler(Looper.getMainLooper()));
+            } catch (Throwable t) {
+                Log.e(TAG, "PixelCopy failed", t);
+                cameraStatus("error", "", "Capture impossible sur cet appareil.");
+            }
+        });
+    }
+
+    // ------------------------------------------------------------------
+    // Pont natif du HUD Crestwood (window.SampHud côté JavaScript)
+    // ------------------------------------------------------------------
+
+    /**
+     * Commandes de chat envoyées au serveur par les boutons du HUD.
+     * ADAPTE CES VALEURS aux commandes réelles de ton gamemode PAWN ("" = ne rien envoyer).
+     */
+    private static final String CMD_ENGINE = "/moteur";
+    private static final String CMD_VEHICLE_LOCK = "/lock";
+    private static final String CMD_ANIMATIONS = "/anim";
+    private static final String CMD_INVENTORY = "/inventaire";
+    private static final String CMD_MAP = "/gps";
+    private static final String CMD_STORE = "/boutique";
+    private static final String CMD_AUDIO = "";
+    private static final String CMD_CALL_ACCEPT = "";
+    private static final String CMD_CALL_REJECT = "";
+    /** Les actions "système" (boutique, objectifs, documents, Faggio...) passent par "/hudaction <action> <données>". */
+    private static final String CMD_SYSTEM = "/hudaction";
+
+    private void sendHudCommand(final String command) {
+        if (command == null || command.trim().isEmpty()) return;
+        runOnUiThread(() -> sendChatInput(command.trim()));
+    }
+
+    private SharedPreferences identityPrefs() {
+        return getSharedPreferences("crestwood_hud_identity", MODE_PRIVATE);
+    }
+
+    private final class SampHudBridge {
+        @JavascriptInterface public void ready() {
+            SharedPreferences launcher = getSharedPreferences("crestwood_launcher", MODE_PRIVATE);
+            String nick = launcher.getString("saved_nickname", "");
+            JSONObject info = new JSONObject();
+            try {
+                if (nick != null && !nick.isEmpty()) info.put("name", nick);
+                info.put("ready", 1);
+            } catch (Exception ignored) { }
+            hudJs("window.HudApp && HudApp.openFromNative(" + info + ")");
+        }
+
+        @JavascriptInterface public void setTouchBounds(String raw) {
+            if (hudWebView != null) hudWebView.setTouchBounds(raw);
+        }
+
+        @JavascriptInterface public void setInteractionState(boolean chatOpen, boolean menuOpen) {
+            if (hudWebView != null) hudWebView.setInteractive(chatOpen || menuOpen);
+        }
+
+        @JavascriptInterface public void setHudEditorOpen(boolean open) {
+            if (hudWebView != null) hudWebView.setInteractive(open);
+        }
+
+        @JavascriptInterface public void setIdentityOpen(boolean open) {
+            if (hudWebView != null) hudWebView.setInteractive(open);
+        }
+
+        @JavascriptInterface public void setIdentitySigning(boolean signing) {
+            if (hudWebView != null) hudWebView.setInteractive(signing);
+        }
+
+        @JavascriptInterface public void showAndroidKeyboard() {
+            runOnUiThread(() -> { if (hudWebView != null) hudWebView.showKeyboard(); });
+        }
+
+        @JavascriptInterface public void hideAndroidKeyboard() {
+            runOnUiThread(() -> { if (hudWebView != null) hudWebView.hideKeyboard(); });
+        }
+
+        @JavascriptInterface public void sendChatMessage(String message) {
+            if (message == null) return;
+            final String clean = message.trim();
+            if (!clean.isEmpty()) runOnUiThread(() -> sendChatInput(clean));
+        }
+
+        @JavascriptInterface public void menuAction(String action) {
+            if (action == null) return;
+            switch (action) {
+                case "phone": openPhonePage(); break;
+                case "settings": openConfig(); break;
+                case "inventory": sendHudCommand(CMD_INVENTORY); break;
+                case "map": sendHudCommand(CMD_MAP); break;
+                case "audio": sendHudCommand(CMD_AUDIO); break;
+                case "store": sendHudCommand(CMD_STORE); break;
+                case "records": openInteractionPage("blazer/index.html"); break;
+                default: Log.d(TAG, "menuAction inconnue: " + action);
+            }
+        }
+
+        @JavascriptInterface public void systemAction(String action, String payload) {
+            if (action == null || action.isEmpty()) return;
+            if ("close".equals(action)) return;
+            sendHudCommand(CMD_SYSTEM + " " + action + (payload == null || payload.isEmpty() ? "" : " " + payload));
+        }
+
+        @JavascriptInterface public void engineAction(String action) { sendHudCommand(CMD_ENGINE); }
+        @JavascriptInterface public void vehicleLockAction() { sendHudCommand(CMD_VEHICLE_LOCK); }
+        @JavascriptInterface public void openAnimations() { sendHudCommand(CMD_ANIMATIONS); }
+
+        @JavascriptInterface public void radioAction(String action, String value) {
+            if (action == null || action.isEmpty()) return;
+            sendHudCommand("/radioact " + action + (value == null || value.isEmpty() ? "" : " " + value));
+        }
+
+        @JavascriptInterface public void weaponAction(String action) {
+            Log.d(TAG, "weaponAction=" + action);
+        }
+
+        @JavascriptInterface public void phoneCallAction(String action, String phone) {
+            String base = "accept".equals(action) ? CMD_CALL_ACCEPT : CMD_CALL_REJECT;
+            if (base != null && !base.isEmpty()) sendHudCommand(base + (phone == null || phone.isEmpty() ? "" : " " + phone));
+            else Log.d(TAG, "phoneCallAction=" + action + " phone=" + phone);
+        }
+
+        // ---- Carte d'identité : stockage local (SharedPreferences) ----
+        @JavascriptInterface public void saveIdentityPhoto(String value) {
+            identityPrefs().edit().putString("photo", value == null ? "" : value).apply();
+        }
+
+        @JavascriptInterface public void saveIdentitySignature(String value) {
+            identityPrefs().edit().putString("signature", value == null ? "" : value).apply();
+        }
+
+        @JavascriptInterface public void requestIdentityAssets() {
+            SharedPreferences prefs = identityPrefs();
+            String photo = prefs.getString("photo", "");
+            String signature = prefs.getString("signature", "");
+            try {
+                if (!photo.isEmpty()) {
+                    JSONObject event = new JSONObject().put("type", "photo").put("value", photo);
+                    hudJs("window.HudApp && HudApp.receiveIdentityEvent(" + event + ")");
+                }
+                if (!signature.isEmpty()) {
+                    hudJs("window.HudApp && HudApp.receiveIdentityEvent(" + new JSONObject().put("type", "signature_start").put("chunks", 1) + ")");
+                    hudJs("window.HudApp && HudApp.receiveIdentityEvent(" + new JSONObject().put("type", "signature_chunk").put("idx", 0).put("value", signature) + ")");
+                    hudJs("window.HudApp && HudApp.receiveIdentityEvent(" + new JSONObject().put("type", "signature_end") + ")");
+                }
+            } catch (Exception ignored) { }
+        }
+
+        // ---- Caméra (carte d'identité et téléphone) ----
+        @JavascriptInterface public void openRgCamera() { }
+        @JavascriptInterface public void closeRgCamera() { }
+
+        @JavascriptInterface public void captureRgPhoto(int left, int top, int width, int height, int innerWidth, int innerHeight) {
+            captureGameRegion(left, top, width, height, innerWidth, innerHeight);
+        }
+
+        /** Le déplacement du cadre pilote la caméra du jeu : non branché côté moteur natif pour l'instant. */
+        @JavascriptInterface public void adjustRgCamera(int dx, int dy) { }
+
+        /** Appelé par le HUD quand la caméra du téléphone se ferme (photo prise ou annulée). */
+        @JavascriptInterface public void phoneCameraDone(boolean saved) { closePhoneCamera(); }
     }
 
     private void dispatchVehicleControl(String payload) {

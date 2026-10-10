@@ -464,7 +464,8 @@ jint JNI_OnLoad(JavaVM* vm, void* reserved)
 
 	CHook::InitHookStuff();
 	InstallSpecialHooks();
-	InstallCrashFixHooks();
+	// InstallCrashFixHooks() est deja appele par InstallHooks() (CGame::StartGame):
+	// l'appeler ici aussi cassait les hooks PLT (orig == hook -> recursion infinie).
 	ApplyPatches_level0();
     //SetUpGLHooks();
     InitRenderWareFunctions();
