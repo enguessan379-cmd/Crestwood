@@ -55,10 +55,29 @@ public final class DataInstaller {
             "anim", "audio", "data", "models", "texdb", "SAMP",
             "CINFO.BIN", "GTASAMP10.b", "fonts", "gta_sa.set", "stream.ini"
     };
-    private static final String[] REQUIRED_FILES = {
-            "anim/ped.ifp", "audio/STREAMS/AA.osw", "data/gta.dat", "data/default.dat",
-            "SAMP/main.scm", "SAMP/script.img", "texdb/gta3.img", "texdb/player.img"
-    };
+    // Structure texdb attendue (celle de la data complete) : chaque base de textures existe dans
+    // les 3 formats (dxt / etc / pvr), car le moteur choisit le format selon le GPU du telephone.
+    // Un format absent = crash natif dans TextureDatabaseRuntime::LoadEPK au clic sur JOGAR.
+    private static final String[] TEXDB_BASES = { "gta3", "gta_int", "mobile", "txd", "menu", "samp" };
+    private static final String[] TEXDB_FORMATS = { "dxt", "etc", "pvr" };
+    private static final String[] TEXDB_PARTS = { "dat", "tmb", "toc" };
+    private static final String[] REQUIRED_FILES = buildRequiredFiles();
+
+    private static String[] buildRequiredFiles() {
+        java.util.List<String> files = new java.util.ArrayList<>(java.util.Arrays.asList(
+                "anim/ped.ifp", "audio/STREAMS/AA.osw", "data/gta.dat", "data/default.dat",
+                "SAMP/main.scm", "SAMP/script.img", "texdb/gta3.img", "texdb/player.img"));
+        for (String base : TEXDB_BASES)
+            for (String format : TEXDB_FORMATS)
+                for (String part : TEXDB_PARTS)
+                    files.add("texdb/" + base + "/" + base + "." + format + "." + part);
+        // player / playerhi sont toujours charges en PVR par le moteur.
+        for (String part : TEXDB_PARTS) {
+            files.add("texdb/player/player.pvr." + part);
+            files.add("texdb/playerhi/playerhi.pvr." + part);
+        }
+        return files.toArray(new String[0]);
+    }
 
     public interface Listener {
         void onProgress(int percent, String phase, long bytesDone, long bytesTotal);

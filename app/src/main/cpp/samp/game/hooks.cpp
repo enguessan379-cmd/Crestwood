@@ -2087,7 +2087,7 @@ void InstallSpecialHooks()
 {
     InjectHooks();
 
-   InstallUrezHooks();
+   // InstallUrezHooks(); // desactive : redirigeait pvr->dxt, mais player/playerhi n'existent qu'en pvr
 
     CHook::InlineHook("_ZN5CGame20InitialiseRenderWareEv", &CGame__InitialiseRenderWare_hook, &CGame__InitialiseRenderWare);
     CHook::InstallPLT(g_libGTASA + 0x83DE90, &StartGameScreen__OnNewGameCheck_hook, &StartGameScreen__OnNewGameCheck);
