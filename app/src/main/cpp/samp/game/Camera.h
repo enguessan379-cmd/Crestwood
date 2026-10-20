@@ -419,7 +419,7 @@ public:
     static CCamera& Get() {
         static CCamera* pCamera = nullptr;
         if (!pCamera) {
-            pCamera = reinterpret_cast<CCamera*>(g_libGTASA + (VER_x32 ? 0x00951FA8 : 0xBBA8D0));
+            pCamera = reinterpret_cast<CCamera*>(g_libGTASA + (VER_x32 ? 0x00951FA8 : 0x9F86F8));
         }
         return *pCamera;
     }

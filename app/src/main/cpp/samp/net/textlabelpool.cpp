@@ -85,7 +85,7 @@ void C3DTextLabelPool::Render(ImGuiRenderer* renderer)
     CPlayerPed* pLocalPed = pLocalPlayer->GetPlayerPed();
     if (!pLocalPed || !pLocalPed->m_pPed) return;
 
-    static CCamera& TheCamera = *reinterpret_cast<CCamera*>(g_libGTASA + (VER_x32 ? 0x00951FA8 : 0xBBA8D0));
+    static CCamera& TheCamera = *reinterpret_cast<CCamera*>(g_libGTASA + (VER_x32 ? 0x00951FA8 : 0x9F86F8));
 
     for (int i = 0; i < MAX_TEXT_LABELS; i++)
     {
@@ -160,7 +160,7 @@ void C3DTextLabelPool::Draw(ImGuiRenderer* renderer, TEXT_LABEL* label, const CV
     CPlayerPed* pLocalPed = pLocalPlayer->GetPlayerPed();
     if (!pLocalPed || !pLocalPed->m_pPed) return;
 
-    static CCamera& TheCamera = *reinterpret_cast<CCamera*>(g_libGTASA + (VER_x32 ? 0x00951FA8 : 0xBBA8D0));
+    static CCamera& TheCamera = *reinterpret_cast<CCamera*>(g_libGTASA + (VER_x32 ? 0x00951FA8 : 0x9F86F8));
 
     int hitEntity = 0;
     if (label->bTestLOS) {
@@ -173,7 +173,7 @@ void C3DTextLabelPool::Draw(ImGuiRenderer* renderer, TEXT_LABEL* label, const CV
         if (fDist <= label->fDistance && fDist >= 0.0f) {
             CVector vecOut;
             typedef void (*CalcScreenCoors_t)(CVector*, CVector*, float*, float*, bool, bool);
-            CalcScreenCoors_t CalcScreenCoors = (CalcScreenCoors_t)(g_libGTASA + (VER_x32 ? 0x005C57E8 + 1 : 0x6E9DF8));
+            CalcScreenCoors_t CalcScreenCoors = (CalcScreenCoors_t)(g_libGTASA + (VER_x32 ? 0x005C57E8 + 1 : 0x5F449C));
 
             if (CalcScreenCoors) {
                 CalcScreenCoors((CVector*)&vecPos, &vecOut, 0, 0, 0, 0);

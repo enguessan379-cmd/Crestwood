@@ -140,16 +140,16 @@ public class SAMP extends GTASA implements HeightProvider.HeightListener {
         initializeChatInput();
         initializeHudWebView();
 
-        // Build arm64 : libSAMPMobileCef.a n'existe qu'en 32 bits, donc CefClientManager.initJava()
-        // (natif) n'a aucune implementation et levait UnsatisfiedLinkError a l'ouverture du jeu.
+        ViewGroup rootFrame = (ViewGroup) getWindow().getDecorView().findViewById(android.R.id.content);
+        // CEF : les fonctions JNI (initJava...) n'existent qu'en armeabi-v7a (libSAMPMobileCef.a est 32-bit).
+        // En arm64 le constructeur de CefClientManager lance un UnsatisfiedLinkError -> crash. On l'isole.
         try {
-            ViewGroup rootFrame = (ViewGroup) getWindow().getDecorView().findViewById(android.R.id.content);
             mJavaManager = new CefJavaManager((FrameLayout) rootFrame, getInstance());
             mClientManager = new CefClientManager(getInstance());
             mJavaManager.setClientManager(mClientManager);
             mClientManager.setJavaManager(mJavaManager);
-        } catch (UnsatisfiedLinkError | NoClassDefFoundError e) {
-            Log.w(TAG, "CEF natif indisponible sur cet ABI, navigateur CEF desactive", e);
+        } catch (Throwable t) {
+            Log.w(TAG, "CEF indisponible sur cette ABI, ignoré : " + t);
             mJavaManager = null;
             mClientManager = null;
         }
