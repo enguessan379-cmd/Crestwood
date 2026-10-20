@@ -1392,6 +1392,58 @@ void NvUtilInit_hook() {
 
 }
 
+// Android est sensible a la casse : le moteur demande par ex. TEXT/AMERICAN.GXT alors que le
+// dossier peut s'appeler text/american.gxt. On cherche donc chaque element du chemin sans tenir
+// compte de la casse (uniquement sous g_pszStorage) avant d'abandonner.
+#include <dirent.h>
+#include <strings.h>
+#include <unistd.h>
+static bool ResolvePathNoCase(char* path, size_t cap)
+{
+    if (!g_pszStorage || !g_pszStorage[0]) return false;
+    size_t rootLen = strlen(g_pszStorage);
+    if (strncmp(path, g_pszStorage, rootLen) != 0) return false;
+
+    char rel[255];
+    snprintf(rel, sizeof(rel), "%s", path + rootLen);
+
+    char cur[512];
+    snprintf(cur, sizeof(cur), "%s", g_pszStorage);
+    size_t curLen = strlen(cur);
+    if (curLen > 0 && cur[curLen - 1] == '/') cur[--curLen] = '\0';
+
+    char* saveptr = nullptr;
+    for (char* part = strtok_r(rel, "/", &saveptr); part; part = strtok_r(nullptr, "/", &saveptr))
+    {
+        if (!part[0]) continue;
+        DIR* dir = opendir(cur[0] ? cur : "/");
+        if (!dir) return false;
+
+        bool found = false;
+        char match[256] = {0};
+        while (dirent* entry = readdir(dir))
+        {
+            if (strcasecmp(entry->d_name, part) == 0)
+            {
+                snprintf(match, sizeof(match), "%s", entry->d_name);
+                found = true;
+                break;
+            }
+        }
+        closedir(dir);
+        if (!found) return false;
+
+        size_t used = strlen(cur);
+        if (used + 1 + strlen(match) + 1 >= sizeof(cur)) return false;
+        cur[used] = '/';
+        snprintf(cur + used + 1, sizeof(cur) - used - 1, "%s", match);
+    }
+
+    if (strlen(cur) + 1 > cap) return false;
+    snprintf(path, cap, "%s", cur);
+    return true;
+}
+
 struct stFile
 {
     int isFileExist;
@@ -1478,6 +1530,10 @@ stFile* NvFOpen(const char *r1)
     st->isFileExist = false;
 
     FILE *f  = fopen(path, "rb");
+    if(!f && ResolvePathNoCase(path, sizeof(path)))
+    {
+        f = fopen(path, "rb");
+    }
 
     if(f)
     {
@@ -1487,10 +1543,46 @@ stFile* NvFOpen(const char *r1)
     }
     else
     {
+        // Chemin demande par le moteur en premier (la ligne ne sera pas tronquee dans un editeur)
+        Log("FICHIER MANQUANT : %s", r1);
         Log("NVFOpen hook | Error: file not found (%s)", path);
         free(st);
         return nullptr;
     }
+}
+
+// SA-MP n'a pas besoin du fichier de textes GXT du jeu solo. Si aucun GXT n'est present dans la data,
+// on saute CText::Load au lieu de laisser NvFOpen renvoyer null (OS_FileRead plante alors a 0x10).
+// Si un GXT existe (text/xxx.gxt, casse indifferente), le chargement normal est conserve.
+void (*CText__Load)(void* thiz, unsigned char a2);
+void CText__Load_hook(void* thiz, unsigned char a2)
+{
+    static const char* kLangs[] = { "american", "french", "german", "italian", "spanish", "russian" };
+    static const char* kDirs[]  = { "text/", "" };
+
+    bool hasGxt = false;
+    char probe[255];
+    for (const char* dir : kDirs)
+    {
+        for (const char* lang : kLangs)
+        {
+            snprintf(probe, sizeof(probe), "%s%s%s.gxt", g_pszStorage ? g_pszStorage : "", dir, lang);
+            if (access(probe, F_OK) == 0 || ResolvePathNoCase(probe, sizeof(probe)))
+            {
+                hasGxt = true;
+                break;
+            }
+        }
+        if (hasGxt) break;
+    }
+
+    if (!hasGxt)
+    {
+        Log("CText::Load ignore (aucun fichier .gxt dans la data, inutile pour SA-MP)");
+        return;
+    }
+
+    CText__Load(thiz, a2);
 }
 
 bool g_bPlaySAMP = false;
@@ -2005,6 +2097,7 @@ void InstallSpecialHooks()
     CHook::RET("_ZN12CCutsceneMgr10InitialiseEv");			// CCutsceneMgr::Initialise
 
     CHook::Redirect(g_libGTASA+0x7D624C, &NvFOpen);
+    CHook::InlineHook("_ZN5CText4LoadEh", &CText__Load_hook, &CText__Load);
 
     CHook::InlineHook("_ZN14MainMenuScreen6UpdateEf", &MainMenuScreen__Update_hook, &MainMenuScreen__Update);
 
