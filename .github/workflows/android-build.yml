@@ -19,13 +19,15 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Install NDK + CMake
+      # Le SDK Android est déjà préinstallé sur ubuntu-latest (ANDROID_HOME).
+      # L'action android-actions/setup-android échoue ("Failed to find package 'tools'")
+      # avec les cmdline-tools récents, donc on utilise le sdkmanager du runner.
+      - name: Install NDK + CMake + platform
         run: |
-          sdkmanager --install "ndk;26.2.11394342"
-          sdkmanager --install "cmake;3.22.1"
+          SDKM=$(ls -d "$ANDROID_HOME"/cmdline-tools/*/bin/sdkmanager | head -n 1)
+          echo "sdkmanager: $SDKM"
+          yes | "$SDKM" --licenses > /dev/null || true
+          "$SDKM" --install "ndk;26.2.11394342" "cmake;3.22.1" "platforms;android-36"
 
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
