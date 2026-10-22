@@ -66,7 +66,8 @@ public final class DataInstaller {
     private static String[] buildRequiredFiles() {
         java.util.List<String> files = new java.util.ArrayList<>(java.util.Arrays.asList(
                 "anim/ped.ifp", "audio/STREAMS/AA.osw", "data/gta.dat", "data/default.dat",
-                "SAMP/main.scm", "SAMP/script.img", "texdb/gta3.img", "texdb/player.img"));
+                "SAMP/main.scm", "SAMP/script.img", "texdb/gta3.img", "texdb/player.img",
+                "fonts/arial_bold.ttf"));
         for (String base : TEXDB_BASES)
             for (String format : TEXDB_FORMATS)
                 for (String part : TEXDB_PARTS)

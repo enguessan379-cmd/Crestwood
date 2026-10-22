@@ -1,4 +1,5 @@
-﻿#include <jni.h>
+﻿#include <unistd.h>
+#include <jni.h>
 #include <pthread.h>
 #include <syscall.h>
 #include <signal.h>
@@ -416,6 +417,21 @@ void InitGui()
 	Plugin::OnSampLoad();
 
     std::string font_path = string_format("%sSAMP/fonts/%s", g_pszStorage, FONT_NAME);
+    // La data ne contient pas SAMP/fonts/ : la police se trouve dans <data>/fonts/.
+    // Sans fichier, ImGui::AddFontFromFileTTF declenche un assert -> SIGABRT.
+    if (access(font_path.c_str(), R_OK) != 0)
+    {
+        std::string alt = string_format("%sfonts/%s", g_pszStorage, FONT_NAME);
+        if (access(alt.c_str(), R_OK) == 0)
+        {
+            Log("Police %s introuvable, utilisation de %s", font_path.c_str(), alt.c_str());
+            font_path = alt;
+        }
+        else
+        {
+            Log("[FATAL]: police introuvable (%s et %s)", font_path.c_str(), alt.c_str());
+        }
+    }
     pUI = new UI(ImVec2(RsGlobal->maximumWidth, RsGlobal->maximumHeight), font_path.c_str());
 	pUI->initialize();
     pUI->performLayout();

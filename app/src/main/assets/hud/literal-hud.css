@@ -109,3 +109,23 @@
 .hud-editing .vehicle-speedometer {
   overflow: visible;
 }
+
+
+/* HUD reduit par defaut (le reglage utilisateur --hud-item-scale en ligne reste prioritaire).
+   Le transform-origin suit l'angle d'ancrage de chaque element pour qu'il ne se decale pas. */
+.hud-info-panel,
+.quick-actions,
+.radio-talk-button,
+.engine-toggle-button,
+.vehicle-lock-button,
+.animations-toggle-button,
+.radarbot-alert,
+.phone-notification-layer,
+.literal-status-bars,
+.project-logo { --hud-item-scale: 0.78; }
+
+.hud-info-panel, .radio-talk-button, .engine-toggle-button,
+.vehicle-lock-button, .radarbot-alert { transform-origin: top right; }
+.literal-status-bars, .animations-toggle-button { transform-origin: bottom left; }
+.phone-notification-layer { transform-origin: bottom right; }
+.project-logo { transform-origin: top center; }
