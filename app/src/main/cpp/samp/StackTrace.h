@@ -24,6 +24,9 @@
     Log("2: libsamp.so + 0x%X", context->uc_mcontext.arm_lr - g_libSAMP);
 #else
 #define PRINT_CRASH_STATES(context) \
+    Log("x0: 0x%llx x1: 0x%llx x2: 0x%llx x3: 0x%llx", (unsigned long long)(context)->uc_mcontext.regs[0], (unsigned long long)(context)->uc_mcontext.regs[1], (unsigned long long)(context)->uc_mcontext.regs[2], (unsigned long long)(context)->uc_mcontext.regs[3]); \
+    Log("x19: 0x%llx x20: 0x%llx x21: 0x%llx x22: 0x%llx", (unsigned long long)(context)->uc_mcontext.regs[19], (unsigned long long)(context)->uc_mcontext.regs[20], (unsigned long long)(context)->uc_mcontext.regs[21], (unsigned long long)(context)->uc_mcontext.regs[22]); \
+    Log("sp: 0x%llx pc: 0x%llx lr: 0x%llx", (unsigned long long)(context)->uc_mcontext.sp, (unsigned long long)(context)->uc_mcontext.pc, (unsigned long long)(context)->uc_mcontext.regs[30]); \
     Log("1: libGame.so + 0x%llx", context->uc_mcontext.pc - g_libGTASA); \
     Log("2: libGame.so + 0x%llx", context->uc_mcontext.regs[30] - g_libGTASA); \
     Log("1: libsamp.so + 0x%llx", context->uc_mcontext.pc - g_libSAMP); \

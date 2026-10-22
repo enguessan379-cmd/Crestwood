@@ -1535,8 +1535,26 @@ stFile* NvFOpen(const char *r1)
         f = fopen(path, "rb");
     }
 
+    // Le moteur 2.11 lit toujours data/script/mainv1.scv apres mainv1.scm, sans verifier que
+    // l'ouverture a reussi (CTheScripts::Init -> CFileMgr::ReadBytes sur un handle nul = SIGSEGV).
+    // Format lu par le moteur : [uint64 nb_entrees][uint64 taille_chaine][chaine][entrees...].
+    // Avec 16 octets a zero : 0 entree et chaine vide, donc rien a charger (SA-MP n'utilise pas ce script).
+    if(!f && !strncmp(r1, "data/script/mainv1.scv", 22))
+    {
+        static unsigned char s_emptyScv[16] = {0};
+        f = fmemopen(s_emptyScv, sizeof(s_emptyScv), "rb");
+        if(f) Log("mainv1.scv absent : fichier vide fourni en memoire (16 octets)");
+    }
+
     if(f)
     {
+        if (strstr(r1, "effects") != NULL)
+        {
+            fseek(f, 0, SEEK_END);
+            long fxSize = ftell(f);
+            fseek(f, 0, SEEK_SET);
+            Log("OPEN ok : %s -> %s (%ld octets)", r1, path, fxSize);
+        }
         st->isFileExist = true;
         st->f = f;
         return st;

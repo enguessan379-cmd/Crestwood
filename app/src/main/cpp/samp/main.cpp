@@ -128,7 +128,7 @@ void handler(int signum, siginfo_t *info, void* contextPtr)
 
 	if(info->si_signo == SIGSEGV)
 	{
-		Log("SIGSEGV | Fault address: 0x%x", info->si_addr);
+		Log("SIGSEGV | Fault address: %p", info->si_addr);
 
 		PRINT_CRASH_STATES(context);
 
@@ -149,7 +149,7 @@ void handler1(int signum, siginfo_t *info, void* contextPtr)
 
 	if(info->si_signo == SIGABRT)
 	{
-		Log("SIGABRT | Fault address: 0x%x", info->si_addr);
+		Log("SIGABRT | Fault address: %p", info->si_addr);
 
 		PRINT_CRASH_STATES(context);
 
@@ -170,7 +170,7 @@ void handler2(int signum, siginfo_t *info, void* contextPtr)
 
 	if(info->si_signo == SIGFPE)
 	{
-		Log("SIGFPE | Fault address: 0x%x", info->si_addr);
+		Log("SIGFPE | Fault address: %p", info->si_addr);
 
 		PRINT_CRASH_STATES(context);
 
@@ -191,7 +191,7 @@ void handler3(int signum, siginfo_t *info, void* contextPtr)
 
 	if(info->si_signo == SIGBUS)
 	{
-		Log("SIGBUS | Fault address: 0x%x", info->si_addr);
+		Log("SIGBUS | Fault address: %p", info->si_addr);
 
 		PRINT_CRASH_STATES(context);
 
@@ -541,7 +541,7 @@ jint JNI_OnLoad(JavaVM* vm, void* reserved)
 	static struct sigaction act4_old;
 	struct sigaction act4;
 	act4.sa_sigaction = [](int signum, siginfo_t* info, void* contextPtr) {
-		Log("SIGILL | Fault address: 0x%x", info->si_addr);
+		Log("SIGILL | Fault address: %p", info->si_addr);
 		CStackTrace::printBacktrace();
 		if (act4_old.sa_sigaction) act4_old.sa_sigaction(signum, info, contextPtr);
 	};
