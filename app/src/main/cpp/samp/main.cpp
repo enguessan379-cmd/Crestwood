@@ -122,6 +122,7 @@ struct sigaction act3_old;
 
 extern int g_iLastProcessedSkinCollision, g_iLastProcessedEntityCollision, g_iLastRenderedObject;
 extern uintptr_t g_dwLastRetAddrCrash;
+extern void DumpStreamingState();
 void handler(int signum, siginfo_t *info, void* contextPtr)
 {
 	ucontext* context = (ucontext_t*)contextPtr;
@@ -133,6 +134,8 @@ void handler(int signum, siginfo_t *info, void* contextPtr)
 		PRINT_CRASH_STATES(context);
 
 		CStackTrace::printBacktrace();
+
+		DumpStreamingState();
 	}
 
 	if (act_old.sa_sigaction)

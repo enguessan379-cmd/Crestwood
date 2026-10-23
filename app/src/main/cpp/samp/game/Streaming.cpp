@@ -908,3 +908,73 @@ CLink<CEntityGTA*>* CStreaming::AddEntity(CEntityGTA* entity) {
 char *CStreaming::GetModelCDName(int32 index) {
     return CHook::CallFunction<char*>(g_libGTASA + 0x3AD8E4, index);
 }
+
+// ---------------------------------------------------------------------------
+// Diagnostic appele par le handler de crash (main.cpp). Lecture seule, aucun effet sur le jeu.
+// Affiche : les archives .img (ms_files), les fichiers ouverts par le moteur (CdStreamOpen)
+// et, pour chaque canal du thread de streaming, la ressource en cours de lecture.
+// Crash "OS_FileSetPosition <- CdStreamThread" = lecture dans une archive dont le handle est nul.
+// ---------------------------------------------------------------------------
+static const char* DiagResourceType(int m, int &rel)
+{
+    if (m >= RESOURCE_ID_SCM) { rel = m - RESOURCE_ID_SCM; return "SCM"; }
+    if (m >= RESOURCE_ID_RRR) { rel = m - RESOURCE_ID_RRR; return "RRR"; }
+    if (m >= RESOURCE_ID_IFP) { rel = m - RESOURCE_ID_IFP; return "IFP"; }
+    if (m >= RESOURCE_ID_DAT) { rel = m - RESOURCE_ID_DAT; return "DAT"; }
+    if (m >= RESOURCE_ID_IPL) { rel = m - RESOURCE_ID_IPL; return "IPL"; }
+    if (m >= RESOURCE_ID_COL) { rel = m - RESOURCE_ID_COL; return "COL"; }
+    if (m >= RESOURCE_ID_TXD) { rel = m - RESOURCE_ID_TXD; return "TXD"; }
+    rel = m;
+    return "DFF";
+}
+
+void DumpStreamingState()
+{
+    static volatile int s_busy = 0;
+    if (s_busy) return;
+    s_busy = 1;
+
+    Log("---- STREAMING : archives (ms_files) ----");
+    for (int i = 0; i < (int)TOTAL_IMG_ARCHIVES; i++)
+    {
+        auto &f = CStreaming::ms_files[i];
+        if (f.m_szName[0])
+            Log("IMG[%d] '%.39s' handle=0x%08x notPlayerImg=%d", i, f.m_szName, (unsigned)f.m_StreamHandle, (int)f.m_bNotPlayerImg);
+    }
+
+    // Table des fichiers ouverts par CdStreamOpen (32 pointeurs) : un slot vide = archive non ouverte
+    auto **slots = reinterpret_cast<void **>(g_libGTASA + 0x8E41C8);
+    for (int i = 0; i < 32; i++)
+        if (slots[i]) Log("slot de stream %d : fichier ouvert", i);
+
+    // Canaux du thread de streaming (CdStreamThread)
+    int nStreams = *reinterpret_cast<int *>(g_libGTASA + 0x8E4198);
+    auto *streams = *reinterpret_cast<uint8_t **>(g_libGTASA + 0x8E41A0);
+    Log("---- STREAMING : %d canaux de lecture ----", nStreams);
+    if (streams && nStreams > 0 && nStreams <= 8)
+    {
+        for (int i = 0; i < nStreams; i++)
+        {
+            uint8_t *st = streams + i * 0x30;
+            uint32_t sector = *reinterpret_cast<uint32_t *>(st + 0x00);
+            uint32_t count  = *reinterpret_cast<uint32_t *>(st + 0x04);
+            void *hFile     = *reinterpret_cast<void **>(st + 0x28);
+            Log("canal %d : secteur=0x%x nb_secteurs=%u hFile=%p", i, sector, count, hFile);
+            if (count == 0) continue;
+
+            int shown = 0;
+            for (int m = 0; m < (int)RESOURCE_ID_TOTAL && shown < 6; m++)
+            {
+                auto &info = CStreaming::GetInfo(m);
+                if (info.m_nCdSize == count && info.m_nCdPosn == sector)
+                {
+                    int rel = 0;
+                    const char *type = DiagResourceType(m, rel);
+                    Log("   -> ressource %d (%s #%d) imgId=%d etat=%d", m, type, rel, (int)info.m_nImgId, (int)info.m_nLoadState);
+                    shown++;
+                }
+            }
+        }
+    }
+    s_busy = 0;
+}
