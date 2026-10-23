@@ -24,11 +24,15 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.RandomAccessFile;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.TimeUnit;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
@@ -49,6 +53,12 @@ public final class DataInstaller {
     private static final long RETRY_DELAY_MS = 2_000L;
     private static final long MAX_RETRY_DELAY_MS = 15_000L;
     private static final int MAX_HTTP_REDIRECTS = 5;
+    // Telechargement parallele : N connexions HTTP Range en meme temps, par blocs de 4 Mo.
+    private static final int PARALLEL_CONNECTIONS = 8;
+    private static final long CHUNK_SIZE = 4L * 1024L * 1024L;
+    private static final int MAX_CHUNK_ATTEMPTS = 6;
+    private static final int COPY_BUFFER_BYTES = 128 * 1024;
+    private static final long PROGRESS_INTERVAL_MS = 250L;
     private static final long MAX_ALLOWED_EXTRACTED_BYTES = 12_000_000_000L;
     private static final long STORAGE_MARGIN_BYTES = 96L * 1024L * 1024L;
     private static final String[] MANAGED_ROOTS = {
@@ -213,7 +223,7 @@ public final class DataInstaller {
 
             report(0, "Liberando espaço para a instalação", 0L, manifest.compressedBytes);
             cleanupObsoleteInstallFiles(context, target, staging);
-            long existingDownload = zipFile.isFile() ? zipFile.length() : (partialFile.isFile() ? partialFile.length() : 0L);
+            long existingDownload = zipFile.isFile() ? zipFile.length() : resumableBytes(partialFile, manifest.compressedBytes);
             ensureDownloadAndExtractionSpace(target, existingDownload, manifest);
 
             if (zipFile.isFile() && zipFile.length() == manifest.compressedBytes && isValidZipArchive(zipFile)) {
@@ -223,9 +233,8 @@ public final class DataInstaller {
                     Log.w(TAG, "Arquivo em cache tinha o tamanho esperado mas não é um ZIP válido; baixando novamente");
                 }
                 deleteRecursively(zipFile);
-                deleteRecursively(partialFile);
                 report(0, "Baixando data do servidor", 0L, manifest.compressedBytes);
-                downloadWithPRDownloader(zipFile, manifest);
+                downloadFast(zipFile, partialFile, manifest);
             }
 
             report(70, "Verificando integridade do arquivo", zipFile.length(), manifest.compressedBytes);
@@ -234,15 +243,21 @@ public final class DataInstaller {
                 deleteRecursively(partialFile);
                 throw new IOException("O link de download não retornou um arquivo ZIP válido (provável expiração/bloqueio do link de origem). Tente novamente mais tarde.");
             }
-            String actualHash = sha256(zipFile);
             if (manifest.sha256 == null) {
-                Log.i(TAG, "Pacote sem SHA-256 de referência (fonte estática); hash calculado: " + actualHash);
-            } else if (!manifest.sha256.equalsIgnoreCase(actualHash)) {
+                // Source statique sans SHA-256 de reference : inutile de relire tout le zip pour le hasher.
+                // On controle la taille exacte + la validite du zip (deja faite ci-dessus).
+                if (zipFile.length() != manifest.compressedBytes) {
+                    deleteRecursively(zipFile);
+                    deleteRecursively(partialFile);
+                    throw new IOException("O arquivo baixado está incompleto. Tente novamente.");
+                }
+            } else if (!manifest.sha256.equalsIgnoreCase(sha256(zipFile))) {
                 deleteRecursively(zipFile);
+                deleteRecursively(partialFile);
                 throw new IOException("O arquivo baixado não passou na verificação de integridade");
             }
 
-            // Tamanho do zip baixado (confiável, já verificado por SHA-256) usado como referência
+            // Tamanho do zip baixado (confiável, já verificado: taille + zip valide) usado como referência
             // de exibição durante a extração — evita mostrar um total "extraído" incorreto.
             long displayTotalBytes = zipFile.length();
 
@@ -267,11 +282,267 @@ public final class DataInstaller {
             }
             deleteRecursively(zipFile);
             deleteRecursively(partialFile);
+            deleteRecursively(chunkStateFile(partialFile));
             complete(target, displayTotalBytes);
         } catch (Throwable error) {
             deleteRecursively(staging);
             fail(error);
         }
+    }
+
+    private static final class RangeUnsupportedException extends IOException {
+        RangeUnsupportedException(String message) { super(message); }
+    }
+
+    private static File chunkStateFile(File partialFile) {
+        return new File(partialFile.getParentFile(), partialFile.getName() + ".chunks");
+    }
+
+    /** Lit l'etat de reprise : en-tete "total:chunkSize" puis un index de bloc termine par ligne. */
+    private static java.util.Set<Integer> readCompletedChunks(File partialFile, long total) {
+        java.util.Set<Integer> done = new java.util.HashSet<>();
+        File state = chunkStateFile(partialFile);
+        if (!partialFile.isFile() || !state.isFile()) return done;
+        try (java.io.BufferedReader reader = new java.io.BufferedReader(
+                new java.io.InputStreamReader(new FileInputStream(state), StandardCharsets.UTF_8))) {
+            String header = reader.readLine();
+            if (!(total + ":" + CHUNK_SIZE).equals(header)) return new java.util.HashSet<>();
+            String line;
+            while ((line = reader.readLine()) != null) {
+                line = line.trim();
+                if (!line.isEmpty()) done.add(Integer.parseInt(line));
+            }
+        } catch (Exception error) {
+            return new java.util.HashSet<>();
+        }
+        return done;
+    }
+
+    private static long chunkLength(int index, long total) {
+        long start = index * CHUNK_SIZE;
+        return Math.min(CHUNK_SIZE, total - start);
+    }
+
+    private static long resumableBytes(File partialFile, long total) {
+        long bytes = 0L;
+        for (int index : readCompletedChunks(partialFile, total)) bytes += Math.max(0L, chunkLength(index, total));
+        return bytes;
+    }
+
+    /** Ouvre une connexion HTTP Range [start, end] en suivant les redirections depuis l'URL d'origine. */
+    private static HttpURLConnection openRangeConnection(String urlString, long start, long end) throws IOException {
+        URL current = new URL(urlString);
+        for (int redirects = 0; redirects <= MAX_HTTP_REDIRECTS; redirects++) {
+            HttpURLConnection connection = (HttpURLConnection) current.openConnection();
+            connection.setConnectTimeout(CONNECT_TIMEOUT_MS);
+            connection.setReadTimeout(60_000);
+            connection.setInstanceFollowRedirects(false);
+            connection.setUseCaches(false);
+            connection.setRequestProperty("User-Agent", "CrestwoodRoleplayLauncher/2.0");
+            connection.setRequestProperty("Accept-Encoding", "identity");
+            connection.setRequestProperty("Range", "bytes=" + start + "-" + end);
+            int response = connection.getResponseCode();
+            if (response != HttpURLConnection.HTTP_MOVED_PERM && response != HttpURLConnection.HTTP_MOVED_TEMP &&
+                    response != HttpURLConnection.HTTP_SEE_OTHER && response != 307 && response != 308) {
+                return connection;
+            }
+            String location = connection.getHeaderField("Location");
+            connection.disconnect();
+            if (location == null || location.trim().isEmpty()) throw new IOException("Redirecionamento sem endereço de download");
+            current = new URL(current, location);
+            if (!"https".equalsIgnoreCase(current.getProtocol())) throw new IOException("Redirecionamento de download inseguro");
+        }
+        throw new IOException("Muitos redirecionamentos no download");
+    }
+
+    /** Le "Content-Range: bytes a-b/total" et retourne total, ou -1. */
+    private static long parseContentRangeTotal(HttpURLConnection connection) {
+        String header = connection.getHeaderField("Content-Range");
+        if (header == null) return -1L;
+        int slash = header.lastIndexOf('/');
+        if (slash < 0) return -1L;
+        try {
+            return Long.parseLong(header.substring(slash + 1).trim());
+        } catch (NumberFormatException error) {
+            return -1L;
+        }
+    }
+
+    private static boolean serverSupportsRanges(String url, long total) {
+        HttpURLConnection connection = null;
+        try {
+            connection = openRangeConnection(url, 0L, 0L);
+            return connection.getResponseCode() == 206 && parseContentRangeTotal(connection) == total;
+        } catch (IOException error) {
+            Log.w(TAG, "Teste Range échoué: " + error.getMessage());
+            return false;
+        } finally {
+            if (connection != null) connection.disconnect();
+        }
+    }
+
+    /**
+     * Telechargement rapide : plusieurs connexions Range en parallele (reprise possible par bloc).
+     * Si le serveur ne supporte pas Range, retombe sur PRDownloader (connexion unique).
+     */
+    private static void downloadFast(File zipFile, File partialFile, UpdateManifest manifest) throws IOException {
+        File parent = zipFile.getParentFile();
+        if (parent != null && !parent.exists() && !parent.mkdirs()) {
+            throw new IOException("Não foi possível preparar a pasta de download");
+        }
+        if (!serverSupportsRanges(manifest.downloadUrl, manifest.compressedBytes)) {
+            Log.w(TAG, "Serveur sans support Range (ou taille différente) ; repli sur PRDownloader");
+            deleteRecursively(partialFile);
+            deleteRecursively(chunkStateFile(partialFile));
+            downloadWithPRDownloader(zipFile, manifest);
+            return;
+        }
+        try {
+            downloadParallel(zipFile, partialFile, manifest);
+        } catch (RangeUnsupportedException error) {
+            Log.w(TAG, "Range refusé pendant le téléchargement ; repli sur PRDownloader", error);
+            deleteRecursively(partialFile);
+            deleteRecursively(chunkStateFile(partialFile));
+            downloadWithPRDownloader(zipFile, manifest);
+        }
+    }
+
+    private static void downloadParallel(File zipFile, File partialFile, UpdateManifest manifest) throws IOException {
+        final long total = manifest.compressedBytes;
+        final int chunkCount = (int) ((total + CHUNK_SIZE - 1L) / CHUNK_SIZE);
+        final File stateFile = chunkStateFile(partialFile);
+
+        java.util.Set<Integer> completed = readCompletedChunks(partialFile, total);
+        if (completed.isEmpty() || !partialFile.isFile() || partialFile.length() != total) {
+            // Pas de reprise possible : on repart de zero et on preallocue le fichier.
+            completed = new java.util.HashSet<>();
+            deleteRecursively(partialFile);
+            deleteRecursively(stateFile);
+            try (RandomAccessFile allocate = new RandomAccessFile(partialFile, "rw")) {
+                allocate.setLength(total);
+            }
+            writeSmallFile(stateFile, total + ":" + CHUNK_SIZE + "\n");
+        } else {
+            Log.i(TAG, "Reprise du téléchargement : " + completed.size() + "/" + chunkCount + " blocs déjà présents");
+        }
+
+        final java.util.concurrent.ConcurrentLinkedQueue<Integer> queue = new java.util.concurrent.ConcurrentLinkedQueue<>();
+        long alreadyDone = 0L;
+        for (int index = 0; index < chunkCount; index++) {
+            if (completed.contains(index)) alreadyDone += chunkLength(index, total);
+            else queue.add(index);
+        }
+        if (queue.isEmpty()) {
+            if (!partialFile.renameTo(zipFile)) throw new IOException("Não foi possível finalizar o download");
+            deleteRecursively(stateFile);
+            return;
+        }
+
+        final AtomicLong downloaded = new AtomicLong(alreadyDone);
+        final AtomicBoolean abort = new AtomicBoolean(false);
+        final AtomicInteger activeWorkers = new AtomicInteger(0);
+        final IOException[] failure = new IOException[1];
+        final Object stateLock = new Object();
+        final int workers = Math.max(1, Math.min(PARALLEL_CONNECTIONS, queue.size()));
+        final CountDownLatch finished = new CountDownLatch(workers);
+        final String url = manifest.downloadUrl;
+
+        report(downloadPercent(alreadyDone, total), "Baixando data do servidor", alreadyDone, total);
+
+        for (int w = 0; w < workers; w++) {
+            activeWorkers.incrementAndGet();
+            Thread worker = new Thread(() -> {
+                byte[] buffer = new byte[COPY_BUFFER_BYTES];
+                try (RandomAccessFile output = new RandomAccessFile(partialFile, "rw")) {
+                    Integer next;
+                    while (!abort.get() && (next = queue.poll()) != null) {
+                        int index = next;
+                        long start = index * CHUNK_SIZE;
+                        long end = start + chunkLength(index, total) - 1L;
+                        downloadChunk(url, output, buffer, start, end, downloaded, abort, total);
+                        synchronized (stateLock) {
+                            try (FileOutputStream state = new FileOutputStream(stateFile, true)) {
+                                state.write((index + "\n").getBytes(StandardCharsets.UTF_8));
+                            }
+                        }
+                    }
+                } catch (IOException error) {
+                    synchronized (failure) { if (failure[0] == null) failure[0] = error; }
+                    abort.set(true);
+                } catch (Throwable error) {
+                    synchronized (failure) { if (failure[0] == null) failure[0] = new IOException("Falha no download: " + error); }
+                    abort.set(true);
+                } finally {
+                    activeWorkers.decrementAndGet();
+                    finished.countDown();
+                }
+            }, "crestwood-dl-" + w);
+            worker.setDaemon(true);
+            worker.start();
+        }
+
+        try {
+            finished.await();
+        } catch (InterruptedException error) {
+            abort.set(true);
+            Thread.currentThread().interrupt();
+            throw new IOException("Download interrompido", error);
+        }
+        if (failure[0] != null) throw failure[0]; // le .part + .chunks restent pour reprendre au prochain essai
+        if (downloaded.get() < total) throw new IOException("Download incompleto");
+        if (!partialFile.renameTo(zipFile)) {
+            copyFile(partialFile, zipFile);
+            deleteRecursively(partialFile);
+        }
+        deleteRecursively(stateFile);
+        report(70, "Download concluído", total, total);
+    }
+
+    /** Telecharge [start, end] dans output avec retries + reprise dans le bloc. */
+    private static void downloadChunk(String url, RandomAccessFile output, byte[] buffer, long start, long end,
+                                      AtomicLong downloaded, AtomicBoolean abort, long total) throws IOException {
+        long position = start;
+        IOException lastError = null;
+        for (int attempt = 1; attempt <= MAX_CHUNK_ATTEMPTS && position <= end; attempt++) {
+            if (abort.get()) throw new IOException("Download interrompido");
+            HttpURLConnection connection = null;
+            try {
+                connection = openRangeConnection(url, position, end);
+                int code = connection.getResponseCode();
+                if (code == 200) throw new RangeUnsupportedException("Servidor ignorou o cabeçalho Range");
+                if (code != 206) throw new IOException("Servidor respondeu HTTP " + code + " durante o download");
+                output.seek(position);
+                try (InputStream input = connection.getInputStream()) {
+                    int read;
+                    while (position <= end && !abort.get() && (read = input.read(buffer, 0, (int) Math.min(buffer.length, end - position + 1L))) != -1) {
+                        output.write(buffer, 0, read);
+                        position += read;
+                        long now = downloaded.addAndGet(read);
+                        report(downloadPercent(now, total), "Baixando data do servidor", now, total);
+                    }
+                }
+                if (position <= end && !abort.get()) throw new IOException("Conexão encerrada antes do fim do bloco");
+                lastError = null;
+                break;
+            } catch (RangeUnsupportedException error) {
+                throw error;
+            } catch (IOException error) {
+                lastError = error;
+                Log.w(TAG, "Bloc " + start + "-" + end + " tentative " + attempt + "/" + MAX_CHUNK_ATTEMPTS + " : " + error.getMessage());
+                if (attempt < MAX_CHUNK_ATTEMPTS) {
+                    try {
+                        Thread.sleep(Math.min(MAX_RETRY_DELAY_MS, RETRY_DELAY_MS * attempt));
+                    } catch (InterruptedException interrupted) {
+                        Thread.currentThread().interrupt();
+                        throw new IOException("Download interrompido", interrupted);
+                    }
+                }
+            } finally {
+                if (connection != null) connection.disconnect();
+            }
+        }
+        if (abort.get() && position <= end) throw lastError != null ? lastError : new IOException("Download interrompido");
+        if (position <= end) throw lastError != null ? lastError : new IOException("Falha no download do bloco");
     }
 
     private static final int MAX_DOWNLOAD_ATTEMPTS = 5;
@@ -667,9 +938,24 @@ public final class DataInstaller {
         Log.e(TAG, "Falha instalando a data", error);
     }
 
+    private static final Object REPORT_LOCK = new Object();
+    private static long lastReportAtMs;
+    private static String lastReportPhase = "";
+
+    /** Progression limitee a ~4 fois/s (sauf changement de phase / 100%) pour ne pas inonder l'UI (WebView). */
     private static void report(int percent, String phase, long done, long total) {
         Listener current = listener;
-        if (current != null) current.onProgress(Math.max(0, Math.min(100, percent)), phase, done, total);
+        if (current == null) return;
+        int clamped = Math.max(0, Math.min(100, percent));
+        synchronized (REPORT_LOCK) {
+            long now = System.currentTimeMillis();
+            boolean phaseChanged = phase == null ? lastReportPhase != null : !phase.equals(lastReportPhase);
+            boolean isFinal = clamped >= 100 || (total > 0L && done >= total);
+            if (!phaseChanged && !isFinal && now - lastReportAtMs < PROGRESS_INTERVAL_MS) return;
+            lastReportAtMs = now;
+            lastReportPhase = phase;
+            current.onProgress(clamped, phase, done, total);
+        }
     }
 
     private static String sha256(File file) throws Exception {
