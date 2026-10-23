@@ -65,29 +65,84 @@ public final class DataInstaller {
             "anim", "audio", "data", "models", "texdb", "SAMP",
             "CINFO.BIN", "GTASAMP10.b", "fonts", "gta_sa.set", "stream.ini"
     };
-    // Structure texdb attendue (celle de la data complete) : chaque base de textures existe dans
-    // les 3 formats (dxt / etc / pvr), car le moteur choisit le format selon le GPU du telephone.
-    // Un format absent = crash natif dans TextureDatabaseRuntime::LoadEPK au clic sur JOGAR.
+    // Structure texdb : chaque base de textures peut exister en 3 formats (dxt / etc / pvr) et le moteur
+    // choisit UN format selon le GPU du telephone (voir TextureFormatProbe). On n'exige donc que le(s)
+    // format(s) dont CE telephone a besoin : un pack "lite" qui n'a que le dxt est valide sur un GPU dxt,
+    // mais pas sur un GPU Mali sans S3TC (qui veut de l'etc). Un format absent = crash natif dans
+    // TextureDatabaseRuntime::LoadEPK au clic sur JOGAR, d'ou le message clair plutot qu'un crash.
     private static final String[] TEXDB_BASES = { "gta3", "gta_int", "mobile", "txd", "menu", "samp" };
     private static final String[] TEXDB_FORMATS = { "dxt", "etc", "pvr" };
     private static final String[] TEXDB_PARTS = { "dat", "tmb", "toc" };
-    private static final String[] REQUIRED_FILES = buildRequiredFiles();
+    private static final String[] BASE_REQUIRED_FILES = buildBaseRequiredFiles();
 
-    private static String[] buildRequiredFiles() {
+    private static String[] buildBaseRequiredFiles() {
         java.util.List<String> files = new java.util.ArrayList<>(java.util.Arrays.asList(
                 "anim/ped.ifp", "audio/STREAMS/AA.osw", "data/gta.dat", "data/default.dat",
                 "SAMP/main.scm", "SAMP/script.img", "texdb/gta3.img", "texdb/player.img",
                 "fonts/arial_bold.ttf"));
-        for (String base : TEXDB_BASES)
-            for (String format : TEXDB_FORMATS)
-                for (String part : TEXDB_PARTS)
-                    files.add("texdb/" + base + "/" + base + "." + format + "." + part);
         // player / playerhi sont toujours charges en PVR par le moteur.
         for (String part : TEXDB_PARTS) {
             files.add("texdb/player/player.pvr." + part);
             files.add("texdb/playerhi/playerhi.pvr." + part);
         }
         return files.toArray(new String[0]);
+    }
+
+    /** Vue "existe / n'existe pas" d'une arborescence : dossier sur disque ou contenu d'un ZIP. */
+    private interface FileIndex {
+        boolean hasRoot(String name);
+        boolean hasFile(String name);
+    }
+
+    private static FileIndex diskIndex(final File root) {
+        return new FileIndex() {
+            @Override public boolean hasRoot(String name) { return new File(root, name).exists(); }
+            @Override public boolean hasFile(String name) {
+                File file = new File(root, name);
+                return file.isFile() && file.length() > 0L;
+            }
+        };
+    }
+
+    /** Liste le contenu du ZIP (apres retrait des dossiers wrapper) sans rien extraire. */
+    private static FileIndex zipIndex(File zipFile) throws IOException {
+        final java.util.Set<String> roots = new java.util.HashSet<>();
+        final java.util.Map<String, Long> files = new java.util.HashMap<>();
+        try (java.util.zip.ZipFile zip = new java.util.zip.ZipFile(zipFile)) {
+            int stripDepth = detectStripDepth(zip);
+            java.util.Enumeration<? extends ZipEntry> entries = zip.entries();
+            while (entries.hasMoreElements()) {
+                ZipEntry entry = entries.nextElement();
+                String name = stripWrapper(entry.getName(), stripDepth);
+                if (name == null) continue;
+                String clean = name.endsWith("/") ? name.substring(0, name.length() - 1) : name;
+                if (clean.isEmpty()) continue;
+                clean = clean.toLowerCase(java.util.Locale.ROOT);
+                int slash = clean.indexOf('/');
+                roots.add(slash < 0 ? clean : clean.substring(0, slash));
+                if (!entry.isDirectory()) files.put(clean, entry.getSize());
+            }
+        }
+        return new FileIndex() {
+            @Override public boolean hasRoot(String name) { return roots.contains(name.toLowerCase(java.util.Locale.ROOT)); }
+            @Override public boolean hasFile(String name) {
+                Long size = files.get(name.toLowerCase(java.util.Locale.ROOT));
+                return size != null && size.longValue() != 0L;
+            }
+        };
+    }
+
+    private static String texdbPath(String base, String format, String part) {
+        return "texdb/" + base + "/" + base + "." + format + "." + part;
+    }
+
+    /**
+     * Formats texdb requis pour CE telephone (ex. {"dxt"} sur Adreno, {"etc"} sur Mali sans S3TC),
+     * ou null si le GPU n'a pas pu etre interroge (dans ce cas : au moins un format complet par base).
+     */
+    private static String[] neededTexdbFormats() {
+        TextureFormatProbe.Result probe = TextureFormatProbe.get();
+        return probe == null ? null : probe.formats;
     }
 
     public interface Listener {
@@ -261,14 +316,24 @@ public final class DataInstaller {
             // de exibição durante a extração — evita mostrar um total "extraído" incorreto.
             long displayTotalBytes = zipFile.length();
 
+            // Confere o conteúdo do ZIP ANTES de extrair: se o pacote não serve para este celular,
+            // avisa já (com a lista exata do que falta) em vez de extrair tudo para depois apagar.
+            java.util.Map<String, java.util.Set<String>> zipMissingFormats = new java.util.LinkedHashMap<>();
+            java.util.List<String> zipMissing = describeMissing(zipIndex(zipFile), zipMissingFormats);
+            if (!zipMissing.isEmpty()) {
+                Log.e(TAG, "Pacote incompleto para este celular. Faltam: " + String.join(", ", zipMissing));
+                throw new IOException(buildMissingMessage(zipMissing, zipMissingFormats));
+            }
+
             ensureExtractionSpace(target, manifest);
             deleteRecursively(staging);
             if (!staging.mkdirs()) throw new IOException("Não foi possível preparar a instalação");
             extractZip(zipFile, staging, displayTotalBytes);
-            if (!isComplete(staging)) {
-                java.util.List<String> missing = describeMissing(staging);
+            java.util.Map<String, java.util.Set<String>> stagingMissingFormats = new java.util.LinkedHashMap<>();
+            java.util.List<String> stagingMissing = describeMissing(diskIndex(staging), stagingMissingFormats);
+            if (!stagingMissing.isEmpty()) {
                 Log.e(TAG, "Arquivos ausentes após extração. Conteúdo de " + staging + ": " + listRecursively(staging));
-                throw new IOException("Faltam no pacote: " + String.join(", ", missing));
+                throw new IOException(buildMissingMessage(stagingMissing, stagingMissingFormats));
             }
 
             deleteRecursively(target);
@@ -278,7 +343,7 @@ public final class DataInstaller {
             }
             writeSmallFile(new File(target, ".gtasa_data_version"), markerValue);
             if (!isComplete(target)) {
-                throw new IOException("Faltam após mover para o destino final: " + String.join(", ", describeMissing(target)));
+                throw new IOException("Faltam após mover para o destino final: " + String.join(", ", describeMissing(diskIndex(target), null)));
             }
             deleteRecursively(zipFile);
             deleteRecursively(partialFile);
@@ -696,6 +761,24 @@ public final class DataInstaller {
         }
     }
 
+    /**
+     * Retire les dossiers "wrapper" du debut du chemin ZIP. Retourne null si l'entree doit etre
+     * ignoree (entree __MACOSX, ou dossier wrapper lui-meme).
+     */
+    private static String stripWrapper(String name, int stripDepth) {
+        if (name == null || name.isEmpty() || name.startsWith("__MACOSX")) return null;
+        if (stripDepth <= 0) return name;
+        String normalized = name.endsWith("/") ? name.substring(0, name.length() - 1) : name;
+        String[] segments = normalized.isEmpty() ? new String[0] : normalized.split("/");
+        if (segments.length <= stripDepth) return null; // entrée du/des dossier(s) wrapper eux-mêmes
+        StringBuilder sb = new StringBuilder();
+        for (int i = stripDepth; i < segments.length; i++) {
+            if (sb.length() > 0) sb.append('/');
+            sb.append(segments[i]);
+        }
+        return sb.length() == 0 ? null : sb.toString();
+    }
+
     private static void extractZip(File zipFile, File staging, long displayTotalBytes) throws IOException {
         long extracted = 0L;
         String rootPath = staging.getCanonicalPath() + File.separator;
@@ -711,20 +794,8 @@ public final class DataInstaller {
             while (entries.hasMoreElements()) {
                 ZipEntry entry = entries.nextElement();
                 processedEntries++;
-                String name = entry.getName();
-                if (name == null || name.isEmpty() || name.startsWith("__MACOSX")) continue;
-                if (stripDepth > 0) {
-                    String normalized = name.endsWith("/") ? name.substring(0, name.length() - 1) : name;
-                    String[] segments = normalized.isEmpty() ? new String[0] : normalized.split("/");
-                    if (segments.length <= stripDepth) continue; // entrée du/des dossier(s) wrapper eux-mêmes
-                    StringBuilder sb = new StringBuilder();
-                    for (int i = stripDepth; i < segments.length; i++) {
-                        if (sb.length() > 0) sb.append('/');
-                        sb.append(segments[i]);
-                    }
-                    name = sb.toString();
-                    if (name.isEmpty()) continue;
-                }
+                String name = stripWrapper(entry.getName(), stripDepth);
+                if (name == null) continue;
                 File output = safeChild(staging, rootPath, name);
                 if (entry.isDirectory()) {
                     if (!output.exists() && !output.mkdirs()) throw new IOException("Não foi possível criar a pasta da data");
@@ -905,18 +976,92 @@ public final class DataInstaller {
     }
 
     private static boolean isComplete(File root) {
-        return describeMissing(root).isEmpty();
+        return describeMissing(diskIndex(root), null).isEmpty();
     }
 
-    /** Retourne la liste des dossiers/fichiers obrigatoires absents (ou vides) sous root. */
-    private static java.util.List<String> describeMissing(File root) {
+    /**
+     * Retourne la liste des dossiers/fichiers obligatoires absents (ou vides) dans l'arborescence.
+     * Si missingFormats n'est pas null, y range aussi "format de texture -> bases qui n'en ont pas"
+     * (pour un message lisible). Les fichiers texdb ne sont exiges que pour le(s) format(s) dont ce
+     * telephone a besoin ; si le GPU est inconnu, il suffit d'un format complet par base.
+     */
+    private static java.util.List<String> describeMissing(FileIndex index, java.util.Map<String, java.util.Set<String>> missingFormats) {
         java.util.List<String> missing = new java.util.ArrayList<>();
-        for (String name : MANAGED_ROOTS) if (!new File(root, name).exists()) missing.add(name + "/");
-        for (String name : REQUIRED_FILES) {
-            File file = new File(root, name);
-            if (!file.isFile() || file.length() <= 0L) missing.add(name);
+        for (String name : MANAGED_ROOTS) if (!index.hasRoot(name)) missing.add(name + "/");
+        for (String name : BASE_REQUIRED_FILES) if (!index.hasFile(name)) missing.add(name);
+
+        String[] needed = neededTexdbFormats();
+        for (String base : TEXDB_BASES) {
+            if (needed != null) {
+                for (String format : needed) {
+                    boolean formatMissing = false;
+                    for (String part : TEXDB_PARTS) {
+                        String path = texdbPath(base, format, part);
+                        if (!index.hasFile(path)) { missing.add(path); formatMissing = true; }
+                    }
+                    if (formatMissing) noteMissingFormat(missingFormats, format, base);
+                }
+            } else {
+                boolean anyComplete = false;
+                for (String format : TEXDB_FORMATS) {
+                    boolean all = true;
+                    for (String part : TEXDB_PARTS) if (!index.hasFile(texdbPath(base, format, part))) { all = false; break; }
+                    if (all) { anyComplete = true; break; }
+                }
+                if (!anyComplete) {
+                    missing.add("texdb/" + base + "/" + base + ".(dxt|etc|pvr).(dat|tmb|toc)");
+                    noteMissingFormat(missingFormats, "dxt/etc/pvr", base);
+                }
+            }
         }
         return missing;
+    }
+
+    private static void noteMissingFormat(java.util.Map<String, java.util.Set<String>> missingFormats, String format, String base) {
+        if (missingFormats == null) return;
+        java.util.Set<String> bases = missingFormats.get(format);
+        if (bases == null) {
+            bases = new java.util.LinkedHashSet<>();
+            missingFormats.put(format, bases);
+        }
+        bases.add(base);
+    }
+
+    /** Message court et lisible pour l'ecran "Instalação pausada" (la liste complete va dans logcat). */
+    private static String buildMissingMessage(java.util.List<String> missing, java.util.Map<String, java.util.Set<String>> missingFormats) {
+        StringBuilder message = new StringBuilder();
+        java.util.Set<String> formatItems = new java.util.HashSet<>();
+        if (missingFormats != null && !missingFormats.isEmpty()) {
+            TextureFormatProbe.Result probe = TextureFormatProbe.get();
+            message.append("O pacote de dados não tem as texturas que este celular usa");
+            if (probe != null && !probe.renderer.isEmpty()) message.append(" (GPU ").append(probe.renderer).append(")");
+            message.append(". Faltam texturas no formato ");
+            boolean firstFormat = true;
+            for (java.util.Map.Entry<String, java.util.Set<String>> entry : missingFormats.entrySet()) {
+                if (!firstFormat) message.append("; ");
+                firstFormat = false;
+                message.append(entry.getKey().toUpperCase(java.util.Locale.ROOT)).append(" em ")
+                        .append(String.join(", ", entry.getValue()));
+            }
+            message.append(". Hospede um pacote completo com os arquivos texdb/<base>/<base>.<formato>.dat, .tmb e .toc.");
+            for (String format : TEXDB_FORMATS) {
+                for (String base : TEXDB_BASES) for (String part : TEXDB_PARTS) formatItems.add(texdbPath(base, format, part));
+            }
+        }
+        java.util.List<String> others = new java.util.ArrayList<>();
+        for (String item : missing) {
+            if (formatItems.contains(item) || item.contains("(dxt|etc|pvr)")) continue;
+            others.add(item);
+        }
+        if (!others.isEmpty()) {
+            if (message.length() > 0) message.append(' ');
+            message.append("Faltam no pacote: ");
+            int shown = Math.min(others.size(), 8);
+            message.append(String.join(", ", others.subList(0, shown)));
+            if (others.size() > shown) message.append(" … (+").append(others.size() - shown).append(")");
+        }
+        if (message.length() == 0) message.append("Faltam arquivos obrigatórios no pacote de dados.");
+        return message.toString();
     }
 
     private static void complete(File target, long extractedBytesTotal) {
