@@ -29,7 +29,6 @@ import android.widget.Toast;
 import android.view.ViewGroup;
 import com.rockstargames.oswrapper.GameThread;
 import org.json.JSONObject;
-import java.nio.charset.StandardCharsets;
 import androidx.constraintlayout.widget.ConstraintLayout;
 
 // TODO: ajuster ce package selon celui fourni par le .aar sampmobilecef-...-release.aar
@@ -500,18 +499,6 @@ public class SAMP extends GTASA implements HeightProvider.HeightListener {
             String json = "{\"balance\":" + Math.max(0, balance) + ",\"hunger\":" + Math.max(0, hunger) + ",\"thirst\":" + Math.max(0, thirst) + "}";
             hudWebView.evaluateJavascript("window.PharmacyBridge && PharmacyBridge.setState(" + json + ")", null);
         });
-    }
-
-    /**
-     * Appelé par le code natif pour chaque message du serveur (SendClientMessage).
-     * Le chat SAMP classique est désactivé : ces messages sont affichés par le HUD HTML
-     * sous forme de notifications discrètes (voir hud-feed.css / pushServerMessage dans hud.js).
-     * Texte en UTF-8, couleur 0xRRGGBB.
-     */
-    public void onServerMessage(final byte[] text, final int rgb) {
-        if (text == null || text.length == 0) return;
-        final String message = new String(text, StandardCharsets.UTF_8);
-        hudJs("window.HudApp && HudApp.pushServerMessage(" + JSONObject.quote(message) + "," + (rgb & 0xFFFFFF) + ")");
     }
 
     private String payloadField(final String payload, final String field) {

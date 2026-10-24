@@ -294,22 +294,16 @@ void Chat(RPCParameters *rpcParams)
 	Log::addParameter("playerId", playerId);
 	Log::addParameter("szMessage", szMessage);
 
-	// Chat "Reduto" : le texte n'est plus ecrit dans le chat SAMP classique,
-	// il apparait dans une bulle au-dessus du joueur qui parle (toi compris).
 	CPlayerPool *pPlayerPool = pNetGame->GetPlayerPool();
-	CPlayerBubblePool *pBubblePool = pNetGame->GetPlayerBubblePool();
-	if (pBubblePool && playerId < MAX_PLAYERS)
+	if (playerId == pPlayerPool->GetLocalPlayerID())
 	{
-		if (playerId == pPlayerPool->GetLocalPlayerID())
-		{
-			pBubblePool->Say(playerId, szMessage);
-		}
-		else
-		{
-			CRemotePlayer *pRemotePlayer = pPlayerPool->GetAt(playerId);
-			if (pRemotePlayer) {
-				pRemotePlayer->Say(szMessage);
-			}
+		if (pUI) pUI->chat()->addChatMessage(Encoding::cp2utf(szMessage),
+											 pPlayerPool->GetLocalPlayerName(), UI::fixcolor(pPlayerPool->GetLocalPlayer()->GetPlayerColorAsRGBA()));
+	}
+	else {
+		CRemotePlayer *pRemotePlayer = pPlayerPool->GetAt(playerId);
+		if (pRemotePlayer) {
+			pRemotePlayer->Say(szMessage);
 		}
 	}
 }
@@ -1425,6 +1419,7 @@ void ChatBubble(RPCParameters* rpcParams)
 
 	bsData.Read(playerId);
 
+	if (playerId == pNetGame->GetPlayerPool()->GetLocalPlayerID()) return;
 	if (playerId >= MAX_PLAYERS) return;
 
 	bsData.Read(color);

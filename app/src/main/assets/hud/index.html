@@ -10,15 +10,12 @@
     <link rel="stylesheet" href="literal-hud.css" />
     <link rel="stylesheet" href="hud-glass.css" />
     <link rel="stylesheet" href="minimap.css" />
-    <link rel="stylesheet" href="hud-feed.css" />
     <script src="minimap.js" defer></script>
     <script src="hud.js" defer></script>
   </head>
   <body>
     <main class="hud-root" aria-label="HUD Crestwood">
       <div class="minimap-frame" aria-hidden="true"><canvas class="minimap-canvas"></canvas><i></i><i></i><i></i><i></i></div>
-
-      <div class="server-feed" aria-live="polite" aria-label="Messages du serveur"></div>
 
       <img class="project-logo hud-movable" data-hud-key="logo" src="assets/project-logo.png" alt="Crestwood" />
 
@@ -161,7 +158,7 @@
         <input
           type="text"
           maxlength="120"
-          placeholder="Écris ton message..."
+          placeholder="Écris ton message... (Entrée pour envoyer)"
           aria-label="Message"
           inputmode="text"
           enterkeyhint="send"

@@ -501,9 +501,9 @@ uint32_t CRemotePlayer::GetPlayerColor()
 // 0.3.7
 void CRemotePlayer::Say(char *szMessage)
 {
-	// Plus d'ecriture dans le chat classique : bulle au-dessus de la tete du joueur.
-	CPlayerBubblePool* pBubblePool = pNetGame ? pNetGame->GetPlayerBubblePool() : nullptr;
-	if (pBubblePool) pBubblePool->Say(m_PlayerID, szMessage);
+	char* szPlayerName = pNetGame->GetPlayerPool()->GetPlayerName(m_PlayerID);
+	uint32_t dwColor = TranslateColorCodeToRGBA(m_PlayerID);
+	if (pUI) pUI->chat()->addChatMessage(Encoding::cp2utf(szMessage), szPlayerName, UI::fixcolor(dwColor));
 }
 // 0.3.7
 bool CRemotePlayer::Spawn(uint8_t byteTeam, int iSkin, CVector *vecPos, float fRotation,

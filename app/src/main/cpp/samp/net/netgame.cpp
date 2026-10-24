@@ -13,11 +13,13 @@
 #include "CLocalisation.h"
 #include "textdrawpool.h"
 #include "gangzonepool.h"
+#include "../gui/CharacterCreator.h"
 #ifdef HAS_CEF
 #include "../vendor/cef/SAMPMobileCef.h"
 #endif
 
 #define ID_CUSTOM_CEF 252
+#define ID_CUSTOM_CHAR 253
 
 //#define AUTH_BS "39FB2DEEDB49ACFB8D4EECE6953D2507988CCCF4410"//main
 #define AUTH_BS "E02262CF28BC542486C558D4BE9EFB716592AFAF8B"
@@ -318,6 +320,10 @@ void CNetGame::UpdateNetwork()
 				Packet_TrailerSync(pkt);
 				break;
 
+			case ID_CUSTOM_CHAR:
+				Packet_CharacterCreator(pkt);
+				break;
+
 			case ID_CUSTOM_CEF:
 #ifdef HAS_CEF
 				cef::handlePacket(pkt);
@@ -393,6 +399,99 @@ void CNetGame::Packet_CustomRPC(Packet *p) {
 			break;
 		}
 	}
+}
+
+// ============================================================
+// Criacao de personagem (packet 253)
+// servidor -> cliente: [uint8 253][uint32 rpcID][uint16 len][json...]
+// cliente -> servidor: [uint8 253][uint32 cmd][...]
+// ============================================================
+void CNetGame::Packet_CharacterCreator(Packet *p)
+{
+	RakNet::BitStream bs((unsigned char *) p->data, p->length, false);
+	bs.IgnoreBits(8); // packet id
+
+	uint32_t rpcID = 0;
+	uint16_t len = 0;
+	if (!bs.Read(rpcID)) return;
+	if (!bs.Read(len)) return;
+
+	std::string json;
+	if (len > 0) {
+		if ((int) len > (int) (bs.GetNumberOfUnreadBits() / 8)) return;
+		json.resize(len);
+		for (uint16_t i = 0; i < len; i++) {
+			uint8_t c = 0;
+			bs.Read(c);
+			json[i] = (char) c;
+		}
+	}
+
+	switch (rpcID) {
+		case CharacterCreator::kCmdSelect:    CharacterCreator::OpenSelect(json); break;
+		case CharacterCreator::kCmdCreate:    CharacterCreator::OpenCreate(); break;
+		case CharacterCreator::kCmdApplyLook: CharacterCreator::ApplyLook(json); break;
+		case CharacterCreator::kCmdClose:     CharacterCreator::CloseAll(); break;
+		default: break;
+	}
+}
+
+static void WriteString8(RakNet::BitStream& bs, const char* str)
+{
+	uint8_t n = 0;
+	if (str) {
+		size_t l = strlen(str);
+		n = (uint8_t) (l > 31 ? 31 : l);
+	}
+	bs.Write(n);
+	for (uint8_t i = 0; i < n; i++) bs.Write((uint8_t) str[i]);
+}
+
+void CNetGame::SendCharCreateRequest(uint8_t gender, const char* name, const char* lastName,
+		uint8_t day, uint8_t month, uint16_t year)
+{
+	RakNet::BitStream bs;
+	bs.Write((uint8_t) ID_CUSTOM_CHAR);
+	bs.Write((uint32_t) CharacterCreator::kCmdCreateReq);
+	bs.Write(gender);
+	WriteString8(bs, name);
+	WriteString8(bs, lastName);
+	bs.Write(day);
+	bs.Write(month);
+	bs.Write(year);
+	m_pRakClient->Send(&bs, SYSTEM_PRIORITY, RELIABLE, 0);
+}
+
+void CNetGame::SendCharSave(const ClothesLook& l)
+{
+	RakNet::BitStream bs;
+	bs.Write((uint8_t) ID_CUSTOM_CHAR);
+	bs.Write((uint32_t) CharacterCreator::kCmdSave);
+	// ordem EXATA lida pela GM (25 x uint8)
+	const uint8_t v[25] = {
+		l.skinTone, l.face,
+		l.hairStyle, l.hairColor,
+		l.eyebrowStyle, l.eyebrowColor,
+		l.beardStyle, l.beardColor,
+		l.makeupStyle, l.makeupColor,
+		l.topStyle, l.topColor,
+		l.bottomStyle, l.bottomColor,
+		l.shoesStyle, l.shoesColor,
+		l.tattooArmLeft, l.tattooArmRight,
+		l.tattooLegLeft, l.tattooLegRight,
+		l.tattooBack, l.tattooFront,
+		l.policeBelt, l.policeVest, l.policeHat
+	};
+	for (int i = 0; i < 25; i++) bs.Write(v[i]);
+	m_pRakClient->Send(&bs, SYSTEM_PRIORITY, RELIABLE, 0);
+}
+
+void CNetGame::SendCharSpawnRequest()
+{
+	RakNet::BitStream bs;
+	bs.Write((uint8_t) ID_CUSTOM_CHAR);
+	bs.Write((uint32_t) CharacterCreator::kCmdSpawnReq);
+	m_pRakClient->Send(&bs, SYSTEM_PRIORITY, RELIABLE, 0);
 }
 
 // 0.3.7

@@ -672,39 +672,3 @@ body {
 
 
 /*# sourceMappingURL=hud.css.map */
-
-/* ------------------------------------------------------------------
-   Centrage dans l'iframe du HUD (290x250) : sans cela le cadran restait en haut à gauche
-   et la rangée de statuts (#info) collée en bas à droite, avec un débordement coupé.
-   Pas de transform sur #speedometer (utilisé par l'animation fadeInUp) : on centre par marges.
-   ------------------------------------------------------------------ */
-html,
-body {
-  width: 100%;
-  height: 100%;
-  overflow: hidden;
-}
-
-#display-hud {
-  position: absolute;
-  left: 0;
-  top: 0;
-  width: 100%;
-  height: 100%;
-}
-
-#speedometer {
-  position: absolute;
-  top: 0;
-  left: 50%;
-  width: 270px;
-  height: 250px;
-  margin-left: -135px;
-}
-
-#info {
-  right: auto;
-  left: 50%;
-  width: 266px;
-  margin: 0 0 30px -133px;
-}

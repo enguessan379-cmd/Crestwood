@@ -57,6 +57,8 @@ typedef unsigned short OBJECTID;
 #include "actorpool.h"
 #include "menupool.h"
 #include "playerbubblepool.h"
+#include "../gui/ClothesCustomization.h"
+#include <string>
 
 class CNetGame
 {
@@ -130,6 +132,13 @@ public:
 	void SendNextClass();
 
 	void Packet_CustomRPC(Packet *p);
+
+	// Criacao de personagem / clothes (packet 253)
+	void Packet_CharacterCreator(Packet *p);
+	void SendCharCreateRequest(uint8_t gender, const char* name, const char* lastName,
+			uint8_t day, uint8_t month, uint16_t year);
+	void SendCharSave(const ClothesLook& look);
+	void SendCharSpawnRequest();
 
 private:
 	void InitializePools();

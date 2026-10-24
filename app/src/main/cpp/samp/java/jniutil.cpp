@@ -54,7 +54,6 @@ CJavaWrapper::CJavaWrapper(JNIEnv *env, jobject activity)
 	 s_showEditObject = env->GetMethodID(clas, "showEditObject", "()V");
 	 s_hideEditObject = env->GetMethodID(clas, "hideEditObject", "()V");
 	 s_updateHudState = env->GetMethodID(clas, "updateHudState", "(FFFFFZZZZFFZFFFFF)V");
-	 s_onServerMessage = env->GetMethodID(clas, "onServerMessage", "([BI)V");
 
 	 env->DeleteLocalRef(clas);
 }
@@ -86,20 +85,6 @@ void CJavaWrapper::UpdateHudState(float health, float armour, float thirst, floa
     env->CallVoidMethod(activity, s_updateHudState, health, armour, thirst, hunger, energy,
                         dead, running, exhausted, inVehicle, speed, vehicleHealth, handbrake,
                         posX, posY, camFx, camFy, heading);
-    EXCEPTION_CHECK(env);
-}
-
-void CJavaWrapper::OnServerMessage(const char* utf8, uint32_t rgb)
-{
-    if (!utf8 || !javaVM || !activity || !s_onServerMessage) return;
-    JNIEnv* env = GetEnv();
-    if (!env) return;
-    const size_t len = strlen(utf8);
-    jbyteArray array = env->NewByteArray((jsize)len);
-    if (!array) return;
-    env->SetByteArrayRegion(array, 0, (jsize)len, reinterpret_cast<const jbyte*>(utf8));
-    env->CallVoidMethod(activity, s_onServerMessage, array, (jint)(rgb & 0xFFFFFF));
-    env->DeleteLocalRef(array);
     EXCEPTION_CHECK(env);
 }
 

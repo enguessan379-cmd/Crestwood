@@ -197,8 +197,28 @@
   }
 }
 
-/* Compteur véhicule plus petit et moins envahissant. */
-/* Zone de 290x250 = taille réelle du compteur d'origine (cadran 270x250 + rangée de statuts + biais du skew).
-   Avant, la zone faisait 245x190 avec overflow:hidden : le cadran et les statuts étaient coupés et décalés.
-   Le contenu est centré dans original-speedometer/hud.css. */
-.hud-root .vehicle-speedometer{width:290px!important;height:250px!important;left:50%!important;bottom:calc(env(safe-area-inset-bottom) + 6px)!important;transform:translateX(-50%) scale(.68)!important;transform-origin:bottom center!important;overflow:visible!important}
+/* Compteur : cadre complet, centré et adapté aux écrans paysage de téléphone.
+   L'iframe conserve son viewport natif 320x250 pour éviter de couper les arcs. */
+.hud-root .vehicle-speedometer {
+  left: 50% !important;
+  right: auto !important;
+  top: auto !important;
+  bottom: max(8px, env(safe-area-inset-bottom)) !important;
+  width: 320px !important;
+  height: 250px !important;
+  transform: translateX(-50%) scale(.78) !important;
+  transform-origin: bottom center !important;
+  overflow: visible !important;
+}
+.hud-root .literal-speedometer-frame {
+  width: 320px !important;
+  height: 250px !important;
+  max-width: none !important;
+  overflow: hidden !important;
+}
+@media (max-height: 500px) {
+  .hud-root .vehicle-speedometer {
+    bottom: 2px !important;
+    transform: translateX(-50%) scale(.68) !important;
+  }
+}

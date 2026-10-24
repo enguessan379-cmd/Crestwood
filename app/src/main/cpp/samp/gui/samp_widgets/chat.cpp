@@ -20,16 +20,7 @@ Chat::Chat()
 
 void Chat::addChatMessage(const std::string& message, const std::string& nick, const ImColor& nick_color)
 {
-#if CLASSIC_CHAT_ENABLED
     addPlayerMessage(message, nick, nick_color);
-#endif
-    // Chat classique coupe : le texte des joueurs s'affiche en bulle (CPlayerBubblePool::Say).
-}
-
-static uint32_t chatColorToRGB(const ImColor& color)
-{
-    auto ch = [](float v) { int i = (int)(v * 255.0f + 0.5f); return (uint32_t)(i < 0 ? 0 : (i > 255 ? 255 : i)); };
-    return (ch(color.Value.x) << 16) | (ch(color.Value.y) << 8) | ch(color.Value.z);
 }
 
 void Chat::addInfoMessage(const std::string& format, ...)
@@ -38,15 +29,10 @@ void Chat::addInfoMessage(const std::string& format, ...)
 
     va_list args;
     va_start(args, format);
-    vsnprintf(tmp_buf, sizeof(tmp_buf), format.c_str(), args);
+    vsprintf(tmp_buf, format.c_str(), args);
     va_end(args);
 
-#if CLASSIC_CHAT_ENABLED
     addMessage(std::string(tmp_buf), ImColor(0x00, 0xc8, 0xc8));
-#else
-    // Infos importantes (connexion refusee...) : notification du HUD
-    if (pJavaWrapper) pJavaWrapper->OnServerMessage(tmp_buf, 0x00c8c8);
-#endif
 }
 
 void Chat::addDebugMessage(const std::string& format, ...)
@@ -55,23 +41,15 @@ void Chat::addDebugMessage(const std::string& format, ...)
 
     va_list args;
     va_start(args, format);
-    vsnprintf(tmp_buf, sizeof(tmp_buf), format.c_str(), args);
+    vsprintf(tmp_buf, format.c_str(), args);
     va_end(args);
 
-#if CLASSIC_CHAT_ENABLED
     addMessage(std::string(tmp_buf), ImColor(0xbe, 0xbe, 0xbe));
-#endif
-    // Messages techniques ("Connecting to Server...") : ignores quand le chat classique est coupe.
 }
 
 void Chat::addClientMessage(const std::string& message, const ImColor& color)
 {
-#if CLASSIC_CHAT_ENABLED
     addMessage(message, color);
-#else
-    // Messages du serveur (SendClientMessage) : notification du HUD au lieu du chat natif.
-    if (pJavaWrapper) pJavaWrapper->OnServerMessage(message.c_str(), chatColorToRGB(color));
-#endif
 }
 
 void Chat::addMessage(const std::string& message, const ImColor& color)

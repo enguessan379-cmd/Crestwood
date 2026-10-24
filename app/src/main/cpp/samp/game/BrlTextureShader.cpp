@@ -222,7 +222,7 @@ namespace {
 	{
 		if (sourceTexture.empty() || replacementTexture.empty()) return false;
 		if (!ResolveTexture(replacementTexture)) {
-			FLog("[BrlShader] replacement texture '%s' is pending; add it to the mobile texture cache.", replacementTexture.c_str());
+			Log("[BrlShader] replacement texture '%s' is pending; add it to the mobile texture cache.", replacementTexture.c_str());
 		}
 
 		std::lock_guard lock(g_shaderMutex);

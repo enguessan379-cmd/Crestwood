@@ -2,17 +2,6 @@
 
 #include <list>
 
-/*
- * Chat SAMP classique (liste de messages en haut a gauche).
- * 0 = desactive : le widget n'est plus affiche, le texte tape par les joueurs s'affiche
- *     dans des bulles au-dessus d'eux (voir playerbubblepool.cpp) et les messages du serveur
- *     (SendClientMessage) sont envoyes au HUD HTML sous forme de notifications.
- * 1 = ancien comportement (chat natif).
- */
-#ifndef CLASSIC_CHAT_ENABLED
-#define CLASSIC_CHAT_ENABLED 0
-#endif
-
 class Chat : public ListBox
 {
 public:

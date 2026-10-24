@@ -2,6 +2,7 @@
 #include "../game/game.h"
 #include "../net/netgame.h"
 #include "gui.h"
+#include "CharacterCreator.h"
 #include "../playertags.h"
 #include "../net/playerbubblepool.h"
 #include "../CDebugInfo.h"
@@ -138,9 +139,10 @@ void UI::drawList()
     if (!visible()) return;
 
     if (pPlayerTags) pPlayerTags->Render(renderer());
-    if (pNetGame && pNetGame->GetPlayerBubblePool()) pNetGame->GetPlayerBubblePool()->Render(renderer());
 
     draw(renderer());
+
+    CharacterCreator::Render();
 }
 
 void UI::touchEvent(const ImVec2& pos, TouchType type)
