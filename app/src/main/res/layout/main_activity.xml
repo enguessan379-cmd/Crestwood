@@ -14,7 +14,7 @@
         android:layout_marginTop="10dp"
         android:orientation="horizontal"
         android:gravity="center_vertical">
-        <ImageButton android:id="@+id/planetButton" android:layout_width="36dp" android:layout_height="36dp" android:background="@drawable/social_button" android:padding="8dp" android:src="@drawable/ic_planet_svg" android:tint="#36D6FF" android:contentDescription="Planeta"/>
+        <ImageButton android:id="@+id/planetButton" android:layout_width="36dp" android:layout_height="36dp" android:background="@drawable/social_button" android:padding="8dp" android:src="@drawable/ic_planet_svg" android:tint="#36D6FF" android:contentDescription="Site web"/>
         <ImageButton android:id="@+id/youtubeButton" android:layout_width="36dp" android:layout_height="36dp" android:layout_marginStart="8dp" android:background="@drawable/social_button" android:padding="8dp" android:src="@drawable/ic_youtube_svg" android:tint="#36D6FF" android:contentDescription="YouTube"/>
         <ImageButton android:id="@+id/discordButton" android:layout_width="36dp" android:layout_height="36dp" android:layout_marginStart="8dp" android:background="@drawable/social_button" android:padding="8dp" android:src="@drawable/ic_discord_svg" android:tint="#36D6FF" android:contentDescription="Discord"/>
     </LinearLayout>
@@ -99,7 +99,7 @@
             android:layout_height="24dp"
             android:padding="3dp"
             android:src="@drawable/ic_user_svg"
-            android:contentDescription="Jogador" />
+            android:contentDescription="Joueur" />
         <EditText
             android:id="@+id/nickInput"
             android:layout_width="0dp"
@@ -129,7 +129,7 @@
         android:paddingStart="12dp"
         android:paddingEnd="10dp"
         android:elevation="8dp"
-        android:text="JOGAR"
+        android:text="JOUER"
         android:textAllCaps="false"
         android:textColor="#36D6FF"
         android:textSize="13sp"

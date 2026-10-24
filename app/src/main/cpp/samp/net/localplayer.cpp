@@ -602,6 +602,9 @@ bool CLocalPlayer::Spawn()
 	SpeakerList::Show();
 	MicroIcon::Show();
 
+	// Filet de securite : le joueur est spawn, l'ecran de chargement du launcher doit etre ferme.
+	if (pJavaWrapper) pJavaWrapper->HideLoadingScreen();
+
 	if (m_bSpawnDialogShowed == true)
 	{
 		m_bSpawnDialogShowed = false;

@@ -985,153 +985,153 @@ void ClothesCustomization::RenderPanel()
 
 	ImGui::BeginChild("clothes_scroll", ImVec2(0.0f, 0.0f), true, ImGuiWindowFlags_AlwaysVerticalScrollbar);
 	if (!supportedSkin) {
-		ImGui::TextWrapped("Use o skin 9, 163, 246 ou 280 para testar shaders de pele/roupa.");
+		ImGui::TextWrapped("Utilisez le skin 9, 163, 246 ou 280 pour tester les shaders de peau/vêtements.");
 	}
 	else if (femaleSkin) {
-		DrawSelector("Cor de pele", g_look.skinTone, 1, 6);
+		DrawSelector("Couleur de peau", g_look.skinTone, 1, 6);
 		ClampFemaleSelection();
-		DrawSelector("Textura do rosto", g_look.face, 1, kFemaleFaceCountByTone[g_look.skinTone]);
+		DrawSelector("Texture du visage", g_look.face, 1, kFemaleFaceCountByTone[g_look.skinTone]);
 		ImGui::Separator();
-		DrawSelectorResettingColor("Makeup estilo", g_look.makeupStyle, g_look.makeupColor, 0, kFemaleMakeupStyleCount);
+		DrawSelectorResettingColor("Style de maquillage", g_look.makeupStyle, g_look.makeupColor, 0, kFemaleMakeupStyleCount);
 		if (g_look.makeupStyle > 0) {
-			DrawSelector("Makeup cor", g_look.makeupColor, 1, kFemaleMakeupColorCount);
+			DrawSelector("Couleur du maquillage", g_look.makeupColor, 1, kFemaleMakeupColorCount);
 		}
 		ImGui::Separator();
-		DrawSelectorResettingColor("Sobrancelha estilo", g_look.eyebrowStyle, g_look.eyebrowColor, 0, kMaleEyebrowStyleCount);
+		DrawSelectorResettingColor("Style de sourcils", g_look.eyebrowStyle, g_look.eyebrowColor, 0, kMaleEyebrowStyleCount);
 		if (g_look.eyebrowStyle > 0) {
-			DrawSelector("Sobrancelha cor", g_look.eyebrowColor, 1, kMaleEyebrowColorCount);
+			DrawSelector("Couleur des sourcils", g_look.eyebrowColor, 1, kMaleEyebrowColorCount);
 		}
 		ImGui::Separator();
-		DrawSelectorResettingColor("Cabelo estilo", g_look.hairStyle, g_look.hairColor, 1, static_cast<int>(kFemaleHairStyles.size()));
-		DrawSelector("Cabelo cor", g_look.hairColor, 1, kFemaleHairStyles[g_look.hairStyle - 1].maxValue);
+		DrawSelectorResettingColor("Style de cheveux", g_look.hairStyle, g_look.hairColor, 1, static_cast<int>(kFemaleHairStyles.size()));
+		DrawSelector("Couleur des cheveux", g_look.hairColor, 1, kFemaleHairStyles[g_look.hairStyle - 1].maxValue);
 		ImGui::Separator();
-		DrawSelectorResettingColor("Partes de cima", g_look.topStyle, g_look.topColor, 1, static_cast<int>(kFemaleTopStyles.size()));
-		DrawSelector("Cor cima", g_look.topColor, 1, kFemaleTopStyles[g_look.topStyle - 1].maxValue);
+		DrawSelectorResettingColor("Hauts", g_look.topStyle, g_look.topColor, 1, static_cast<int>(kFemaleTopStyles.size()));
+		DrawSelector("Couleur du haut", g_look.topColor, 1, kFemaleTopStyles[g_look.topStyle - 1].maxValue);
 		ImGui::Separator();
-		DrawSelectorResettingColor("Partes de baixo", g_look.bottomStyle, g_look.bottomColor, 1, static_cast<int>(kFemaleBottomStyles.size()));
-		DrawSelector("Cor baixo", g_look.bottomColor, 1, kFemaleBottomStyles[g_look.bottomStyle - 1].maxValue);
+		DrawSelectorResettingColor("Bas", g_look.bottomStyle, g_look.bottomColor, 1, static_cast<int>(kFemaleBottomStyles.size()));
+		DrawSelector("Couleur du bas", g_look.bottomColor, 1, kFemaleBottomStyles[g_look.bottomStyle - 1].maxValue);
 		ImGui::Separator();
-		DrawSelectorResettingColor("Calcados", g_look.shoesStyle, g_look.shoesColor, 1, static_cast<int>(kFemaleShoesStyles.size()));
-		DrawSelector("Cor calcado", g_look.shoesColor, 1, kFemaleShoesStyles[g_look.shoesStyle - 1].maxValue);
+		DrawSelectorResettingColor("Chaussures", g_look.shoesStyle, g_look.shoesColor, 1, static_cast<int>(kFemaleShoesStyles.size()));
+		DrawSelector("Couleur des chaussures", g_look.shoesColor, 1, kFemaleShoesStyles[g_look.shoesStyle - 1].maxValue);
 		ImGui::Separator();
-		DrawSelector("Tattoo braco esquerdo", g_look.tattooArmLeft, 0, kMaleTattooArmCount);
-		DrawSelector("Tattoo braco direito", g_look.tattooArmRight, 0, kMaleTattooArmCount);
-		DrawSelector("Tattoo perna esquerda", g_look.tattooLegLeft, 0, kMaleTattooLegCount);
-		DrawSelector("Tattoo perna direita", g_look.tattooLegRight, 0, kMaleTattooLegCount);
-		DrawSelector("Tattoo costas", g_look.tattooBack, 0, kMaleTattooBackCount);
-		DrawSelector("Tattoo barriga", g_look.tattooFront, 0, kMaleTattooFrontCount);
+		DrawSelector("Tatouage bras gauche", g_look.tattooArmLeft, 0, kMaleTattooArmCount);
+		DrawSelector("Tatouage bras droit", g_look.tattooArmRight, 0, kMaleTattooArmCount);
+		DrawSelector("Tatouage jambe gauche", g_look.tattooLegLeft, 0, kMaleTattooLegCount);
+		DrawSelector("Tatouage jambe droite", g_look.tattooLegRight, 0, kMaleTattooLegCount);
+		DrawSelector("Tatouage dos", g_look.tattooBack, 0, kMaleTattooBackCount);
+		DrawSelector("Tatouage ventre", g_look.tattooFront, 0, kMaleTattooFrontCount);
 	}
 	else if (policeFemaleSkin) {
-		DrawSelector("Cor de pele", g_look.skinTone, 1, 6);
+		DrawSelector("Couleur de peau", g_look.skinTone, 1, 6);
 		ClampPoliceFemaleSelection();
-		DrawSelector("Textura do rosto", g_look.face, 1, kFemaleFaceCountByTone[g_look.skinTone]);
+		DrawSelector("Texture du visage", g_look.face, 1, kFemaleFaceCountByTone[g_look.skinTone]);
 		ImGui::Separator();
-		DrawSelectorResettingColor("Makeup estilo", g_look.makeupStyle, g_look.makeupColor, 0, kFemaleMakeupStyleCount);
+		DrawSelectorResettingColor("Style de maquillage", g_look.makeupStyle, g_look.makeupColor, 0, kFemaleMakeupStyleCount);
 		if (g_look.makeupStyle > 0) {
-			DrawSelector("Makeup cor", g_look.makeupColor, 1, kFemaleMakeupColorCount);
+			DrawSelector("Couleur du maquillage", g_look.makeupColor, 1, kFemaleMakeupColorCount);
 		}
 		ImGui::Separator();
-		DrawSelectorResettingColor("Sobrancelha estilo", g_look.eyebrowStyle, g_look.eyebrowColor, 0, kMaleEyebrowStyleCount);
+		DrawSelectorResettingColor("Style de sourcils", g_look.eyebrowStyle, g_look.eyebrowColor, 0, kMaleEyebrowStyleCount);
 		if (g_look.eyebrowStyle > 0) {
-			DrawSelector("Sobrancelha cor", g_look.eyebrowColor, 1, kMaleEyebrowColorCount);
+			DrawSelector("Couleur des sourcils", g_look.eyebrowColor, 1, kMaleEyebrowColorCount);
 		}
 		ImGui::Separator();
-		DrawSelectorResettingColor("Cabelo estilo", g_look.hairStyle, g_look.hairColor, 1, static_cast<int>(kPoliceFemaleHairStyles.size()));
-		DrawSelector("Cabelo cor", g_look.hairColor, 1, kPoliceFemaleHairStyles[g_look.hairStyle - 1].maxValue);
+		DrawSelectorResettingColor("Style de cheveux", g_look.hairStyle, g_look.hairColor, 1, static_cast<int>(kPoliceFemaleHairStyles.size()));
+		DrawSelector("Couleur des cheveux", g_look.hairColor, 1, kPoliceFemaleHairStyles[g_look.hairStyle - 1].maxValue);
 		ImGui::Separator();
-		DrawSelectorResettingColor("Partes de cima", g_look.topStyle, g_look.topColor, 1, static_cast<int>(kPoliceFemaleTopStyles.size()));
-		DrawSelector("Cor cima", g_look.topColor, 1, kPoliceFemaleTopStyles[g_look.topStyle - 1].maxValue);
+		DrawSelectorResettingColor("Hauts", g_look.topStyle, g_look.topColor, 1, static_cast<int>(kPoliceFemaleTopStyles.size()));
+		DrawSelector("Couleur du haut", g_look.topColor, 1, kPoliceFemaleTopStyles[g_look.topStyle - 1].maxValue);
 		ImGui::Separator();
-		DrawSelectorResettingColor("Partes de baixo", g_look.bottomStyle, g_look.bottomColor, 1, static_cast<int>(kPoliceFemaleBottomStyles.size()));
-		DrawSelector("Cor baixo", g_look.bottomColor, 1, kPoliceFemaleBottomStyles[g_look.bottomStyle - 1].maxValue);
+		DrawSelectorResettingColor("Bas", g_look.bottomStyle, g_look.bottomColor, 1, static_cast<int>(kPoliceFemaleBottomStyles.size()));
+		DrawSelector("Couleur du bas", g_look.bottomColor, 1, kPoliceFemaleBottomStyles[g_look.bottomStyle - 1].maxValue);
 		ImGui::Separator();
-		DrawSelectorResettingColor("Calcados", g_look.shoesStyle, g_look.shoesColor, 1, static_cast<int>(kPoliceFemaleShoesStyles.size()));
-		DrawSelector("Cor calcado", g_look.shoesColor, 1, kPoliceFemaleShoesStyles[g_look.shoesStyle - 1].maxValue);
+		DrawSelectorResettingColor("Chaussures", g_look.shoesStyle, g_look.shoesColor, 1, static_cast<int>(kPoliceFemaleShoesStyles.size()));
+		DrawSelector("Couleur des chaussures", g_look.shoesColor, 1, kPoliceFemaleShoesStyles[g_look.shoesStyle - 1].maxValue);
 		ImGui::Separator();
-		DrawSelector("Arma cintura", g_look.policeBelt, 0, 1);
-		DrawSelector("Colete", g_look.policeVest, 0, 1);
-		DrawSelector("Boina", g_look.policeHat, 0, 1);
+		DrawSelector("Arme à la ceinture", g_look.policeBelt, 0, 1);
+		DrawSelector("Gilet", g_look.policeVest, 0, 1);
+		DrawSelector("Béret", g_look.policeHat, 0, 1);
 		ImGui::Separator();
-		DrawSelector("Tattoo braco esquerdo", g_look.tattooArmLeft, 0, kMaleTattooArmCount);
-		DrawSelector("Tattoo braco direito", g_look.tattooArmRight, 0, kMaleTattooArmCount);
+		DrawSelector("Tatouage bras gauche", g_look.tattooArmLeft, 0, kMaleTattooArmCount);
+		DrawSelector("Tatouage bras droit", g_look.tattooArmRight, 0, kMaleTattooArmCount);
 	}
 	else if (policeMaleSkin) {
-		DrawSelector("Cor de pele", g_look.skinTone, 1, 6);
+		DrawSelector("Couleur de peau", g_look.skinTone, 1, 6);
 		ClampPoliceMaleSelection();
-		DrawSelector("Formato do rosto", g_look.face, 1, std::min(kFaceCountByTone[g_look.skinTone], kDffFaceSlots));
+		DrawSelector("Forme du visage", g_look.face, 1, std::min(kFaceCountByTone[g_look.skinTone], kDffFaceSlots));
 		ImGui::Separator();
-		DrawSelectorResettingColor("Sobrancelha estilo", g_look.eyebrowStyle, g_look.eyebrowColor, 0, kMaleEyebrowStyleCount);
+		DrawSelectorResettingColor("Style de sourcils", g_look.eyebrowStyle, g_look.eyebrowColor, 0, kMaleEyebrowStyleCount);
 		if (g_look.eyebrowStyle > 0) {
-			DrawSelector("Sobrancelha cor", g_look.eyebrowColor, 1, kMaleEyebrowColorCount);
+			DrawSelector("Couleur des sourcils", g_look.eyebrowColor, 1, kMaleEyebrowColorCount);
 		}
 		ImGui::Separator();
-		DrawSelectorResettingColor("Barba estilo", g_look.beardStyle, g_look.beardColor, 0, kMaleBeardStyleCount);
+		DrawSelectorResettingColor("Style de barbe", g_look.beardStyle, g_look.beardColor, 0, kMaleBeardStyleCount);
 		if (g_look.beardStyle > 0) {
-			DrawSelector("Barba cor", g_look.beardColor, 1, kMaleBeardColorCount);
+			DrawSelector("Couleur de la barbe", g_look.beardColor, 1, kMaleBeardColorCount);
 		}
 		ImGui::Separator();
-		DrawSelectorResettingColor("Cabelo estilo", g_look.hairStyle, g_look.hairColor, 1, static_cast<int>(kPoliceMaleHairStyles.size()));
-		DrawSelector("Cabelo cor", g_look.hairColor, 1, kPoliceMaleHairStyles[g_look.hairStyle - 1].maxValue);
+		DrawSelectorResettingColor("Style de cheveux", g_look.hairStyle, g_look.hairColor, 1, static_cast<int>(kPoliceMaleHairStyles.size()));
+		DrawSelector("Couleur des cheveux", g_look.hairColor, 1, kPoliceMaleHairStyles[g_look.hairStyle - 1].maxValue);
 		ImGui::Separator();
-		DrawSelectorResettingColor("Partes de cima", g_look.topStyle, g_look.topColor, 1, static_cast<int>(kPoliceMaleTopStyles.size()));
-		DrawSelector("Cor cima", g_look.topColor, 1, kPoliceMaleTopStyles[g_look.topStyle - 1].maxValue);
+		DrawSelectorResettingColor("Hauts", g_look.topStyle, g_look.topColor, 1, static_cast<int>(kPoliceMaleTopStyles.size()));
+		DrawSelector("Couleur du haut", g_look.topColor, 1, kPoliceMaleTopStyles[g_look.topStyle - 1].maxValue);
 		ImGui::Separator();
-		DrawSelectorResettingColor("Partes de baixo", g_look.bottomStyle, g_look.bottomColor, 1, static_cast<int>(kPoliceMaleBottomStyles.size()));
-		DrawSelector("Cor baixo", g_look.bottomColor, 1, kPoliceMaleBottomStyles[g_look.bottomStyle - 1].maxValue);
+		DrawSelectorResettingColor("Bas", g_look.bottomStyle, g_look.bottomColor, 1, static_cast<int>(kPoliceMaleBottomStyles.size()));
+		DrawSelector("Couleur du bas", g_look.bottomColor, 1, kPoliceMaleBottomStyles[g_look.bottomStyle - 1].maxValue);
 		ImGui::Separator();
-		DrawSelectorResettingColor("Calcados", g_look.shoesStyle, g_look.shoesColor, 1, static_cast<int>(kPoliceMaleShoesStyles.size()));
-		DrawSelector("Cor calcado", g_look.shoesColor, 1, kPoliceMaleShoesStyles[g_look.shoesStyle - 1].maxValue);
+		DrawSelectorResettingColor("Chaussures", g_look.shoesStyle, g_look.shoesColor, 1, static_cast<int>(kPoliceMaleShoesStyles.size()));
+		DrawSelector("Couleur des chaussures", g_look.shoesColor, 1, kPoliceMaleShoesStyles[g_look.shoesStyle - 1].maxValue);
 		ImGui::Separator();
-		DrawSelector("Arma cintura", g_look.policeBelt, 0, 1);
-		DrawSelector("Colete", g_look.policeVest, 0, 1);
-		DrawSelector("Boina", g_look.policeHat, 0, 1);
+		DrawSelector("Arme à la ceinture", g_look.policeBelt, 0, 1);
+		DrawSelector("Gilet", g_look.policeVest, 0, 1);
+		DrawSelector("Béret", g_look.policeHat, 0, 1);
 		ImGui::Separator();
-		DrawSelector("Tattoo braco esquerdo", g_look.tattooArmLeft, 0, kMaleTattooArmCount);
-		DrawSelector("Tattoo braco direito", g_look.tattooArmRight, 0, kMaleTattooArmCount);
-		DrawSelector("Tattoo perna esquerda", g_look.tattooLegLeft, 0, kMaleTattooLegCount);
-		DrawSelector("Tattoo perna direita", g_look.tattooLegRight, 0, kMaleTattooLegCount);
-		DrawSelector("Tattoo costas", g_look.tattooBack, 0, kMaleTattooBackCount);
-		DrawSelector("Tattoo barriga", g_look.tattooFront, 0, kMaleTattooFrontCount);
+		DrawSelector("Tatouage bras gauche", g_look.tattooArmLeft, 0, kMaleTattooArmCount);
+		DrawSelector("Tatouage bras droit", g_look.tattooArmRight, 0, kMaleTattooArmCount);
+		DrawSelector("Tatouage jambe gauche", g_look.tattooLegLeft, 0, kMaleTattooLegCount);
+		DrawSelector("Tatouage jambe droite", g_look.tattooLegRight, 0, kMaleTattooLegCount);
+		DrawSelector("Tatouage dos", g_look.tattooBack, 0, kMaleTattooBackCount);
+		DrawSelector("Tatouage ventre", g_look.tattooFront, 0, kMaleTattooFrontCount);
 	}
 	else {
-		DrawSelector("Cor de pele", g_look.skinTone, 1, 6);
+		DrawSelector("Couleur de peau", g_look.skinTone, 1, 6);
 		ClampSelection();
-		DrawSelector("Formato do rosto", g_look.face, 1, std::min(kFaceCountByTone[g_look.skinTone], kDffFaceSlots));
+		DrawSelector("Forme du visage", g_look.face, 1, std::min(kFaceCountByTone[g_look.skinTone], kDffFaceSlots));
 		ImGui::Separator();
-		DrawSelectorResettingColor("Sobrancelha estilo", g_look.eyebrowStyle, g_look.eyebrowColor, 0, kMaleEyebrowStyleCount);
+		DrawSelectorResettingColor("Style de sourcils", g_look.eyebrowStyle, g_look.eyebrowColor, 0, kMaleEyebrowStyleCount);
 		if (g_look.eyebrowStyle > 0) {
-			DrawSelector("Sobrancelha cor", g_look.eyebrowColor, 1, kMaleEyebrowColorCount);
+			DrawSelector("Couleur des sourcils", g_look.eyebrowColor, 1, kMaleEyebrowColorCount);
 		}
 		ImGui::Separator();
-		DrawSelectorResettingColor("Barba estilo", g_look.beardStyle, g_look.beardColor, 0, kMaleBeardStyleCount);
+		DrawSelectorResettingColor("Style de barbe", g_look.beardStyle, g_look.beardColor, 0, kMaleBeardStyleCount);
 		if (g_look.beardStyle > 0) {
-			DrawSelector("Barba cor", g_look.beardColor, 1, kMaleBeardColorCount);
+			DrawSelector("Couleur de la barbe", g_look.beardColor, 1, kMaleBeardColorCount);
 		}
 		ImGui::Separator();
-		DrawSelectorResettingColor("Cabelo estilo", g_look.hairStyle, g_look.hairColor, 1, static_cast<int>(kHairStyles.size()));
-		DrawSelector("Cabelo cor", g_look.hairColor, 1, kHairStyles[g_look.hairStyle - 1].maxValue);
+		DrawSelectorResettingColor("Style de cheveux", g_look.hairStyle, g_look.hairColor, 1, static_cast<int>(kHairStyles.size()));
+		DrawSelector("Couleur des cheveux", g_look.hairColor, 1, kHairStyles[g_look.hairStyle - 1].maxValue);
 		ImGui::Separator();
 		// 0 = sem camisa (personagem começa só de cueca)
-		DrawSelectorResettingColor("Partes de cima", g_look.topStyle, g_look.topColor, 0, static_cast<int>(kTopStyles.size()));
+		DrawSelectorResettingColor("Hauts", g_look.topStyle, g_look.topColor, 0, static_cast<int>(kTopStyles.size()));
 		if (g_look.topStyle > 0) {
-			DrawSelector("Cor cima", g_look.topColor, 1, kTopStyles[g_look.topStyle - 1].maxValue);
+			DrawSelector("Couleur du haut", g_look.topColor, 1, kTopStyles[g_look.topStyle - 1].maxValue);
 		}
 		ImGui::Separator();
-		DrawSelectorResettingColor("Partes de baixo", g_look.bottomStyle, g_look.bottomColor, 1, static_cast<int>(kBottomStyles.size()));
-		DrawSelector("Cor baixo", g_look.bottomColor, 1, kBottomStyles[g_look.bottomStyle - 1].maxValue);
+		DrawSelectorResettingColor("Bas", g_look.bottomStyle, g_look.bottomColor, 1, static_cast<int>(kBottomStyles.size()));
+		DrawSelector("Couleur du bas", g_look.bottomColor, 1, kBottomStyles[g_look.bottomStyle - 1].maxValue);
 		ImGui::Separator();
 		// 0 = descalço
-		DrawSelectorResettingColor("Calcados", g_look.shoesStyle, g_look.shoesColor, 0, static_cast<int>(kShoesStyles.size()));
+		DrawSelectorResettingColor("Chaussures", g_look.shoesStyle, g_look.shoesColor, 0, static_cast<int>(kShoesStyles.size()));
 		if (g_look.shoesStyle > 0) {
-			DrawSelector("Cor calcado", g_look.shoesColor, 1, kShoesStyles[g_look.shoesStyle - 1].maxValue);
+			DrawSelector("Couleur des chaussures", g_look.shoesColor, 1, kShoesStyles[g_look.shoesStyle - 1].maxValue);
 		}
 		ImGui::Separator();
-		DrawSelector("Tattoo braco esquerdo", g_look.tattooArmLeft, 0, kMaleTattooArmCount);
-		DrawSelector("Tattoo braco direito", g_look.tattooArmRight, 0, kMaleTattooArmCount);
-		DrawSelector("Tattoo perna esquerda", g_look.tattooLegLeft, 0, kMaleTattooLegCount);
-		DrawSelector("Tattoo perna direita", g_look.tattooLegRight, 0, kMaleTattooLegCount);
-		DrawSelector("Tattoo costas", g_look.tattooBack, 0, kMaleTattooBackCount);
-		DrawSelector("Tattoo barriga", g_look.tattooFront, 0, kMaleTattooFrontCount);
+		DrawSelector("Tatouage bras gauche", g_look.tattooArmLeft, 0, kMaleTattooArmCount);
+		DrawSelector("Tatouage bras droit", g_look.tattooArmRight, 0, kMaleTattooArmCount);
+		DrawSelector("Tatouage jambe gauche", g_look.tattooLegLeft, 0, kMaleTattooLegCount);
+		DrawSelector("Tatouage jambe droite", g_look.tattooLegRight, 0, kMaleTattooLegCount);
+		DrawSelector("Tatouage dos", g_look.tattooBack, 0, kMaleTattooBackCount);
+		DrawSelector("Tatouage ventre", g_look.tattooFront, 0, kMaleTattooFrontCount);
 	}
 	ImGui::EndChild();
 }

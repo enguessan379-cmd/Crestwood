@@ -5,7 +5,7 @@ html,body{width:100%;height:100%;margin:0;overflow:hidden;background:var(--ink);
 .screen{position:relative;isolation:isolate;display:grid;place-items:center;width:100%;height:100%;
   padding:max(10px,env(safe-area-inset-top)) max(14px,env(safe-area-inset-right)) max(10px,env(safe-area-inset-bottom)) max(14px,env(safe-area-inset-left))}
 .bg,.vignette{position:absolute;top:0;right:0;bottom:0;left:0;pointer-events:none}
-.bg{z-index:-2;background:url("scenes/crestwood-scene-1.webp") center/cover no-repeat var(--ink);transform:scale(1.025);transition:background-image .7s ease,opacity .7s ease;animation:sceneDrift 22s ease-in-out infinite alternate}
+.bg{z-index:-2;background:url("scenes/crestwood-loading.webp") center/cover no-repeat var(--ink);transform:scale(1.025);transition:background-image .7s ease,opacity .7s ease;animation:sceneDrift 22s ease-in-out infinite alternate}
 .vignette{z-index:-1;background:linear-gradient(90deg,rgba(5,8,13,.62),rgba(5,8,13,.28) 48%,rgba(5,8,13,.52)),linear-gradient(0deg,rgba(3,5,9,.76),transparent 48%,rgba(3,5,9,.12))}
 
 /* couleurs selon l'état : idle / download / verify / install / permission / ready / error */
@@ -85,3 +85,24 @@ h1{margin:0;font-size:clamp(17px,5vh,26px);line-height:1.15;letter-spacing:-.3px
 .card[data-state=ready]{--accent:#2fcf8c;--accent2:#7cf0bf;--glow:rgba(80,226,160,.4)}
 .card[data-state=error]{--accent0:#b8283d;--accent:#ff5d73;--accent2:#ff93a1;--glow:rgba(255,93,115,.4)}
 @keyframes sceneDrift{from{background-position:48% 50%;}to{background-position:54% 46%;}}
+
+/* Fond fixe (visuel Crestwood) : on garde la carte au-dessus du lecteur de musique */
+.screen{padding-bottom:max(58px,env(safe-area-inset-bottom))}
+.bg{animation:sceneDrift 26s ease-in-out infinite alternate}
+
+/* Lecteur de musique de l'écran de chargement */
+.player{position:fixed;right:max(18px,env(safe-area-inset-right));bottom:max(12px,env(safe-area-inset-bottom));z-index:5;
+  display:flex;flex-direction:column;align-items:flex-end;gap:5px;max-width:min(360px,48vw);color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.9)}
+.track-title{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;letter-spacing:.3px;color:rgba(255,255,255,.85)}
+.player-controls{display:flex;align-items:center;gap:10px}
+.pbtn{display:grid;place-items:center;width:30px;height:30px;padding:0;border:0;border-radius:50%;background:transparent;color:#fff;opacity:.92}
+.pbtn svg{width:19px;height:19px;fill:currentColor}
+.pbtn:active{transform:scale(.88);background:rgba(255,255,255,.14)}
+#vol{-webkit-appearance:none;appearance:none;width:92px;height:22px;margin:0 0 0 6px;background:transparent;outline:0}
+#vol::-webkit-slider-runnable-track{height:3px;border-radius:2px;background:linear-gradient(90deg,#fff var(--v,50%),rgba(255,255,255,.28) var(--v,50%))}
+#vol::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:18px;height:18px;margin-top:-7.5px;border-radius:50%;background:#fff;box-shadow:0 1px 5px rgba(0,0,0,.6)}
+@media (max-width:560px){.player{max-width:62vw}}
+
+/* Etat "connexion au serveur" : barre indeterminee */
+.track.busy .bar{width:38%!important;animation:busy 1.5s ease-in-out infinite alternate}
+@keyframes busy{from{transform:translateX(0)}to{transform:translateX(163%)}}

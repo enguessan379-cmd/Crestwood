@@ -97,7 +97,7 @@
         <activity
             android:name="com.gta.game.SAMP"
             android:screenOrientation="landscape"
-            android:theme="@style/Theme.AppCompat.Light.NoActionBar.FullScreen"
+            android:theme="@style/Theme.Crestwood.Game"
             android:configChanges="keyboard|keyboardHidden|orientation|screenSize|uiMode"
             android:launchMode="singleTask"
             android:windowSoftInputMode="adjustPan"

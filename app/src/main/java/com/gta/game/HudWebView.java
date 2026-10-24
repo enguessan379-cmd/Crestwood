@@ -23,6 +23,7 @@ public class HudWebView extends WebView {
     private boolean fullscreenPage;
     private boolean vehicleMode;
     private boolean phonePage;
+    private boolean cameraPage;
     private volatile boolean interactive;
     private volatile List<float[]> bounds = new ArrayList<>();
 
@@ -38,9 +39,12 @@ public class HudWebView extends WebView {
     }
 
     public void setWheelOpen(boolean value) { wheelOpen = value; }
-    public void setFullscreenPage(boolean value) { fullscreenPage = value; }
+    public void setFullscreenPage(boolean value) { fullscreenPage = value; cameraPage = false; }
     public void setVehicleMode(boolean value) { vehicleMode = value; }
-    public void setPhonePage(boolean value) { phonePage = value; }
+    public void setPhonePage(boolean value) { phonePage = value; cameraPage = false; }
+
+    /** Caméra du téléphone : seules les zones du cadre téléphone (haut/bas) captent, le viseur laisse passer le tactile vers le jeu. */
+    public void setCameraPage(boolean value) { cameraPage = value; }
 
     /** Vrai quand le chat, le menu rapide, l'éditeur de HUD, la carte d'identité... sont ouverts. */
     public void setInteractive(boolean value) { interactive = value; }
@@ -104,6 +108,12 @@ public class HudWebView extends WebView {
         float height = Math.max(1f, getHeight());
         float x = event.getX() / width;
         float y = event.getY() / height;
+        if (cameraPage) {
+            for (float[] r : bounds) {
+                if (x >= r[0] && x <= r[2] && y >= r[1] && y <= r[3]) return super.onTouchEvent(event);
+            }
+            return false;
+        }
         if (phonePage) {
             if (x >= 0.50f && y >= 0.05f) return super.onTouchEvent(event);
             return false;

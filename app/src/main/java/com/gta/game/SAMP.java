@@ -71,13 +71,15 @@ public class SAMP extends GTASA implements HeightProvider.HeightListener {
     }
 
 
-    private void showLoadingScreen() { }
+    private void showLoadingScreen() {
+        runOnUiThread(() -> { if (mLoadingScreen != null) mLoadingScreen.show(); });
+    }
 
     private void hideLoadingScreen() {
         runOnUiThread(new Runnable() {
             @Override
             public void run() {
-                mLoadingScreen.hide();
+                if (mLoadingScreen != null) mLoadingScreen.hide();
             }
         });
     }
@@ -166,6 +168,7 @@ public class SAMP extends GTASA implements HeightProvider.HeightListener {
     private native void initializeSAMP();
     private native void openChatInput();
     private native void sendChatInput(String input);
+    private native void openClothesTest();
 
     @Override
     public void onStart() {
@@ -305,7 +308,10 @@ public class SAMP extends GTASA implements HeightProvider.HeightListener {
         View game = findViewById(R.id.viewGame);
         if (game == null || bufferWidth <= 0 || bufferHeight <= 0) return;
         android.util.DisplayMetrics metrics = getResources().getDisplayMetrics();
-        float scale = Math.min(1f, Math.min((float) metrics.widthPixels / bufferWidth, (float) metrics.heightPixels / bufferHeight));
+        // Le buffer de rendu (résolution) peut être plus petit que l'écran : la vue doit alors être AGRANDIE pour remplir
+        // l'écran (le compositeur étire la surface). Avant, le scale était plafonné à 1 -> la vue restait en petit
+        // rectangle centré avec des bords blancs autour.
+        float scale = Math.min((float) metrics.widthPixels / bufferWidth, (float) metrics.heightPixels / bufferHeight);
         int viewWidth = Math.max(1, Math.round(bufferWidth * scale));
         int viewHeight = Math.max(1, Math.round(bufferHeight * scale));
         ConstraintLayout.LayoutParams params = new ConstraintLayout.LayoutParams(viewWidth, viewHeight);
@@ -582,7 +588,8 @@ public class SAMP extends GTASA implements HeightProvider.HeightListener {
                 return;
             }
             if ("settings:reset".equals(action)) {
-                applyGameSurfaceLayout(1600, 720);
+                android.util.DisplayMetrics resetMetrics = getResources().getDisplayMetrics();
+                applyGameSurfaceLayout(Math.max(640, resetMetrics.widthPixels), Math.max(360, resetMetrics.heightPixels));
                 getSharedPreferences("display_settings", MODE_PRIVATE).edit().clear().apply();
                 return;
             }
@@ -606,7 +613,8 @@ public class SAMP extends GTASA implements HeightProvider.HeightListener {
             cameraOpen = true;
             hudWebView.setWheelOpen(false);
             hudWebView.setPhonePage(false);
-            hudWebView.setFullscreenPage(true);
+            hudWebView.setFullscreenPage(false);
+            hudWebView.setCameraPage(true); // viseur transparent : le tactile passe au jeu (glisser pour regarder)
             hudWebView.setVisibility(View.VISIBLE);
             hudWebView.loadUrl("file:///android_asset/hud/index.html?camera=phone");
         });
@@ -774,6 +782,7 @@ public class SAMP extends GTASA implements HeightProvider.HeightListener {
                 case "audio": sendHudCommand(CMD_AUDIO); break;
                 case "store": sendHudCommand(CMD_STORE); break;
                 case "records": openInteractionPage("blazer/index.html"); break;
+                case "clothes": runOnUiThread(() -> openClothesTest()); break; // bouton de test : ouvre les vêtements sans serveur
                 default: Log.d(TAG, "menuAction inconnue: " + action);
             }
         }

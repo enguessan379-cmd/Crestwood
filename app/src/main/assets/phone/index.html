@@ -247,13 +247,22 @@
   @keyframes uspin{to{transform:rotate(360deg)}}
 </style>
 <style id="crestwood-phone-size">
-/* Telephone portrait (400x700) reduit pour tenir en entier dans l'ecran paysage du jeu, colle a droite. */
+/* Telephone portrait (400x700) agrandi : prend toute la hauteur du cote droit de l'ecran paysage. */
 html,body{height:100%;overflow:hidden;}
-body{min-height:100vh;justify-content:flex-end !important;align-items:center !important;padding:0 4vw 0 0 !important;}
+body{min-height:100vh;justify-content:flex-end !important;align-items:center !important;padding:0 1.5vw 0 0 !important;}
 .phone{zoom:var(--phone-zoom,.5);}
+/* Petite flèche pour fermer le téléphone : juste à gauche du téléphone (zone tactile de droite de l'écran). */
+#phoneCloseArrow{position:fixed;z-index:1000;top:max(10vh,24px);
+  right:calc(1.5vw + var(--phone-zoom,.5) * 400px + 10px);
+  width:34px;height:34px;padding:0;display:grid;place-items:center;cursor:pointer;
+  border:1.5px solid rgba(255,255,255,.65);border-radius:50%;
+  background:rgba(15,15,18,.55);box-shadow:0 2px 8px rgba(0,0,0,.45);
+  -webkit-tap-highlight-color:transparent;touch-action:manipulation;transition:transform .1s ease,background .15s ease;}
+#phoneCloseArrow:active{transform:scale(.92);background:rgba(15,15,18,.8);}
+#phoneCloseArrow svg{width:18px;height:18px;fill:none;stroke:#fff;stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round;pointer-events:none;}
 </style>
 <script>
-(function(){function fit(){var h=window.innerHeight||360;var z=Math.min(.6,(h*.62)/700);document.documentElement.style.setProperty('--phone-zoom',Math.max(.3,z).toFixed(3));}fit();window.addEventListener('resize',fit);})();
+(function(){function fit(){var h=window.innerHeight||360;var z=(h*.97)/700;document.documentElement.style.setProperty('--phone-zoom',Math.max(.3,z).toFixed(3));}fit();window.addEventListener('resize',fit);})();
 </script>
 </head>
 <body>
@@ -399,6 +408,8 @@ body{min-height:100vh;justify-content:flex-end !important;align-items:center !im
     <div class="home-bar" id="homeBar"></div>
   </div>
 </div>
+
+<button id="phoneCloseArrow" type="button" aria-label="Fermer le téléphone" title="Fermer le téléphone"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
 
 <script>
 /* ================= ICÔNES SVG (vraies icônes, pas d'emoji) ================= */
@@ -1924,9 +1935,13 @@ function closePhone(){
     sy=null;
     /* Glisser vers le haut depuis une application : retour à l'accueil. */
     if(swipeUp && inApp){closeApp();return;}
-    /* Appui simple (ou glisser depuis l'accueil / l'écran verrouillé) : on ferme le téléphone. */
-    if(!moved || swipeUp)closePhone();
+    /* La barre du bas ne ferme plus le téléphone : on utilise la petite flèche à côté (#phoneCloseArrow). */
   });
+})();
+
+(function(){
+  var a=document.getElementById('phoneCloseArrow');
+  if(a)a.addEventListener('click',function(e){e.preventDefault();e.stopPropagation();closePhone();});
 })();
 
 /* ================= DÉVERROUILLAGE (cliquer OU glisser) ================= */

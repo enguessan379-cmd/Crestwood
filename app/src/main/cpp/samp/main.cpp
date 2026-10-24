@@ -11,6 +11,7 @@
 #include "game/game.h"
 #include "net/netgame.h"
 #include "gui/gui.h"
+#include "gui/CharacterCreator.h"
 #include "playertags.h"
 #include "audiostream.h"
 #include "java/jniutil.h"
@@ -320,6 +321,12 @@ extern "C" {
 		JNIEXPORT void JNICALL Java_com_gta_game_SAMP_setNativeStoragePath(JNIEnv* env, jobject thiz, jstring path)
 		{
 			SetNativeStoragePath(env, path);
+		}
+
+		// Bouton de test du HUD : ouvre/ferme le panneau de vêtements en local, sans serveur.
+		JNIEXPORT void JNICALL Java_com_gta_game_SAMP_openClothesTest(JNIEnv *pEnv, jobject thiz)
+		{
+			CharacterCreator::RequestOpenTest();
 		}
 
 		JNIEXPORT void JNICALL Java_com_gta_game_SAMP_openChatInput(JNIEnv *pEnv, jobject thiz)

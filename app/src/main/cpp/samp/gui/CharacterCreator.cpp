@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <cctype>
 #include <cmath>
 #include <cstdio>
@@ -15,11 +16,13 @@
 #include "../game/RW/rwcore.h"
 #include "../game/RW/rpworld.h"
 #include "../net/netgame.h"
+#include "../java/jniutil.h"
 #include "ClothesCustomization.h"
 #include "gui.h"
 #include "../vendor/imgui/imgui.h"
 
 extern CNetGame* pNetGame;
+extern CJavaWrapper* pJavaWrapper;
 extern CGame* pGame;
 extern UI* pUI;
 
@@ -47,6 +50,12 @@ namespace {
 	// setup no primeiro tick.
 	std::string g_selectJson;
 	bool g_selectSetupPending = false;
+
+	// MODE TEST : panneau de vêtements ouvert en local par le bouton du HUD,
+	// sans aucun échange avec le serveur (donc sans Pawn). Rien n'est envoyé ni
+	// sauvegardé : « FERMER » referme simplement le panneau.
+	std::atomic<bool> g_testOpenRequested{false};
+	bool g_testMode = false;
 
 	// Se o boneco fugir do ponto de criação (o servidor congelou, mas em casos
 	// de reconexão/streaming a área demora a carregar), devolve ele pro lugar
@@ -302,6 +311,21 @@ namespace {
 		ClothesCustomization::ApplyCurrent();
 	}
 
+	// MODE TEST : ouvre directement le panneau de vêtements, sans serveur.
+	// Exécuté uniquement depuis Render() (thread du jeu).
+	void OpenTestNow()
+	{
+		g_testMode = true;
+		g_selectModelRetries = 0;
+		g_selectSetupPending = false;
+		g_editTarget = EditTarget::None;
+		g_pedHidden = false;
+		SetPedVisible(true);
+		ClearStuckFall();
+		PreviewGender(g_gender);
+		g_state = State::Creating;
+	}
+
 	// Abre o teclado normal do launcher (teclado Android do sistema) para
 	// preencher o campo indicado.
 	void BeginEdit(EditTarget target)
@@ -401,12 +425,12 @@ namespace {
 	{
 		const float winW = 760.0f;
 		const float winH = 620.0f;
-		if (!CreatorBegin("SELECIONE O PERSONAGEM", winW, winH)) {
+		if (!CreatorBegin("SÉLECTION DU PERSONNAGE", winW, winH)) {
 			ImGui::End();
 			return;
 		}
 
-		ImGui::Text("SLOTS USADOS  %s", g_hasChar ? "1/1" : "0/1");
+		ImGui::Text("EMPLACEMENTS UTILISÉS  %s", g_hasChar ? "1/1" : "0/1");
 		ImGui::Separator();
 		ImGui::Spacing();
 
@@ -450,7 +474,7 @@ namespace {
 				}
 				else {
 					ImGui::PushID("lock");
-					ImGui::Button("BLOQUEADO", ImVec2(slotW, slotH));
+					ImGui::Button("VERROUILLÉ", ImVec2(slotW, slotH));
 					ImGui::PopID();
 				}
 				ImGui::PopID();
@@ -462,10 +486,10 @@ namespace {
 		// Status do personagem
 		ImGui::SameLine();
 		ImGui::BeginChild("status", ImVec2(0.0f, 0.0f), true);
-		ImGui::Text("STATUS DO PERSONAGEM");
+		ImGui::Text("STATUT DU PERSONNAGE");
 		ImGui::Separator();
 		ImGui::Spacing();
-		ImGui::Text("ANIVERSARIO");
+		ImGui::Text("DATE DE NAISSANCE");
 		if (g_hasChar && g_day > 0 && g_month > 0 && g_year > 0) {
 			ImGui::Text("%02d/%02d/%04d", g_day, g_month, g_year);
 		}
@@ -473,14 +497,14 @@ namespace {
 			ImGui::Text("--");
 		}
 		ImGui::Spacing();
-		ImGui::Text("DINHEIRO");
+		ImGui::Text("ARGENT");
 		{
 			char buf[32];
 			std::snprintf(buf, sizeof(buf), "$%d", g_cash);
 			ImGui::Text("%s", g_hasChar ? buf : "--");
 		}
 		ImGui::Spacing();
-		ImGui::Text("BANCO");
+		ImGui::Text("BANQUE");
 		{
 			char buf[32];
 			std::snprintf(buf, sizeof(buf), "$%d", g_bank);
@@ -493,7 +517,7 @@ namespace {
 		ImGui::Spacing();
 
 		const float btnW = winW - ImGui::GetStyle().WindowPadding.x * 2.0f;
-		if (g_hasChar && ImGui::Button("NASCER", ImVec2(btnW, 46.0f))) {
+		if (g_hasChar && ImGui::Button("ENTRER EN JEU", ImVec2(btnW, 46.0f))) {
 			g_pedHidden = false;
 			SetPedVisible(true);
 			g_state = State::Waiting;
@@ -530,11 +554,11 @@ namespace {
 		{
 			const ImVec2 display = ImGui::GetIO().DisplaySize;
 			ImGui::SetCursorPos(ImVec2(28.0f, 20.0f));
-			ImGui::TextColored(ImVec4(0.0f, 0.90f, 0.52f, 1.0f), "CONEXAO PAULISTA");
-			ImGui::SameLine(display.x - 230.0f);
-			ImGui::TextColored(ImVec4(0.46f, 0.50f, 0.48f, 1.0f), "CRIACAO DE PERSONAGEM");
+			ImGui::TextColored(ImVec4(0.0f, 0.90f, 0.52f, 1.0f), "CRESTWOOD RP");
+			ImGui::SameLine(display.x - 290.0f);
+			ImGui::TextColored(ImVec4(0.46f, 0.50f, 0.48f, 1.0f), "CRÉATION DU PERSONNAGE");
 			ImGui::SetCursorPos(ImVec2(28.0f, 56.0f));
-			const char* tabs[] = { "DADOS", "APARENCIA", "FINALIZAR" };
+			const char* tabs[] = { "DONNÉES", "APPARENCE", "FINALISER" };
 			for (int i = 0; i < 3; ++i) {
 				if (i > 0) ImGui::SameLine(0.0f, 25.0f);
 				const bool selected = std::strcmp(tabs[i], active) == 0;
@@ -551,69 +575,69 @@ namespace {
 				ImGui::End();
 				return;
 			}
-			ModernHeader("DADOS");
+			ModernHeader("DONNÉES");
 			const ImVec2 display = ImGui::GetIO().DisplaySize;
 			const float panelW = std::min(520.0f, display.x * 0.43f);
 			ImGui::SetCursorPos(ImVec2(34.0f, 122.0f));
 			ImGui::BeginChild("modern_register_panel", ImVec2(panelW, display.y - 165.0f), false);
-			ImGui::TextColored(ImVec4(0.0f, 0.85f, 0.45f, 1.0f), "COMECE AGORA");
+			ImGui::TextColored(ImVec4(0.0f, 0.85f, 0.45f, 1.0f), "COMMENCEZ ICI");
 			ImGui::Spacing();
-			ImGui::TextColored(ImVec4(0.96f, 0.98f, 0.97f, 1.0f), "Crie seu personagem");
-			ImGui::TextColored(ImVec4(0.45f, 0.50f, 0.48f, 1.0f), "Preencha seus dados para entrar em Conexao Paulista.");
+			ImGui::TextColored(ImVec4(0.96f, 0.98f, 0.97f, 1.0f), "Créez votre personnage");
+			ImGui::TextColored(ImVec4(0.45f, 0.50f, 0.48f, 1.0f), "Remplissez vos informations pour entrer à Crestwood.");
 			ImGui::Spacing();
 			ImGui::Spacing();
 			const float fullW = panelW - 18.0f;
 
-			ImGui::TextColored(ImVec4(0.48f, 0.53f, 0.50f, 1.0f), "GENERO");
+			ImGui::TextColored(ImVec4(0.48f, 0.53f, 0.50f, 1.0f), "GENRE");
 			ImGui::PushStyleColor(ImGuiCol_Button, g_gender == 0 ? ImVec4(0.0f, 0.72f, 0.38f, 1.0f) : ImVec4(0.015f, 0.025f, 0.023f, 1.0f));
 			ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.0f, 0.55f, 0.30f, 1.0f));
-			if (ImGui::Button("MASCULINO", ImVec2(fullW * 0.48f, 43.0f))) { g_gender = 0; PreviewGender(0); }
+			if (ImGui::Button("HOMME", ImVec2(fullW * 0.48f, 43.0f))) { g_gender = 0; PreviewGender(0); }
 			ImGui::PopStyleColor(2);
 			ImGui::SameLine();
 			ImGui::PushStyleColor(ImGuiCol_Button, g_gender == 1 ? ImVec4(0.0f, 0.72f, 0.38f, 1.0f) : ImVec4(0.015f, 0.025f, 0.023f, 1.0f));
 			ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.0f, 0.55f, 0.30f, 1.0f));
-			if (ImGui::Button("FEMININO", ImVec2(fullW * 0.48f, 43.0f))) { g_gender = 1; PreviewGender(1); }
+			if (ImGui::Button("FEMME", ImVec2(fullW * 0.48f, 43.0f))) { g_gender = 1; PreviewGender(1); }
 			ImGui::PopStyleColor(2);
 			ImGui::Spacing();
 
-			std::string nameLabel = g_nameBuf[0] ? g_nameBuf : "Digite seu nome";
+			std::string nameLabel = g_nameBuf[0] ? g_nameBuf : "Saisissez votre prénom";
 			if (g_editTarget == EditTarget::Name) { const std::string live = FieldLiveText(); if (!live.empty()) nameLabel = live; }
-			ImGui::TextColored(ImVec4(0.48f, 0.53f, 0.50f, 1.0f), "NOME");
+			ImGui::TextColored(ImVec4(0.48f, 0.53f, 0.50f, 1.0f), "PRÉNOM");
 			ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.015f, 0.025f, 0.023f, 0.96f));
 			ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.025f, 0.09f, 0.065f, 1.0f));
 			if (ImGui::Button(nameLabel.c_str(), ImVec2(fullW, 43.0f))) BeginEdit(EditTarget::Name);
 			ImGui::PopStyleColor(2);
 			ImGui::Spacing();
 
-			std::string lastLabel = g_lastNameBuf[0] ? g_lastNameBuf : "Digite seu sobrenome";
+			std::string lastLabel = g_lastNameBuf[0] ? g_lastNameBuf : "Saisissez votre nom de famille";
 			if (g_editTarget == EditTarget::LastName) { const std::string live = FieldLiveText(); if (!live.empty()) lastLabel = live; }
-			ImGui::TextColored(ImVec4(0.48f, 0.53f, 0.50f, 1.0f), "SOBRENOME");
+			ImGui::TextColored(ImVec4(0.48f, 0.53f, 0.50f, 1.0f), "NOM DE FAMILLE");
 			ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.015f, 0.025f, 0.023f, 0.96f));
 			ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.025f, 0.09f, 0.065f, 1.0f));
 			if (ImGui::Button(lastLabel.c_str(), ImVec2(fullW, 43.0f))) BeginEdit(EditTarget::LastName);
 			ImGui::PopStyleColor(2);
 			ImGui::Spacing();
 
-			std::string birthLabel = "DD / MM / AAAA";
+			std::string birthLabel = "JJ / MM / AAAA";
 			if (g_day > 0 && g_month > 0 && g_year > 0) { char tmp[16]; std::snprintf(tmp, sizeof(tmp), "%02d / %02d / %04d", g_day, g_month, g_year); birthLabel = tmp; }
 			if (g_editTarget == EditTarget::Birth) { const std::string live = FieldLiveText(); if (!live.empty()) birthLabel = live; }
-			ImGui::TextColored(ImVec4(0.48f, 0.53f, 0.50f, 1.0f), "DATA DE NASCIMENTO");
+			ImGui::TextColored(ImVec4(0.48f, 0.53f, 0.50f, 1.0f), "DATE DE NAISSANCE");
 			ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.015f, 0.025f, 0.023f, 0.96f));
 			ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.025f, 0.09f, 0.065f, 1.0f));
 			if (ImGui::Button(birthLabel.c_str(), ImVec2(fullW, 43.0f))) BeginEdit(EditTarget::Birth);
 			ImGui::PopStyleColor(2);
 			ImGui::Spacing();
-			ImGui::TextColored(ImVec4(0.34f, 0.39f, 0.37f, 1.0f), "Voce podera personalizar roupas, cabelo e rosto na proxima etapa.");
+			ImGui::TextColored(ImVec4(0.34f, 0.39f, 0.37f, 1.0f), "Vous pourrez personnaliser vêtements, cheveux et visage à l'étape suivante.");
 			ImGui::EndChild();
 
 			const bool valid = g_nameBuf[0] != 0 && g_lastNameBuf[0] != 0 && g_day >= 1 && g_day <= 31 && g_month >= 1 && g_month <= 12 && g_year >= 1900 && g_year <= 2026;
 			ImGui::SetCursorPos(ImVec2(34.0f, display.y - 70.0f));
 			ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.02f, 0.08f, 0.055f, 1.0f));
-			if (ImGui::Button("VOLTAR", ImVec2(130.0f, 44.0f))) { g_editTarget = EditTarget::None; g_pedHidden = !g_hasChar; SetPedVisible(!g_pedHidden); g_state = State::Select; }
+			if (ImGui::Button("RETOUR", ImVec2(130.0f, 44.0f))) { g_editTarget = EditTarget::None; g_pedHidden = !g_hasChar; SetPedVisible(!g_pedHidden); g_state = State::Select; }
 			ImGui::PopStyleColor();
 			ImGui::SameLine(174.0f);
 			ImGui::PushStyleColor(ImGuiCol_Button, valid ? ImVec4(0.0f, 0.82f, 0.43f, 1.0f) : ImVec4(0.08f, 0.14f, 0.11f, 1.0f));
-			if (ImGui::Button(valid ? "CONTINUAR   ->" : "PREENCHA OS CAMPOS", ImVec2(panelW - 180.0f, 44.0f)) && valid) { g_editTarget = EditTarget::None; g_state = State::Waiting; CharacterCreator::SendCreateRequest(); }
+			if (ImGui::Button(valid ? "CONTINUER   ->" : "REMPLISSEZ LES CHAMPS", ImVec2(panelW - 180.0f, 44.0f)) && valid) { g_editTarget = EditTarget::None; g_state = State::Waiting; CharacterCreator::SendCreateRequest(); }
 			ImGui::PopStyleColor();
 			ModernEnd();
 		}
@@ -624,16 +648,28 @@ namespace {
 				ImGui::End();
 				return;
 			}
-			ModernHeader("APARENCIA");
+			ModernHeader("APPARENCE");
 			const ImVec2 display = ImGui::GetIO().DisplaySize;
 			const float panelW = std::min(620.0f, display.x * 0.52f);
 			ImGui::SetCursorPos(ImVec2(34.0f, 112.0f));
 			ImGui::BeginChild("modern_appearance_panel", ImVec2(panelW, display.y - 180.0f), false);
-			ImGui::TextColored(ImVec4(0.0f, 0.85f, 0.45f, 1.0f), "SEGUNDA ETAPA");
+			ImGui::TextColored(ImVec4(0.0f, 0.85f, 0.45f, 1.0f), g_testMode ? "MODE TEST - VÊTEMENTS" : "DEUXIÈME ÉTAPE");
 			ImGui::Spacing();
-			ImGui::TextColored(ImVec4(0.96f, 0.98f, 0.97f, 1.0f), "Personalize seu personagem");
-			ImGui::TextColored(ImVec4(0.45f, 0.50f, 0.48f, 1.0f), "Escolha a aparencia que representa voce.");
+			ImGui::TextColored(ImVec4(0.96f, 0.98f, 0.97f, 1.0f), "Personnalisez votre personnage");
+			ImGui::TextColored(ImVec4(0.45f, 0.50f, 0.48f, 1.0f), g_testMode ? "Aperçu local : rien n'est envoyé au serveur ni enregistré." : "Choisissez l'apparence qui vous représente.");
 			ImGui::Spacing();
+			if (g_testMode) {
+				// En mode test, on peut changer de genre pour essayer les deux systèmes.
+				const float halfW = (panelW - 18.0f) * 0.48f;
+				ImGui::PushStyleColor(ImGuiCol_Button, g_gender == 0 ? ImVec4(0.0f, 0.72f, 0.38f, 1.0f) : ImVec4(0.015f, 0.025f, 0.023f, 1.0f));
+				if (ImGui::Button("HOMME", ImVec2(halfW, 38.0f))) { g_gender = 0; PreviewGender(0); }
+				ImGui::PopStyleColor();
+				ImGui::SameLine();
+				ImGui::PushStyleColor(ImGuiCol_Button, g_gender == 1 ? ImVec4(0.0f, 0.72f, 0.38f, 1.0f) : ImVec4(0.015f, 0.025f, 0.023f, 1.0f));
+				if (ImGui::Button("FEMME", ImVec2(halfW, 38.0f))) { g_gender = 1; PreviewGender(1); }
+				ImGui::PopStyleColor();
+				ImGui::Spacing();
+			}
 			ImGui::BeginChild("create_scroll", ImVec2(0.0f, 0.0f), false, ImGuiWindowFlags_AlwaysVerticalScrollbar);
 			ClothesCustomization::RenderPanel();
 			ImGui::EndChild();
@@ -641,7 +677,11 @@ namespace {
 
 			ImGui::SetCursorPos(ImVec2(34.0f, display.y - 70.0f));
 			ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.0f, 0.82f, 0.43f, 1.0f));
-			if (ImGui::Button("FINALIZAR PERSONAGEM   ->", ImVec2(panelW, 48.0f))) { g_state = State::Waiting; CharacterCreator::SendSaveCharacter(); }
+			if (g_testMode) {
+				// Pas d'envoi au serveur : on referme simplement le panneau.
+				if (ImGui::Button("FERMER (TEST)", ImVec2(panelW, 48.0f))) { CharacterCreator::CloseAll(); }
+			}
+			else if (ImGui::Button("FINALISER LE PERSONNAGE   ->", ImVec2(panelW, 48.0f))) { g_state = State::Waiting; CharacterCreator::SendSaveCharacter(); }
 			ImGui::PopStyleColor();
 			ModernEnd();
 		}
@@ -653,7 +693,7 @@ namespace {
 			ImGui::End();
 			return;
 		}
-		ImGui::Text("Aguarde...");
+		ImGui::Text("Veuillez patienter...");
 		CreatorEnd();
 	}
 }
@@ -696,6 +736,7 @@ void CharacterCreator::OpenSelect(const std::string& json)
 	// boneco no primeiro tick: limpa a tarefa de queda, recria o modelo e
 	// aplica o visual salvo (ou zera pro padrão se o slot estiver vazio /
 	// personagem foi DELETADO).
+	g_testMode = false;
 	g_selectJson = json;
 	g_selectSetupPending = true;
 	g_selectOpenTick = GetTickCount();
@@ -709,18 +750,25 @@ void CharacterCreator::OpenSelect(const std::string& json)
 	// (thread do jogo), que roda logo em seguida.
 	g_pedHidden = !g_hasChar;
 	g_state = State::Select;
+
+	// Le bouton de spawn (NASCER) est affiche : on ferme l'ecran de chargement du launcher.
+	if (pJavaWrapper) pJavaWrapper->HideLoadingScreen();
 }
 
 void CharacterCreator::OpenCreate()
 {
+	g_testMode = false;
 	g_selectModelRetries = 0;
 	g_selectSetupPending = false;
 	g_pedHidden = false;
 	g_state = State::Creating;
+
+	if (pJavaWrapper) pJavaWrapper->HideLoadingScreen();
 }
 
 void CharacterCreator::ApplyLook(const std::string& json)
 {
+	g_testMode = false;
 	g_selectModelRetries = 0;
 	g_selectSetupPending = false;
 	ApplyLookFromJson(json);
@@ -734,6 +782,7 @@ void CharacterCreator::ApplyLook(const std::string& json)
 
 void CharacterCreator::CloseAll()
 {
+	g_testMode = false;
 	g_selectModelRetries = 0;
 	g_selectSetupPending = false;
 	if (g_editTarget != EditTarget::None && pUI && pUI->keyboard()) {
@@ -744,6 +793,11 @@ void CharacterCreator::CloseAll()
 	g_state = State::Hidden;
 }
 
+void CharacterCreator::RequestOpenTest()
+{
+	g_testOpenRequested.store(true);
+}
+
 bool CharacterCreator::IsVisible()
 {
 	return g_state != State::Hidden;
@@ -751,6 +805,17 @@ bool CharacterCreator::IsVisible()
 
 void CharacterCreator::Render()
 {
+	// Demande du bouton de test du HUD : traitée ici, sur le thread du jeu.
+	// Un second appui sur le bouton referme le panneau.
+	if (g_testOpenRequested.exchange(false)) {
+		if (g_testMode && g_state != State::Hidden) {
+			CloseAll();
+		}
+		else if (g_state == State::Hidden) {
+			OpenTestNow();
+		}
+	}
+
 	if (g_state == State::Hidden) return;
 
 	// Garante que o boneco fique de frente pra câmera enquanto a criação está
@@ -763,7 +828,7 @@ void CharacterCreator::Render()
 		g_lastFaceCameraTick = now;
 		SetPedVisible(!g_pedHidden);
 		FacePlayerToCamera();
-		FallGuard();
+		if (!g_testMode) FallGuard(); // en mode test, le joueur reste là où il est
 
 		// Setup da seleção na thread do JOGO: roda 1x no primeiro tick depois
 		// que o servidor abriu a tela. Só para conta COM personagem (o reset

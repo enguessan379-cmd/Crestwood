@@ -22,6 +22,9 @@
         <item name="android:windowContentOverlay">@null</item>
         <item name="colorAccent">#C10000</item>
     </style>
+    <style name="Theme.Crestwood.Game" parent="@style/Theme.AppCompat.Light.NoActionBar.FullScreen">
+        <item name="android:windowBackground">@android:color/black</item>
+    </style>
     <style name="GameActivity" parent="@style/Theme.AppCompat.NoActionBar">
         <item name="android:windowContentOverlay">@null</item>
         <item name="android:windowFullscreen">true</item>

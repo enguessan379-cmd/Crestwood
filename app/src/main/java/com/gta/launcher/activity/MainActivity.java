@@ -159,7 +159,7 @@ public class MainActivity extends AppCompatActivity {
                 dataReady = DataInstaller.isInstallReady(MainActivity.this);
                 runOnUiThread(() -> {
                     if (!dataReady) {
-                        showRecoverableError("Installation incomplète. Appuyez sur JOGAR pour réparer.");
+                        showRecoverableError("Installation incomplète. Appuyez sur JOUER pour réparer.");
                         return;
                     }
                     if (connectionStatus != null) connectionStatus.setText("Données à jour et validées");
@@ -273,7 +273,7 @@ public class MainActivity extends AppCompatActivity {
         if (startButton == null) return;
         startButton.setEnabled(enabled);
         startButton.setAlpha(enabled ? 1f : 0.55f);
-        if (enabled) startButton.setText("JOGAR");
+        if (enabled) startButton.setText("JOUER");
     }
 
     private void startGame() {
@@ -307,7 +307,7 @@ public class MainActivity extends AppCompatActivity {
         if (base == null) throw new IOException("Diretório da data indisponível");
         File directory = new File(base, "SAMP");
         if (!directory.exists() && !directory.mkdirs() && !directory.exists()) {
-            throw new IOException("Não foi possível criar configurações do SAMP");
+            throw new IOException("Impossible de créer la configuration de SAMP");
         }
         try (FileWriter writer = new FileWriter(new File(directory, "settings.ini"), false)) {
             writer.write("[client]\n");

@@ -2,6 +2,7 @@
   const root = document.querySelector(".hud-root");
   const cornerAction = document.querySelector(".corner-action");
   const chatAction = document.querySelector(".chat-action");
+  const clothesTestAction = document.querySelector(".clothes-test-action");
   const chatComposer = document.querySelector(".floating-chat-composer");
   const chatInput = chatComposer?.querySelector("input");
   const radialMenu = document.querySelector(".radial-menu");
@@ -535,6 +536,10 @@
     add("weapon", document.querySelector(".weapon-panel"));
     add("steps", firstStepsPanel);
     if (state.chatOpen) add("chat", chatComposer);
+    if (phoneCameraMode) {
+      add("pcTop", document.querySelector("#pcTop"));
+      add("pcBottom", document.querySelector("#pcBottom"));
+    }
     bridge.setTouchBounds(entries.join(";"));
   }
 
@@ -903,13 +908,148 @@
     } catch (_) {}
   }
 
+  // ---- Caméra du téléphone (cadre téléphone, viseur transparent) ----
+  const phoneCam = document.querySelector("#phoneCam");
+  const pcView = document.querySelector("#pcView");
+  const pcStage = document.querySelector("#pcStage");
+  const pcPill = document.querySelector("#pcPill");
+  const pcCount = document.querySelector("#pcCount");
+  const pcFlash = document.querySelector("#pcFlash");
+  const pcHand = document.querySelector("#pcHand");
+  const PC_RATIOS = [{ label: "Max", r: 0 }, { label: "3:4", r: 3 / 4 }, { label: "1:1", r: 1 }, { label: "9:16", r: 9 / 16 }];
+  const PC_TIMERS = [0, 3, 10];
+  let pcRatioIndex = 0;
+  let pcTimerIndex = 0;
+  let pcCountdown = 0;
+  let pcBusy = false;
+  let pcClockTimer = 0;
+  let pcHandTimer = 0;
+
+  function pcSetStatus(text) {
+    if (pcPill) pcPill.textContent = text || "Ambiance";
+  }
+
+  function pcLayout() {
+    if (!pcView || !pcStage) return;
+    const sw = pcStage.clientWidth;
+    const sh = pcStage.clientHeight;
+    const r = PC_RATIOS[pcRatioIndex].r;
+    let w = sw;
+    let h = sh;
+    if (r) {
+      w = Math.min(sw, sh * r);
+      h = w / r;
+    }
+    pcView.style.width = Math.round(w) + "px";
+    pcView.style.height = Math.round(h) + "px";
+    const label = document.querySelector("#pcRatio");
+    if (label) label.textContent = PC_RATIOS[pcRatioIndex].label;
+  }
+
+  function pcTickClock() {
+    const el = document.querySelector("#pcClock");
+    if (!el) return;
+    const d = new Date();
+    el.textContent = String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
+  }
+
+  function pcShoot() {
+    if (pcBusy || !pcView) return;
+    pcBusy = true;
+    if (pcFlash) {
+      pcFlash.classList.remove("go");
+      void pcFlash.offsetWidth;
+      pcFlash.classList.add("go");
+    }
+    const rect = pcView.getBoundingClientRect();
+    pcSetStatus("Capture en cours...");
+    bridge?.captureRgPhoto?.(
+      Math.round(rect.left),
+      Math.round(rect.top),
+      Math.round(rect.width),
+      Math.round(rect.height),
+      Math.round(window.innerWidth),
+      Math.round(window.innerHeight)
+    );
+    window.setTimeout(() => { pcBusy = false; }, 4000);
+  }
+
+  function pcCancelCountdown() {
+    if (!pcCountdown) return false;
+    window.clearInterval(pcCountdown);
+    pcCountdown = 0;
+    if (pcCount) pcCount.hidden = true;
+    pcSetStatus("Ambiance");
+    return true;
+  }
+
+  function pcPressShutter() {
+    if (pcCancelCountdown()) return;
+    const seconds = PC_TIMERS[pcTimerIndex];
+    if (!seconds) { pcShoot(); return; }
+    let left = seconds;
+    if (pcCount) { pcCount.textContent = String(left); pcCount.hidden = false; }
+    pcSetStatus("Touche pour annuler");
+    pcCountdown = window.setInterval(() => {
+      left -= 1;
+      if (left <= 0) {
+        window.clearInterval(pcCountdown);
+        pcCountdown = 0;
+        if (pcCount) pcCount.hidden = true;
+        pcShoot();
+      } else if (pcCount) {
+        pcCount.textContent = String(left);
+      }
+    }, 1000);
+  }
+
+  function pcOpenGallery() {
+    try { localStorage.setItem("crestwoodPhoneOpenApp", "photos"); } catch (_) {}
+    bridge?.phoneCameraDone?.(true);
+  }
+
+  function pcInit() {
+    const on = (id, fn) => document.querySelector(id)?.addEventListener("click", (event) => { event.preventDefault(); fn(); });
+    on("#pcBack", () => closeIdCamera(true));
+    on("#pcNavBack", () => closeIdCamera(true));
+    on("#pcNavHome", () => closeIdCamera(true));
+    on("#pcNavRecent", pcOpenGallery);
+    on("#pcGallery", pcOpenGallery);
+    on("#pcShutter", pcPressShutter);
+    on("#pcGrid", () => {
+      const lines = document.querySelector("#pcGridLines");
+      if (lines) lines.hidden = !lines.hidden;
+    });
+    on("#pcRatio", () => { pcRatioIndex = (pcRatioIndex + 1) % PC_RATIOS.length; pcLayout(); });
+    on("#pcTimer", () => {
+      pcTimerIndex = (pcTimerIndex + 1) % PC_TIMERS.length;
+      const lbl = document.querySelector("#pcTimerLbl");
+      const s = PC_TIMERS[pcTimerIndex];
+      if (lbl) lbl.textContent = s ? s + "s" : "";
+    });
+    window.addEventListener("resize", () => { if (phoneCameraMode) pcLayout(); });
+  }
+  pcInit();
+
   function openPhoneCamera() {
-    if (!idCameraLayer) return;
+    if (!phoneCam) return;
     phoneCameraMode = true;
     document.body.classList.add("phone-camera-mode");
     state.idCameraOpen = true;
-    idCameraLayer.hidden = false;
-    if (idCameraStatus) idCameraStatus.textContent = phoneCameraHint;
+    phoneCam.hidden = false;
+    pcBusy = false;
+    pcSetStatus("Ambiance");
+    pcLayout();
+    pcTickClock();
+    window.clearInterval(pcClockTimer);
+    pcClockTimer = window.setInterval(pcTickClock, 20000);
+    if (pcHand) {
+      pcHand.classList.remove("gone");
+      window.clearTimeout(pcHandTimer);
+      pcHandTimer = window.setTimeout(() => pcHand.classList.add("gone"), 5000);
+    }
+    window.setTimeout(pcLayout, 120);
+    scheduleHudSync();
     bridge?.openRgCamera?.();
   }
 
@@ -1064,7 +1204,11 @@
 
   function rgCameraNativeStatus(status, url, message) {
     const cleanStatus = String(status || "");
-    if (idCameraStatus) {
+    if (phoneCameraMode) {
+      if (cleanStatus === "capturing") pcSetStatus("Capture en cours...");
+      else if (cleanStatus === "uploading") pcSetStatus("Enregistrement de la photo...");
+      else if (message) pcSetStatus(message);
+    } else if (idCameraStatus) {
       if (cleanStatus === "capturing") idCameraStatus.textContent = "Capture en cours...";
       else if (cleanStatus === "uploading") idCameraStatus.textContent = "Enregistrement de la photo...";
       else if (message) idCameraStatus.textContent = message;
@@ -1080,9 +1224,12 @@
       closeIdCamera(false);
       renderIdentity();
     } else if (cleanStatus === "error") {
-      if (idCameraStatus) idCameraStatus.textContent = message || "Impossible d'enregistrer.";
+      pcBusy = false;
+      if (phoneCameraMode) pcSetStatus(message || "Impossible d'enregistrer.");
+      else if (idCameraStatus) idCameraStatus.textContent = message || "Impossible d'enregistrer.";
       window.setTimeout(() => {
-        if (state.idCameraOpen && idCameraStatus) idCameraStatus.textContent = phoneCameraMode ? phoneCameraHint : "Glisse vers le bas pour cadrer le visage";
+        if (phoneCameraMode) pcSetStatus("Ambiance");
+        else if (state.idCameraOpen && idCameraStatus) idCameraStatus.textContent = "Glisse vers le bas pour cadrer le visage";
       }, 1800);
     } else if (cleanStatus === "closed") {
       closeIdCamera(false);
@@ -1869,7 +2016,7 @@
     event.stopPropagation();
   }
 
-  [cornerAction, chatAction, chatComposer].forEach((element) => {
+  [cornerAction, chatAction, clothesTestAction, chatComposer].forEach((element) => {
     element?.addEventListener("pointerdown", holdHudTouch);
     element?.addEventListener("touchstart", holdHudTouch, { passive: false });
     element?.addEventListener("mousedown", holdHudTouch);
@@ -1895,6 +2042,17 @@
       return;
     }
     setChatComposer(!state.chatOpen);
+  });
+
+  // Bouton de TEST : ouvre (ou referme) le panneau de vêtements en local,
+  // sans serveur ni Pawn. Aucune donnée n'est envoyée ni enregistrée.
+  clothesTestAction?.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (state.hudEditing) return;
+    setRadialMenu(false);
+    setChatComposer(false);
+    bridge?.menuAction?.("clothes");
   });
 
   document.querySelectorAll("[data-weapon-action]").forEach((button) => {

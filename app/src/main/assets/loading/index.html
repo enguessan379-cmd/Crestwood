@@ -67,6 +67,15 @@
       </div>
     </section>
   </main>
+  <div id="player" class="player" aria-label="Lecteur de musique">
+    <div id="trackTitle" class="track-title">&nbsp;</div>
+    <div class="player-controls">
+      <button id="prev" class="pbtn" type="button" aria-label="Piste précédente"><svg viewBox="0 0 24 24"><path d="M6 5h2v14H6zM20 5v14L9.5 12z"/></svg></button>
+      <button id="play" class="pbtn" type="button" aria-label="Pause"><svg id="playIcon" viewBox="0 0 24 24"><path d="M7 5h4v14H7zM13 5h4v14h-4z"/></svg></button>
+      <button id="next" class="pbtn" type="button" aria-label="Piste suivante"><svg viewBox="0 0 24 24"><path d="M16 5h2v14h-2zM4 5l10.5 7L4 19z"/></svg></button>
+      <input id="vol" type="range" min="0" max="100" value="50" aria-label="Volume">
+    </div>
+  </div>
   <script src="loading.js"></script>
 </body>
 </html>

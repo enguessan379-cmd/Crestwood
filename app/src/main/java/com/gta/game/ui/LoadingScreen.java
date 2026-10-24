@@ -20,6 +20,7 @@ public class LoadingScreen {
     private WebView loadingWebView;
     private Handler handler;
     private boolean completed;
+    private static final long MAX_WAIT_MS = 120_000L;
 
     public LoadingScreen(Activity activity) {
         this.activity = activity;
@@ -34,7 +35,12 @@ public class LoadingScreen {
         handler = new Handler(Looper.getMainLooper());
         loadingWebView = mainLayout.findViewById(R.id.loadingWebView);
         if (loadingWebView == null) return;
-        loadingWebView.setWebViewClient(new WebViewClient());
+        loadingWebView.setWebViewClient(new WebViewClient() {
+            @Override public void onPageFinished(WebView view, String url) {
+                // La data peut etre deja prete avant la fin du chargement de la page : on remet l'etat "connexion".
+                if (completed) evaluate("window.LoadingBridge&&LoadingBridge.connecting()");
+            }
+        });
         WebSettings settings = loadingWebView.getSettings();
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(false);
@@ -44,6 +50,7 @@ public class LoadingScreen {
         settings.setDisplayZoomControls(false);
         settings.setLoadWithOverviewMode(true);
         settings.setUseWideViewPort(true);
+        settings.setMediaPlaybackRequiresUserGesture(false); // musique de l'écran de chargement
         loadingWebView.addJavascriptInterface(new LoadingBridge(), "AndroidLoading");
         loadingWebView.loadUrl("file:///android_asset/loading/index.html");
 
@@ -54,8 +61,13 @@ public class LoadingScreen {
             @Override public void onComplete(java.io.File root) {
                 runOnUiThread(() -> {
                     completed = true;
-                    evaluate("window.LoadingBridge&&LoadingBridge.ready()");
-                    if (handler != null) handler.postDelayed(LoadingScreen.this::hide, 700L);
+                    // Data prete : on reste affiche (connexion au serveur) jusqu'a ce que le jeu appelle hideLoadingScreen()
+                    // (bouton spawn visible). Filet de securite : fermeture forcee apres MAX_WAIT_MS.
+                    evaluate("window.LoadingBridge&&LoadingBridge.connecting()");
+                    if (handler != null) {
+                        handler.removeCallbacksAndMessages(null);
+                        handler.postDelayed(LoadingScreen.this::hide, MAX_WAIT_MS);
+                    }
                 });
             }
             @Override public void onError(final String message, Throwable error) {
@@ -83,11 +95,18 @@ public class LoadingScreen {
 
     public void hide() {
         if (handler != null) handler.removeCallbacksAndMessages(null);
+        if (loadingWebView != null) loadingWebView.evaluateJavascript("window.LoadingBridge&&LoadingBridge.stopMusic&&LoadingBridge.stopMusic()", null);
         if (mainLayout != null) mainLayout.setVisibility(View.GONE);
     }
 
     public void show() {
-        if (mainLayout != null) mainLayout.setVisibility(View.VISIBLE);
+        if (mainLayout == null || mainLayout.getVisibility() == View.VISIBLE) return;
+        mainLayout.setVisibility(View.VISIBLE);
+        if (loadingWebView != null) loadingWebView.loadUrl("file:///android_asset/loading/index.html");
+        if (completed && handler != null) {
+            handler.postDelayed(() -> evaluate("window.LoadingBridge&&LoadingBridge.connecting()"), 600L);
+            handler.postDelayed(this::hide, MAX_WAIT_MS);
+        }
     }
 
     public void destroy() {

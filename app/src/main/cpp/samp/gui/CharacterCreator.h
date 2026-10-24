@@ -39,6 +39,12 @@ public:
     static void ApplyLook(const std::string& json);
     static void CloseAll();
 
+    // MODE TEST (sans serveur / sans Pawn) : ouvre directement le panneau de
+    // vêtements. Appelable depuis n'importe quel thread (bouton du HUD) : la
+    // demande est seulement mémorisée, l'ouverture réelle se fait dans Render()
+    // (thread du jeu) pour ne pas toucher au ped depuis le thread Android.
+    static void RequestOpenTest();
+
     static bool IsVisible();
 
     // Desenha a janela do estado atual (chamado dentro do drawList do ImGui).

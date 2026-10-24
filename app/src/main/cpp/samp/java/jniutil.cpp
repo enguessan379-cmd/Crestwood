@@ -60,16 +60,18 @@ CJavaWrapper::CJavaWrapper(JNIEnv *env, jobject activity)
 
 void CJavaWrapper::ShowLoadingScreen()
 {
-    JNIEnv* p;
-    javaVM->GetEnv((void**)&p, JNI_VERSION_1_6);
+    if (!javaVM || !activity || !s_showLoadingScreen) return;
+    JNIEnv* p = GetEnv();
+    if (!p) return;
     p->CallVoidMethod(activity, s_showLoadingScreen);
     EXCEPTION_CHECK(p);
 }
 
 void CJavaWrapper::HideLoadingScreen()
 {
-    JNIEnv* p;
-    javaVM->GetEnv((void**)&p, JNI_VERSION_1_6);
+    if (!javaVM || !activity || !s_hideLoadingScreen) return;
+    JNIEnv* p = GetEnv();
+    if (!p) return;
     p->CallVoidMethod(activity, s_hideLoadingScreen);
     EXCEPTION_CHECK(p);
 }

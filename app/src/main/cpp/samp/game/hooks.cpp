@@ -1,3 +1,5 @@
+#include <sys/mman.h>
+#include <unistd.h>
 #include <GLES2/gl2.h>
 #include "../main.h"
 #include "../vendor/armhook/patch.h"
@@ -1901,22 +1903,62 @@ void RLEDecompress_hook(uint8_t* pDest, size_t uiDestSize, const uint8_t* pSrc, 
 // ---------------------------------------------------------------------------------------------
 // RLEDecompress borne (libGame.so arm64 : _Z13RLEDecompressPhjPKhjj, +0x7982BC).
 // L'original (desassemble) fait : while (dst < fin) { si src[0]==escape : copie <src[1]> fois le segment
-// src+2 ; sinon copie 1 segment }. Le nombre de repetitions n'est PAS borne par la fin du buffer, et le
-// dernier segment peut aussi depasser. Sous Android 11+ (allocateur Scudo, pages de garde) ce depassement
-// tombe sur une page non mappee => SIGSEGV dans memcpy <- RLEDecompress <- LoadFullTexture <-
-// CTouchInterface::CreateAll (logcat.txt). Android <= 10 (jemalloc) ecrasait la memoire voisine sans planter.
-// Resultat identique a l'original pour des donnees valides ; le surplus est simplement ignore.
-// Ne rappelle pas l'original (Redirect) : arguments 32 bits comme dans la signature (Phjpkhjj).
+// src+2 ; sinon copie 1 segment }. Il ne borne NI la destination NI la SOURCE. Sous Android 11+
+// (allocateur Scudo, pages de garde) ces depassements tombent sur une page non mappee => SIGSEGV dans
+// memcpy <- RLEDecompress <- LoadFullTexture (logcat.txt) :
+//   1) ecriture au-dela du buffer destination (CTouchInterface::CreateAll)  -> borne par pEnd ;
+//   2) LECTURE au-dela de la fin des donnees compressees (UpdateTextureStreaming, apres DoInitStuff)
+//      quand la taille destination est plus grande que ce que contiennent les donnees (ex. chaine de
+//      mipmaps incomplete). On ne connait pas la taille source : on verifie donc par mincore() que les
+//      pages lues sont bien mappees, et on arrete proprement (reste de la texture mis a zero) sinon.
+// Android <= 10 (jemalloc) lisait/ecrasait la memoire voisine sans planter.
+// Resultat identique a l'original pour des donnees valides. Ne rappelle pas l'original (Redirect) :
+// arguments 32 bits comme dans la signature (Phjpkhjj).
 // ---------------------------------------------------------------------------------------------
+namespace {
+    // Garde de lecture de la source : memorise la fin de la zone deja verifiee comme mappee.
+    struct RleSrcGuard {
+        uintptr_t verifiedEnd = 0;
+
+        static bool PageMapped(uintptr_t page) {
+            unsigned char vec = 0;
+            return mincore(reinterpret_cast<void*>(page), 1, &vec) == 0;
+        }
+
+        // true si [p, p+len) est entierement lisible.
+        bool Ensure(const uint8_t* p, size_t len) {
+            const uintptr_t pageSize = (uintptr_t)getpagesize();
+            const uintptr_t need = (uintptr_t)p + len;
+            if (need <= verifiedEnd) return true;
+
+            uintptr_t page = (uintptr_t)p & ~(pageSize - 1);
+            if (verifiedEnd > page) page = verifiedEnd; // verifiedEnd est toujours aligne sur une page
+            const uintptr_t endPage = (need + pageSize - 1) & ~(pageSize - 1);
+
+            while (page < endPage) {
+                if (!PageMapped(page)) return false;
+                page += pageSize;
+                verifiedEnd = page;
+            }
+            return true;
+        }
+    };
+}
+
 void RLEDecompress_safe(uint8_t* pDest, uint32_t uiDestSize, const uint8_t* pSrc, uint32_t uiSegSize, uint32_t uiEscape)
 {
     if (!pDest || !pSrc || uiSegSize == 0) return;
 
     uint8_t* const pEnd = pDest + uiDestSize;
     bool overflow = false;
+    bool srcExhausted = false;
+    RleSrcGuard guard;
 
     while (pDest < pEnd) {
+        if (!guard.Ensure(pSrc, 2)) { srcExhausted = true; break; }
+
         if (uiEscape == (uint32_t)pSrc[0]) {
+            if (!guard.Ensure(pSrc, 2 + (size_t)uiSegSize)) { srcExhausted = true; break; }
             uint32_t count = pSrc[1];
             while (count > 0) {
                 size_t rem = (size_t)(pEnd - pDest);
@@ -1929,12 +1971,25 @@ void RLEDecompress_safe(uint8_t* pDest, uint32_t uiDestSize, const uint8_t* pSrc
             }
             pSrc += 2 + (size_t)uiSegSize;
         } else {
+            if (!guard.Ensure(pSrc, uiSegSize)) { srcExhausted = true; break; }
             size_t rem = (size_t)(pEnd - pDest);
             size_t n = (uiSegSize < rem) ? uiSegSize : rem;
             if (n < uiSegSize) overflow = true;
             memcpy(pDest, pSrc, n);
             pDest += n;
             pSrc += uiSegSize;
+        }
+    }
+
+    if (srcExhausted && pDest < pEnd) {
+        // Donnees compressees plus courtes que la taille attendue : on met le reste a zero
+        // (au lieu de lire de la memoire non mappee) pour eviter le crash.
+        const size_t missing = (size_t)(pEnd - pDest);
+        memset(pDest, 0, missing);
+        static int s_loggedSrc = 0;
+        if (s_loggedSrc < 8) {
+            s_loggedSrc++;
+            Log("RLEDecompress: donnees sources trop courtes (%u octets attendus, %zu manquants) - reste mis a zero", uiDestSize, missing);
         }
     }
 

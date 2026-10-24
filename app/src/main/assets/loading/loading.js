@@ -8,17 +8,62 @@
 
   let sawDownload=false,smoothSpeed=0,lastDone=-1,lastTime=0;
 
-  // Défilement cinématique des captures Crestwood RP en arrière-plan.
-  const sceneLayer=document.querySelector('.bg');
-  const scenes=['scenes/crestwood-scene-1.webp','scenes/crestwood-scene-2.webp','scenes/crestwood-scene-3.webp','scenes/crestwood-scene-4.webp','scenes/crestwood-scene-5.webp'];
-  let sceneIndex=0;
-  scenes.slice(1).forEach(src=>{const preload=new Image();preload.src=src;});
-  window.setInterval(()=>{
-    if(!sceneLayer)return;
-    sceneIndex=(sceneIndex+1)%scenes.length;
-    sceneLayer.style.backgroundImage='url("'+scenes[sceneIndex]+'")';
-  },6500);
+  // ---------- Lecteur de musique (pistes dans music/) ----------
+  const TRACKS=[
+    {src:'music/track1.mp3',title:'SPRINTER - CENTRAL CEE x DAVE'},
+    {src:'music/track2.mp3',title:'PILIER - NINHO'},
+    {src:'music/track3.mp3',title:'PACMAN DE PANICAT - MC RYAN SP, MC POZE DO RODO, RODRIGO DO CN'},
+    {src:'music/track4.mp3',title:'PACMAN DE PANICAT, EU PREFIRO A RUA'},
+    {src:'music/track5.mp3',title:'PACMAN DE PANICAT - BASE AUTOMOTIVA'},
+    {src:'music/track6.mp3',title:'MERIDIAN - TIAKOLA x DAVE'}
+  ];
+  const audio=new Audio();
+  audio.preload='auto';
+  const titleEl=$('trackTitle'),playBtn=$('play'),playIcon=$('playIcon'),prevBtn=$('prev'),nextBtn=$('next'),vol=$('vol');
+  const ICON_PAUSE='M7 5h4v14H7zM13 5h4v14h-4z',ICON_PLAY='M8 5v14l11-7z';
+  let trackIndex=Math.floor(Math.random()*TRACKS.length),errors=0,stopped=false;
 
+  function showIcon(playing){
+    playIcon.firstElementChild.setAttribute('d',playing?ICON_PAUSE:ICON_PLAY);
+    playBtn.setAttribute('aria-label',playing?'Pause':'Lecture');
+  }
+  function loadTrack(i){
+    trackIndex=(i+TRACKS.length)%TRACKS.length;
+    audio.src=TRACKS[trackIndex].src;
+    titleEl.textContent=TRACKS[trackIndex].title;
+  }
+  function playAudio(){
+    if(stopped)return;
+    const p=audio.play();
+    if(p&&typeof p.catch==='function')p.catch(()=>showIcon(false));
+  }
+  function setVolume(v){
+    v=Math.max(0,Math.min(100,Number(v)||0));
+    audio.volume=v/100;
+    vol.style.setProperty('--v',v+'%');
+  }
+  function stopMusic(){
+    stopped=true;
+    try{audio.pause();audio.removeAttribute('src');audio.load();}catch(e){}
+  }
+  audio.addEventListener('play',()=>showIcon(true));
+  audio.addEventListener('pause',()=>showIcon(false));
+  audio.addEventListener('playing',()=>{errors=0;});
+  audio.addEventListener('ended',()=>{loadTrack(trackIndex+1);playAudio();});
+  audio.addEventListener('error',()=>{
+    if(stopped||++errors>TRACKS.length)return;
+    window.setTimeout(()=>{loadTrack(trackIndex+1);playAudio();},300);
+  });
+  playBtn.addEventListener('click',()=>{if(audio.paused)playAudio();else audio.pause();});
+  nextBtn.addEventListener('click',()=>{loadTrack(trackIndex+1);playAudio();});
+  prevBtn.addEventListener('click',()=>{
+    if(audio.currentTime>3){audio.currentTime=0;return;}
+    loadTrack(trackIndex-1);playAudio();
+  });
+  vol.addEventListener('input',()=>setVolume(vol.value));
+  setVolume(vol.value);
+  loadTrack(trackIndex);
+  playAudio();
 
   const clamp=v=>Math.max(0,Math.min(100,Number(v)||0));
   const norm=t=>String(t||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
@@ -105,6 +150,22 @@
     retry.hidden=true;
   }
 
+  function connecting(){
+    card.setAttribute('data-state','idle');
+    setSteps(4,true);
+    stage.textContent='CONNEXION';
+    title.textContent='Connexion au serveur';
+    message.textContent='Chargement de Crestwood Roleplay en cours…';
+    status.textContent='Authentification en cours';
+    detail.textContent='Cet écran se fermera dès que le bouton Spawn apparaîtra.';
+    bytesEl.textContent='Chargement du monde…';
+    percentEl.textContent='…';
+    track.classList.add('busy');
+    speedEl.textContent='';
+    etaEl.textContent='';
+    retry.hidden=true;
+  }
+
   function ready(){
     card.setAttribute('data-state','ready');
     setSteps(4,true);
@@ -165,7 +226,7 @@
     if(window.AndroidLoading&&typeof window.AndroidLoading.retry==='function')window.AndroidLoading.retry();
   });
 
-  window.LoadingBridge={setProgress,ready,error,storageAccessRequired,storageAccessGranted};
+  window.LoadingBridge={setProgress,ready,error,storageAccessRequired,storageAccessGranted,stopMusic,connecting};
   setSteps(1,false);
   if(window.AndroidLoading&&typeof window.AndroidLoading.start==='function')window.AndroidLoading.start();
 })();

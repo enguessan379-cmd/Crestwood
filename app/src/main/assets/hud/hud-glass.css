@@ -323,3 +323,144 @@
 .hud-root .minimap-frame .minimap-canvas{border-radius:50%!important;clip-path:circle(50% at 50% 50%)}
 .hud-root .minimap-frame::before,.hud-root .minimap-frame::after,.hud-root .minimap-frame i{display:none!important;content:none!important;box-shadow:none!important;filter:none!important}
 .hud-root .quick-actions{left:max(2px,env(safe-area-inset-left))!important;top:calc(min(27vh,12.5vw) + 7px + env(safe-area-inset-top))!important}
+
+/* ------------------------------------------------------------------
+   Logo Crestwood agrandi (en haut au centre)
+   ------------------------------------------------------------------ */
+.hud-root .project-logo {
+  --hud-item-scale: 1;
+  width: clamp(150px, 17vw, 230px);
+  opacity: 0.92;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.55));
+}
+
+/* ------------------------------------------------------------------
+   Bouton TEST « Vêtements » (à côté du chat) : ouvre le panneau en local
+   ------------------------------------------------------------------ */
+.hud-root .clothes-test-action {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 0;
+  padding: 0;
+  color: #fff;
+  border: 2px solid rgba(232, 252, 255, 0.7);
+  border-radius: 6px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.21), rgba(255, 255, 255, 0.08));
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18), 0 7px 14px rgba(0, 0, 0, 0.24);
+  transition: transform 100ms ease, opacity 120ms ease;
+}
+.hud-root .clothes-test-action:active { transform: scale(0.94); }
+.hud-root .clothes-test-action svg {
+  width: 20px;
+  height: 20px;
+  fill: #fff;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.34));
+  pointer-events: none;
+}
+.hud-root .clothes-test-action small {
+  margin-top: -1px;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: #36d6ff;
+  pointer-events: none;
+}
+.hud-root .corner-action.menu-open ~ .clothes-test-action {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* ------------------------------------------------------------------
+   Panneau d'infos (haut droite) façon référence :
+   ligne 1 = 3 pastilles « icône | séparateur | valeur » (lieu, heure, pièces)
+   lignes suivantes = banque et argent en texte simple, alignés à droite
+   ------------------------------------------------------------------ */
+.hud-root .hud-info-panel { --hud-item-scale: 0.8; }
+
+.hud-root .hud-info-panel .info-grid {
+  grid-template-columns: repeat(3, max-content) !important;
+  grid-template-rows: auto auto auto !important;
+  gap: 6px 7px !important;
+}
+
+/* Placement explicite : lieu, heure, pièces sur la 1re ligne */
+.hud-root .hud-info-panel .info-pill.location { grid-column: 1; grid-row: 1; }
+.hud-root .hud-info-panel .info-pill.time     { grid-column: 2; grid-row: 1; }
+.hud-root .hud-info-panel .info-pill.coin     { grid-column: 3; grid-row: 1; }
+.hud-root .hud-info-panel .info-pill.account  { grid-column: 1 / -1; grid-row: 2; justify-self: end; }
+.hud-root .hud-info-panel .info-pill.money    { grid-column: 1 / -1; grid-row: 3; justify-self: end; }
+
+/* Pastilles : double contour clair, fond translucide */
+.hud-root .hud-info-panel .info-pill.location,
+.hud-root .hud-info-panel .info-pill.time,
+.hud-root .hud-info-panel .info-pill.coin {
+  height: 34px !important;
+  padding: 0 12px 0 8px !important;
+  gap: 8px !important;
+  border: 1.5px solid rgba(255, 240, 240, 0.6) !important;
+  border-radius: 11px !important;
+  background: rgba(20, 12, 12, 0.34) !important;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.16), 0 2px 6px rgba(0, 0, 0, 0.28) !important;
+}
+.hud-root .hud-info-panel .info-pill.location { min-width: 116px !important; }
+.hud-root .hud-info-panel .info-pill.time     { min-width: 84px !important; }
+.hud-root .hud-info-panel .info-pill.coin     { min-width: 96px !important; }
+
+/* Séparateur vertical entre l'icône et la valeur */
+.hud-root .hud-info-panel .info-pill.location .capital-pill-icon,
+.hud-root .hud-info-panel .info-pill.time .capital-pill-icon,
+.hud-root .hud-info-panel .info-pill.coin .capital-pill-icon {
+  width: 26px !important;
+  height: 24px !important;
+  flex: 0 0 26px !important;
+  border-right: 1px solid rgba(255, 255, 255, 0.28) !important;
+  padding-right: 6px !important;
+  box-sizing: content-box !important;
+}
+.hud-root .hud-info-panel .info-pill.location .capital-pill-icon svg,
+.hud-root .hud-info-panel .info-pill.time .capital-pill-icon svg,
+.hud-root .hud-info-panel .info-pill.coin .capital-pill-icon svg {
+  width: 22px !important;
+  height: 22px !important;
+}
+.hud-root .hud-info-panel .info-pill.location strong,
+.hud-root .hud-info-panel .info-pill.time strong,
+.hud-root .hud-info-panel .info-pill.coin strong {
+  font-size: 15px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.01em !important;
+}
+
+/* Banque et argent : texte simple, sans pastille */
+.hud-root .hud-info-panel .info-pill.account,
+.hud-root .hud-info-panel .info-pill.money {
+  height: auto !important;
+  min-width: 0 !important;
+  padding: 0 2px !important;
+  gap: 5px !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+.hud-root .hud-info-panel .info-pill.account .capital-pill-icon,
+.hud-root .hud-info-panel .info-pill.money .capital-pill-icon {
+  width: 18px !important;
+  height: 18px !important;
+  flex: 0 0 18px !important;
+  border-right: 0 !important;
+}
+.hud-root .hud-info-panel .info-pill.account .capital-pill-icon svg,
+.hud-root .hud-info-panel .info-pill.money .capital-pill-icon svg {
+  width: 17px !important;
+  height: 17px !important;
+}
+.hud-root .hud-info-panel .info-pill.account strong,
+.hud-root .hud-info-panel .info-pill.money strong {
+  font-size: 14px !important;
+  font-weight: 700 !important;
+}
