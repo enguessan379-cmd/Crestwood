@@ -197,28 +197,5 @@
   }
 }
 
-/* Compteur : cadre complet, centré et adapté aux écrans paysage de téléphone.
-   L'iframe conserve son viewport natif 320x250 pour éviter de couper les arcs. */
-.hud-root .vehicle-speedometer {
-  left: 50% !important;
-  right: auto !important;
-  top: auto !important;
-  bottom: max(8px, env(safe-area-inset-bottom)) !important;
-  width: 320px !important;
-  height: 250px !important;
-  transform: translateX(-50%) scale(.78) !important;
-  transform-origin: bottom center !important;
-  overflow: visible !important;
-}
-.hud-root .literal-speedometer-frame {
-  width: 320px !important;
-  height: 250px !important;
-  max-width: none !important;
-  overflow: hidden !important;
-}
-@media (max-height: 500px) {
-  .hud-root .vehicle-speedometer {
-    bottom: 2px !important;
-    transform: translateX(-50%) scale(.68) !important;
-  }
-}
+/* Compteur véhicule plus petit et moins envahissant. */
+.hud-root .vehicle-speedometer{width:245px!important;height:190px!important;bottom:calc(env(safe-area-inset-bottom) - 4px)!important;transform:translateX(-50%) scale(.82)!important;transform-origin:bottom center!important}

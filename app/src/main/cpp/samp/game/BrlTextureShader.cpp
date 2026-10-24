@@ -1,4 +1,3 @@
-#include <android/log.h>
 #include "BrlTextureShader.h"
 
 #include <algorithm>
@@ -223,7 +222,7 @@ namespace {
 	{
 		if (sourceTexture.empty() || replacementTexture.empty()) return false;
 		if (!ResolveTexture(replacementTexture)) {
-			__android_log_print(ANDROID_LOG_INFO, "BrlShader", "[BrlShader] replacement texture '%s' is pending; add it to the mobile texture cache.", replacementTexture.c_str());
+			FLog("[BrlShader] replacement texture '%s' is pending; add it to the mobile texture cache.", replacementTexture.c_str());
 		}
 
 		std::lock_guard lock(g_shaderMutex);

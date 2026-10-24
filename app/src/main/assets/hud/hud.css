@@ -1484,8 +1484,8 @@ button {
   left: max(184px, calc(env(safe-area-inset-left) + 184px));
   bottom: max(24px, calc(env(safe-area-inset-bottom) + 24px));
   z-index: 6;
-  width: 54px;
-  height: 54px;
+  width: 48px;
+  height: 48px;
   display: grid;
   place-items: center;
   border-radius: 12px;
@@ -1996,8 +1996,8 @@ button {
 
 .corner-action .menu-icon {
   position: relative;
-  width: 26px;
-  height: 26px;
+  width: 28px;
+  height: 28px;
   object-fit: contain;
   filter: brightness(0) invert(1) drop-shadow(0 1px 2px rgba(0, 0, 0, 0.34));
   opacity: 0.96;
@@ -2010,8 +2010,8 @@ button {
 
 .chat-action img {
   position: relative;
-  width: 26px;
-  height: 26px;
+  width: 28px;
+  height: 28px;
   object-fit: contain;
   filter: brightness(0) invert(1) drop-shadow(0 1px 2px rgba(0, 0, 0, 0.34));
   opacity: 0.96;
@@ -3094,11 +3094,11 @@ button {
   position: relative;
   width: clamp(238px, 27vw, 314px);
   aspect-ratio: 1;
-  border: 1px solid rgba(91, 225, 232, 0.62);
+  border: 2px solid rgba(12, 18, 22, 0.72);
   border-radius: 50%;
   background:
-    radial-gradient(circle, rgba(13, 24, 35, 0.94) 0 23%, transparent 24%),
-    radial-gradient(circle, rgba(46, 190, 202, 0.14), rgba(12, 19, 27, 0.88));
+    radial-gradient(circle, rgba(232, 246, 247, 0.7) 0 22%, transparent 23%),
+    rgba(40, 52, 54, 0.5);
   box-shadow: 0 16px 34px rgba(0, 0, 0, 0.34), inset 0 0 24px rgba(0, 0, 0, 0.28);
 }
 
@@ -3112,9 +3112,8 @@ button {
   display: grid;
   place-items: center;
   border-radius: 50%;
-  color: #f4fbff;
-  background: linear-gradient(145deg, rgba(28, 49, 62, .98), rgba(7, 16, 25, .98));
-  border: 1px solid rgba(91, 225, 232, .55);
+  color: rgba(5, 10, 14, 0.82);
+  background: rgba(232, 246, 247, 0.84);
   box-shadow: inset 0 0 14px rgba(255, 255, 255, 0.28);
   font-size: 15px;
   font-weight: 900;
@@ -3125,15 +3124,14 @@ button {
 
 .wheel-slot {
   position: absolute;
-  width: 54px;
-  height: 54px;
+  width: 48px;
+  height: 48px;
   padding: 0;
   display: grid;
   place-items: center;
   border-radius: 50%;
-  background: linear-gradient(145deg, rgba(38, 57, 72, .96), rgba(10, 19, 29, .96));
-  border: 1px solid rgba(111, 220, 229, .52);
-  box-shadow: 0 5px 14px rgba(0, 0, 0, .35);
+  background: rgba(232, 246, 247, 0.2);
+  border: 1px solid rgba(232, 246, 247, 0.24);
   overflow: hidden;
   transform: translate(-50%, -50%);
 }
@@ -3144,31 +3142,13 @@ button {
 }
 
 .wheel-slot img {
-  width: 26px;
-  height: 26px;
+  width: 28px;
+  height: 28px;
   object-fit: contain;
   filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.34));
   pointer-events: none;
 }
 
-.wheel-slot::after {
-  content: attr(aria-label);
-  position: absolute;
-  left: 50%;
-  bottom: -1px;
-  transform: translateX(-50%);
-  max-width: 72px;
-  padding: 2px 4px;
-  border-radius: 5px;
-  color: #f5fbff;
-  background: rgba(5, 12, 19, .9);
-  font: 700 8px/1.15 Arial, sans-serif;
-  white-space: nowrap;
-  text-shadow: 0 1px 2px #000;
-  pointer-events: none;
-}
-.wheel-slot:focus-visible { outline: 2px solid #6deaf0; outline-offset: 3px; }
-.wheel-slot:active { border-color: #67edf2; box-shadow: 0 0 0 3px rgba(65, 224, 231, .2); }
 .wheel-slot.s1 { left: 50%; top: 14%; }
 .wheel-slot.s2 { left: 75.5%; top: 24.5%; }
 .wheel-slot.s3 { left: 86%; top: 50%; }
