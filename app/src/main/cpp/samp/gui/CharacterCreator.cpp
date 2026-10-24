@@ -214,7 +214,7 @@ namespace {
 	{
 	public:
 		void keyboardEvent(const std::string& input) override;
-		void keyboardCancelEvent() override;
+		void keyboardCancelEvent();
 	};
 
 	CreatorKeyboardHost g_kbHost;

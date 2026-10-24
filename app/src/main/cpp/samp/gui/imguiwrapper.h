@@ -31,6 +31,8 @@ public:
 	virtual void shutdown();
 
 	ImGuiRenderer* renderer() const { return m_renderer; }
+	// Fonte compacta (usada pelo CharacterCreator). Pode ser nullptr.
+	ImFont* fontSmall() const { return m_fontSmall; }
 	/*
 		������� ������ ��������� ���������� API ������ �������
 	*/
@@ -69,6 +71,7 @@ private:
 	std::string m_fontPath;
 
 	ImGuiRenderer* m_renderer;
+	ImFont* m_fontSmall = nullptr;
 	RwRaster* m_fontRaster;
 
 	RwIm2DVertex* m_vertexBuffer;

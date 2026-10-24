@@ -66,6 +66,16 @@ bool ImGuiWrapper::initialize()
         return false;
     }
 
+    // Fonte compacta para as janelas de criacao de personagem. Adicionada
+    // DEPOIS da principal para nao mudar a fonte padrao. Se falhar, fica
+    // nullptr e o CharacterCreator usa a fonte normal.
+    {
+        ImFontConfig smallCfg;
+        smallCfg.GlyphExtraSpacing.x = 0.0f;
+        m_fontSmall = io.Fonts->AddFontFromFileTTF(m_fontPath.c_str(),
+                                                   UISettings::fontSize() * 0.6f, &smallCfg, ranges);
+    }
+
     createFontTexture();
 
     m_renderer = new ImGuiRenderer(ImGui::GetBackgroundDrawList(), font);
