@@ -1442,6 +1442,53 @@
     }
   }
 
+  // ------------------------------------------------------------------
+  // Messages du serveur (le chat SAMP classique est désactivé côté natif)
+  // ------------------------------------------------------------------
+  const serverFeed = document.querySelector(".server-feed");
+  const SERVER_FEED_MAX = 5;
+
+  function hexColor(rgb) {
+    return `#${(Number(rgb) & 0xffffff).toString(16).padStart(6, "0")}`;
+  }
+
+  /** Appelé par SAMP.java : text = texte UTF-8 (peut contenir des codes {RRGGBB}), rgb = couleur de base. */
+  function pushServerMessage(text, rgb) {
+    if (!serverFeed) return;
+    const raw = String(text ?? "").trim();
+    if (!raw) return;
+
+    const line = document.createElement("div");
+    line.className = "server-feed-line";
+    let color = hexColor(rgb);
+    let last = 0;
+    const pattern = /\{([0-9a-fA-F]{6})\}/g;
+    const addChunk = (chunk) => {
+      if (!chunk) return;
+      const span = document.createElement("span");
+      span.textContent = chunk;
+      span.style.color = color;
+      line.appendChild(span);
+    };
+    let match;
+    while ((match = pattern.exec(raw)) !== null) {
+      addChunk(raw.slice(last, match.index));
+      color = `#${match[1]}`;
+      last = pattern.lastIndex;
+    }
+    addChunk(raw.slice(last));
+    if (!line.childNodes.length) return;
+
+    serverFeed.appendChild(line);
+    while (serverFeed.children.length > SERVER_FEED_MAX) serverFeed.firstElementChild.remove();
+
+    const visibleMs = Math.min(12000, 4500 + raw.length * 55);
+    window.setTimeout(() => {
+      line.classList.add("leaving");
+      window.setTimeout(() => line.remove(), 450);
+    }, visibleMs);
+  }
+
   function showPhoneNotification(payload) {
     const data = parsePayload(payload);
     if (!phoneNotificationLayer || data.direction === "out") return;
@@ -2297,6 +2344,7 @@
     },
     clearChat() {},
     addChatMessage() {},
+    pushServerMessage,
     showPhoneNotification,
     receiveGameNotification,
     showSpeedFineNotice,

@@ -225,7 +225,7 @@ void DoInitStuff()
 		pAudioStream->Initialize();
 
 		pUI->splashscreen()->setVisible(false);
-			pUI->chat()->setVisible(true);
+			pUI->chat()->setVisible(CLASSIC_CHAT_ENABLED != 0);
 		pUI->buttonpanel()->setVisible(false);
 		pUI->voicebutton()->setVisible(false);
 		pUI->spawn()->setVisible(true);

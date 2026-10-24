@@ -28,6 +28,9 @@ public:
 
 	void exitGame();
 
+    // Envoie un message du serveur (texte UTF-8 + couleur 0xRRGGBB) au HUD HTML.
+    void OnServerMessage(const char* utf8, uint32_t rgb);
+
     jbyteArray as_byte_array(unsigned char* buf, int len) {
         JNIEnv* p;
         javaVM->GetEnv((void**)&p, JNI_VERSION_1_6);
@@ -52,6 +55,7 @@ public:
 	 jmethodID s_showEditObject;
 	 jmethodID s_hideEditObject;
     jmethodID s_updateHudState;
+    jmethodID s_onServerMessage;
 };
 
 extern CJavaWrapper* g_pJavaWrapper;

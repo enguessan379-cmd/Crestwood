@@ -138,6 +138,7 @@ void UI::drawList()
     if (!visible()) return;
 
     if (pPlayerTags) pPlayerTags->Render(renderer());
+    if (pNetGame && pNetGame->GetPlayerBubblePool()) pNetGame->GetPlayerBubblePool()->Render(renderer());
 
     draw(renderer());
 }
