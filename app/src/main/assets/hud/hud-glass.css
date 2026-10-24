@@ -30,7 +30,7 @@
 
 /* --------------------------- Logo --------------------------------------- */
 .hud-root .project-logo {
-  width: clamp(64px, 7.4vw, 96px);
+  width: clamp(84px, 9.6vw, 126px);
   opacity: 0.6;
   filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.5));
 }
@@ -248,6 +248,9 @@
 }
 
 .hud-root .wheel-slot img { width: 26px; height: 26px; }
+/* Aucun texte dans la roue du menu rapide */
+.hud-root .wheel-slot::after { content: none !important; display: none !important; }
+.hud-root .wheel-center span { display: none !important; }
 
 /* ------------------------------ Radar ------------------------------------ */
 .hud-root .radarbot-alert {
@@ -316,7 +319,7 @@
 .hud-root .quick-actions { top: calc(min(33vh, 15.3vw) + 8px + env(safe-area-inset-top)); }
 
 /* Ajustements demandés : minimap circulaire, sans halo bleu, HUD gauche décalé vers le bord. */
-.hud-root .minimap-frame{--mm-left:2px;--mm-top:2px;--mm-size:min(27vh,12.5vw);border:1px solid rgba(255,255,255,.22)!important;border-radius:50%!important;background:rgba(5,8,12,.2)!important;box-shadow:0 2px 8px rgba(0,0,0,.38)!important;overflow:hidden!important}
+.hud-root .minimap-frame{--mm-left:2px;--mm-top:2px;--mm-size:min(27vh,12.5vw);box-sizing:border-box!important;border:4px solid #fff!important;border-radius:50%!important;background:rgba(5,8,12,.2)!important;box-shadow:0 2px 8px rgba(0,0,0,.38)!important;overflow:hidden!important}
 .hud-root .minimap-frame .minimap-canvas{border-radius:50%!important;clip-path:circle(50% at 50% 50%)}
 .hud-root .minimap-frame::before,.hud-root .minimap-frame::after,.hud-root .minimap-frame i{display:none!important;content:none!important;box-shadow:none!important;filter:none!important}
 .hud-root .quick-actions{left:max(2px,env(safe-area-inset-left))!important;top:calc(min(27vh,12.5vw) + 7px + env(safe-area-inset-top))!important}
