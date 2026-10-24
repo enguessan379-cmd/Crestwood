@@ -2,7 +2,6 @@
 #include "../game/game.h"
 #include "../net/netgame.h"
 #include "gui.h"
-#include "CharacterCreator.h"
 #include "../playertags.h"
 #include "../net/playerbubblepool.h"
 #include "../CDebugInfo.h"
@@ -136,8 +135,6 @@ void UI::shutdown()
 
 void UI::drawList()
 {
-    // Le créateur de personnage doit pouvoir s’afficher même si le HUD standard est masqué.
-    CharacterCreator::Render();
     if (!visible()) return;
 
     if (pPlayerTags) pPlayerTags->Render(renderer());
