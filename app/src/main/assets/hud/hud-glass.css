@@ -259,8 +259,8 @@
 }
 
 /* ------------------------ Cadre de la minimap (haut gauche) ----------------------
-   Le radar est dessiné par le moteur du jeu ; ce cadre HTML se pose par-dessus,
-   sans bloquer le toucher. Si le cadre est décalé sur ton écran, ajuste ces 3 valeurs. */
+   Le radar natif est caché ; ce cadre contient la minimap HTML (minimap.js / minimap.css),
+   sans bloquer le toucher. Pour déplacer ou agrandir la minimap, ajuste ces 3 valeurs. */
 .hud-root .minimap-frame {
   --mm-left: 0px;
   --mm-top: 0px;

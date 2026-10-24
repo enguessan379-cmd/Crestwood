@@ -2338,6 +2338,7 @@
       if (next.speed !== undefined) mapped.speed = next.speed;
       if (next.vehHealth !== undefined) mapped.vehicleHealth = next.vehHealth;
       if (next.fuel !== undefined) mapped.fuel = next.fuel;
+      if (next.posX !== undefined && window.Minimap) window.Minimap.update(next);
       updateHudInfo(mapped);
     },
     setVisible(visible) { if (root) root.style.display = visible === false ? "none" : ""; },

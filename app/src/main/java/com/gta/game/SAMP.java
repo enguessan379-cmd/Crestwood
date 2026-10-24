@@ -457,8 +457,11 @@ public class SAMP extends GTASA implements HeightProvider.HeightListener {
         super.onBackPressed();
     }
 
-    public void updateHudState(float health, float armour, float thirst, float hunger, float energy, boolean dead, boolean running, boolean exhausted, boolean inVehicle, float speed, float vehHealth, boolean handbrake) {
-        String json = "{\"health\":" + health + ",\"armour\":" + armour + ",\"thirst\":" + hudThirst + ",\"hunger\":" + hudHunger + ",\"energy\":" + energy + ",\"dead\":" + dead + ",\"running\":" + running + ",\"exhausted\":" + exhausted + ",\"inVehicle\":" + inVehicle + ",\"speed\":" + speed + ",\"vehHealth\":" + vehHealth + ",\"fuel\":100,\"handbrake\":" + handbrake + "}";
+    public void updateHudState(float health, float armour, float thirst, float hunger, float energy, boolean dead, boolean running, boolean exhausted, boolean inVehicle, float speed, float vehHealth, boolean handbrake,
+                               float posX, float posY, float camFx, float camFy, float heading) {
+        String json = "{\"health\":" + health + ",\"armour\":" + armour + ",\"thirst\":" + hudThirst + ",\"hunger\":" + hudHunger + ",\"energy\":" + energy + ",\"dead\":" + dead + ",\"running\":" + running + ",\"exhausted\":" + exhausted + ",\"inVehicle\":" + inVehicle + ",\"speed\":" + speed + ",\"vehHealth\":" + vehHealth + ",\"fuel\":100,\"handbrake\":" + handbrake
+                + ",\"posX\":" + posX + ",\"posY\":" + posY
+                + ",\"camFx\":" + camFx + ",\"camFy\":" + camFy + ",\"heading\":" + heading + "}";
         updateHudState(json);
     }
 

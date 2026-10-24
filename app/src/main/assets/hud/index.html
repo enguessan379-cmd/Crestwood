@@ -9,11 +9,13 @@
     <link rel="stylesheet" href="hud-finance.css" />
     <link rel="stylesheet" href="literal-hud.css" />
     <link rel="stylesheet" href="hud-glass.css" />
+    <link rel="stylesheet" href="minimap.css" />
+    <script src="minimap.js" defer></script>
     <script src="hud.js" defer></script>
   </head>
   <body>
     <main class="hud-root" aria-label="HUD Crestwood">
-      <div class="minimap-frame" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+      <div class="minimap-frame" aria-hidden="true"><canvas class="minimap-canvas"></canvas><i></i><i></i><i></i><i></i></div>
 
       <img class="project-logo hud-movable" data-hud-key="logo" src="assets/project-logo.png" alt="Crestwood" />
 

@@ -53,7 +53,7 @@ CJavaWrapper::CJavaWrapper(JNIEnv *env, jobject activity)
 
 	 s_showEditObject = env->GetMethodID(clas, "showEditObject", "()V");
 	 s_hideEditObject = env->GetMethodID(clas, "hideEditObject", "()V");
-	 s_updateHudState = env->GetMethodID(clas, "updateHudState", "(FFFFFZZZZFFZ)V");
+	 s_updateHudState = env->GetMethodID(clas, "updateHudState", "(FFFFFZZZZFFZFFFFF)V");
 
 	 env->DeleteLocalRef(clas);
 }
@@ -76,13 +76,15 @@ void CJavaWrapper::HideLoadingScreen()
 
 void CJavaWrapper::UpdateHudState(float health, float armour, float thirst, float hunger, float energy,
                                   bool dead, bool running, bool exhausted, bool inVehicle,
-                                  float speed, float vehicleHealth, bool handbrake)
+                                  float speed, float vehicleHealth, bool handbrake,
+                                  float posX, float posY, float camFx, float camFy, float heading)
 {
     if (!javaVM || !activity || !s_updateHudState) return;
     JNIEnv* env = GetEnv();
     if (!env) return;
     env->CallVoidMethod(activity, s_updateHudState, health, armour, thirst, hunger, energy,
-                        dead, running, exhausted, inVehicle, speed, vehicleHealth, handbrake);
+                        dead, running, exhausted, inVehicle, speed, vehicleHealth, handbrake,
+                        posX, posY, camFx, camFy, heading);
     EXCEPTION_CHECK(env);
 }
 

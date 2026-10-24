@@ -397,7 +397,13 @@ void MainLoop()
 			if (energy > 100.0f) energy = 100.0f;
 			const bool exhausted = energy <= 0.1f;
 			wasDead = dead;
-							pJavaWrapper->UpdateHudState(localPed->GetHealth(), localPed->GetArmour(), 100.0f, 100.0f, energy, dead, running, exhausted, inVehicle, vehicleSpeed, vehicleHealth, handbrake);
+			// Minimap HTML : position (unites GTA), direction de la camera (plan X/Y) et cap du joueur ou du vehicule.
+			static CCamera& hudCamera = *reinterpret_cast<CCamera*>(g_libGTASA + 0x9F86F8);
+			const CVector hudPos = vehicle ? vehicle->GetPosition() : localPed->m_pPed->GetPosition();
+			const CVector hudCamFwd = hudCamera.GetForwardVector();
+			const float hudHeading = vehicle ? vehicle->GetHeading() : localPed->m_pPed->GetHeading();
+			pJavaWrapper->UpdateHudState(localPed->GetHealth(), localPed->GetArmour(), 100.0f, 100.0f, energy, dead, running, exhausted, inVehicle, vehicleSpeed, vehicleHealth, handbrake,
+										 hudPos.x, hudPos.y, hudCamFwd.x, hudCamFwd.y, hudHeading);
 
 		}
 	}

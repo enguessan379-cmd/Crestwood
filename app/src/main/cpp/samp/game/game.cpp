@@ -195,8 +195,8 @@ void CGame::SetWorldWeather(int byteWeatherID)
 // nom de zone, nom de vehicule) : desactive, le HUD Crestwood (HTML/CEF) le remplace.
 // Mettre kHideClassicHud a false pour reafficher le HUD natif.
 static const bool kHideClassicHud = true;
-// Le radar natif est conserve car le HUD HTML n'a pas de minimap. Mettre a true pour le cacher aussi.
-static const bool kHideClassicRadar = false;
+// Le radar natif est cache : la minimap HTML (assets/hud/minimap.js) le remplace. Mettre a false pour le reafficher.
+static const bool kHideClassicRadar = true;
 
 void CGame::DisplayHUD(bool bDisp)
 {

@@ -23,7 +23,8 @@ public:
     void HideLoadingScreen();
     void UpdateHudState(float health, float armour, float thirst, float hunger, float energy,
                         bool dead, bool running, bool exhausted, bool inVehicle,
-                        float speed, float vehicleHealth, bool handbrake);
+                        float speed, float vehicleHealth, bool handbrake,
+                        float posX, float posY, float camFx, float camFy, float heading);
 
 	void exitGame();
 
