@@ -20,7 +20,10 @@ public class LoadingScreen {
     private WebView loadingWebView;
     private Handler handler;
     private boolean completed;
-    private static final long MAX_WAIT_MS = 120_000L;
+    private boolean hiding;
+    // Filet de securite : si le jeu ne ferme pas l'ecran (dialogue, spawn...), on le ferme tout seul apres 30 s.
+    private static final long MAX_WAIT_MS = 30_000L;
+    private static final long FADE_MS = 350L;
 
     public LoadingScreen(Activity activity) {
         this.activity = activity;
@@ -62,7 +65,7 @@ public class LoadingScreen {
                 runOnUiThread(() -> {
                     completed = true;
                     // Data prete : on reste affiche (connexion au serveur) jusqu'a ce que le jeu appelle hideLoadingScreen()
-                    // (bouton spawn visible). Filet de securite : fermeture forcee apres MAX_WAIT_MS.
+                    // (dialogue de connexion, ecran de personnage, spawn...). Filet de securite : fermeture forcee apres MAX_WAIT_MS.
                     evaluate("window.LoadingBridge&&LoadingBridge.connecting()");
                     if (handler != null) {
                         handler.removeCallbacksAndMessages(null);
@@ -95,12 +98,28 @@ public class LoadingScreen {
 
     public void hide() {
         if (handler != null) handler.removeCallbacksAndMessages(null);
+        // Deja cache (ou en train de se cacher) : rien a faire
+        if (mainLayout == null || mainLayout.getVisibility() != View.VISIBLE || hiding) return;
+        hiding = true;
         if (loadingWebView != null) loadingWebView.evaluateJavascript("window.LoadingBridge&&LoadingBridge.stopMusic&&LoadingBridge.stopMusic()", null);
-        if (mainLayout != null) mainLayout.setVisibility(View.GONE);
+        // Fondu de 350 ms puis l'ecran disparait et le joueur peut toucher le jeu
+        mainLayout.animate().alpha(0f).setDuration(FADE_MS).withEndAction(() -> {
+            hiding = false;
+            if (mainLayout != null) {
+                mainLayout.setVisibility(View.GONE);
+                mainLayout.setAlpha(1f);
+            }
+        }).start();
     }
 
     public void show() {
-        if (mainLayout == null || mainLayout.getVisibility() == View.VISIBLE) return;
+        if (mainLayout == null) return;
+        if (hiding) { // un fondu est en cours : on l'annule et on reste affiche
+            mainLayout.animate().cancel();
+            hiding = false;
+            mainLayout.setAlpha(1f);
+        }
+        if (mainLayout.getVisibility() == View.VISIBLE) return;
         mainLayout.setVisibility(View.VISIBLE);
         if (loadingWebView != null) loadingWebView.loadUrl("file:///android_asset/loading/index.html");
         if (completed && handler != null) {
@@ -124,5 +143,7 @@ public class LoadingScreen {
     private final class LoadingBridge {
         @JavascriptInterface public void start() { DataInstaller.prepare(activity); }
         @JavascriptInterface public void retry() { DataInstaller.repair(activity); }
+        // Bouton "Entrer en jeu" de l'ecran de chargement : ferme l'ecran sur le thread UI
+        @JavascriptInterface public void skip() { runOnUiThread(LoadingScreen.this::hide); }
     }
 }

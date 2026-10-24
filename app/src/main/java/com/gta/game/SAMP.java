@@ -62,6 +62,8 @@ public class SAMP extends GTASA implements HeightProvider.HeightListener {
     private volatile int pharmacyBalance = 0;
     private String lastHudJson = "";
     private long lastHudDispatchMs;
+    // true des que le jeu est vivant (dialogue serveur recu ou HUD alimente) : l'ecran de chargement a ete ferme
+    private volatile boolean loadingClosedByGame;
 
     private CefJavaManager mJavaManager;
     private CefClientManager mClientManager;
@@ -119,6 +121,10 @@ public class SAMP extends GTASA implements HeightProvider.HeightListener {
         final String content = new String(bArr2);
         final String leftBtnText = new String(bArr3);
         final String rightBtnText = new String(bArr4);
+        // Le dialogue de connexion du serveur (login/inscription) s'affiche DERRIERE l'ecran de chargement :
+        // sans cette ligne le joueur ne pouvait jamais le voir, donc jamais arriver au spawn.
+        loadingClosedByGame = true;
+        hideLoadingScreen();
         runOnUiThread(() -> { this.mDialog.show(dialogId, dialogTypeId, caption, content, leftBtnText, rightBtnText); });
     }
     private void showEditObject() {
@@ -473,6 +479,11 @@ public class SAMP extends GTASA implements HeightProvider.HeightListener {
 
     public void updateHudState(final String json) {
         if (hudWebView == null || json == null || isFinishing()) return;
+        // Premier etat du joueur recu du moteur = le jeu tourne : on ferme l'ecran de chargement (une seule fois)
+        if (!loadingClosedByGame) {
+            loadingClosedByGame = true;
+            hideLoadingScreen();
+        }
         final long now = SystemClock.uptimeMillis();
         if (json.equals(lastHudJson) && now - lastHudDispatchMs < 250L) return;
         lastHudJson = json;

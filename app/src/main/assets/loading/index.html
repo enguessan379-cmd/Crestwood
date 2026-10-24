@@ -3,37 +3,50 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <meta name="theme-color" content="#07151f">
-  <title>Crestwood Roleplay — Installation des données</title>
+  <meta name="theme-color" content="#050d1a">
+  <title>Crestwood Roleplay — Chargement</title>
   <link rel="stylesheet" href="loading.css">
 </head>
 <body>
   <main class="screen" aria-live="polite">
+    <!-- Fond : photo + teinte bleue + vignette sombre (3 calques empilés) -->
     <div class="bg" aria-hidden="true"></div>
+    <div class="tint" aria-hidden="true"></div>
     <div class="vignette" aria-hidden="true"></div>
-    <section id="card" class="card" data-state="idle" aria-label="Installation des données du jeu">
+
+    <section id="card" class="card" data-state="idle" aria-label="Chargement de Crestwood Roleplay">
+
+      <!-- Colonne de gauche : l'identité du serveur -->
       <aside class="brand">
-        <svg class="crest" viewBox="0 0 80 90" role="img" aria-label="Crestwood Roleplay">
+        <svg class="crest" viewBox="0 0 80 92" role="img" aria-label="Crestwood Roleplay">
           <defs>
-            <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#fff2a2"/><stop offset=".42" stop-color="#e8bf5f"/><stop offset="1" stop-color="#9d6827"/></linearGradient>
+            <linearGradient id="cwEdge" x1="0" y1="0" x2="1" y2="1">
+              <stop stop-color="#e3f4ff"/><stop offset=".45" stop-color="#4aa8ff"/><stop offset="1" stop-color="#1450c8"/>
+            </linearGradient>
+            <linearGradient id="cwFill" x1="0" y1="0" x2="0" y2="1">
+              <stop stop-color="#14367a"/><stop offset="1" stop-color="#050f26"/>
+            </linearGradient>
           </defs>
-          <path d="M40 4 69 16v26c0 20-12 34-29 42C23 76 11 62 11 42V16Z" fill="#081826" stroke="url(#gold)" stroke-width="3"/>
-          <path d="M40 14v58M21 34h38" stroke="url(#gold)" stroke-width="2" opacity=".9"/>
-          <text x="40" y="54" text-anchor="middle" font-size="31" font-weight="800" fill="url(#gold)" font-family="Arial, sans-serif">CR</text>
+          <path d="M40 3 70 15v27c0 21-12 35-30 44C22 77 10 63 10 42V15Z" fill="url(#cwFill)" stroke="url(#cwEdge)" stroke-width="3"/>
+          <path d="M40 11 63 20v22c0 16-9 27-23 34-14-7-23-18-23-34V20Z" fill="none" stroke="#4aa8ff" stroke-opacity=".35" stroke-width="1"/>
+          <text x="40" y="53" text-anchor="middle" font-size="29" font-weight="800" fill="url(#cwEdge)" font-family="system-ui, Arial, sans-serif" letter-spacing="-1">CR</text>
         </svg>
-        <div>
+        <div class="wordmark">
           <span class="brand-name">CRESTWOOD</span>
-          <span class="brand-sub">ROLEPLAY</span>
+          <span class="brand-sub">Roleplay</span>
         </div>
-        <span class="secure"><span class="dot"></span>INSTALLATION SÉCURISÉE</span>
-        <p class="brand-note">Le jeu sera disponible dès que l’installation sera terminée.</p>
+        <p class="brand-note">Le jeu s’ouvre dès que l’installation est terminée.</p>
       </aside>
 
+      <!-- Colonne de droite : l'avancement -->
       <div class="main">
-        <p id="stage" class="eyebrow">PRÉPARATION</p>
-        <h1 id="title">Préparation des données du jeu</h1>
-        <p id="message" class="message">Connexion au serveur de mise à jour…</p>
+        <header class="head">
+          <p id="stage" class="chip">Préparation</p>
+          <h1 id="title">Préparation du jeu</h1>
+          <p id="message" class="message">Connexion au serveur de mise à jour…</p>
+        </header>
 
+        <!-- Les 4 étapes : le JS ajoute la classe "done" ou "active" sur chaque <li> -->
         <ol id="steps" class="steps">
           <li><i>1</i><span>Préparation</span></li>
           <li><i>2</i><span>Téléchargement</span></li>
@@ -43,8 +56,8 @@
 
         <div class="progress">
           <div class="progress-top">
-            <span id="bytes">En attente des données…</span>
             <strong id="percent">0 %</strong>
+            <span id="bytes">En attente des données…</span>
           </div>
           <div class="track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
             <div id="bar" class="bar"><span class="shine"></span></div>
@@ -57,16 +70,18 @@
 
         <div class="status">
           <span class="status-dot"></span>
-          <div>
-            <b id="status">En attente</b>
-            <span id="detail">Le jeu sera débloqué uniquement après l’installation complète.</span>
-          </div>
+          <p><b id="status">En attente</b><span id="detail">Le jeu sera débloqué dès que l’installation est complète.</span></p>
         </div>
 
-        <button id="retry" class="retry" type="button" hidden>RÉESSAYER</button>
+        <div class="actions">
+          <button id="skip" class="btn" type="button" hidden>Entrer en jeu</button>
+          <button id="retry" class="btn" type="button" hidden>Réessayer</button>
+        </div>
       </div>
     </section>
   </main>
+
+  <!-- Lecteur de musique -->
   <div id="player" class="player" aria-label="Lecteur de musique">
     <div id="trackTitle" class="track-title">&nbsp;</div>
     <div class="player-controls">

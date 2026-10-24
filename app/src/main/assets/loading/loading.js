@@ -2,11 +2,12 @@
   'use strict';
   const $=id=>document.getElementById(id);
   const card=$('card'),bar=$('bar'),percentEl=$('percent'),bytesEl=$('bytes'),speedEl=$('speed'),etaEl=$('eta');
-  const title=$('title'),message=$('message'),stage=$('stage'),status=$('status'),detail=$('detail'),retry=$('retry');
+  const title=$('title'),message=$('message'),stage=$('stage'),status=$('status'),detail=$('detail'),retry=$('retry'),skip=$('skip');
   const track=document.querySelector('.track');
   const steps=Array.prototype.slice.call(document.querySelectorAll('#steps li'));
 
-  let sawDownload=false,smoothSpeed=0,lastDone=-1,lastTime=0;
+  let sawDownload=false,smoothSpeed=0,lastDone=-1,lastTime=0,skipTimer=0;
+  const SKIP_DELAY_MS=6000; // le bouton "Entrer en jeu" apparaît 6 s après le début de la connexion
 
   // ---------- Lecteur de musique (pistes dans music/) ----------
   const TRACKS=[
@@ -84,13 +85,13 @@
 
   // Textes affichés pour chaque étape (la phrase exacte envoyée par l'application s'affiche dans #message).
   const INFO={
-    prepare:{state:'idle',stage:'PRÉPARATION',title:'Installation des données du jeu',status:'Vérification en cours',
+    prepare:{state:'idle',stage:'Préparation',title:'Installation du jeu',status:'Vérification en cours',
       detail:'Recherche d’une installation existante avant tout téléchargement.'},
-    download:{state:'download',stage:'TÉLÉCHARGEMENT',title:'Installation des données du jeu',status:'Téléchargement des fichiers du jeu',
+    download:{state:'download',stage:'Téléchargement',title:'Installation du jeu',status:'Téléchargement des fichiers du jeu',
       detail:'Cette étape n’a lieu qu’une seule fois. Gardez l’application ouverte.'},
-    verify:{state:'verify',stage:'VÉRIFICATION',title:'Installation des données du jeu',status:'Vérification de l’intégrité',
+    verify:{state:'verify',stage:'Vérification',title:'Installation du jeu',status:'Vérification de l’intégrité',
       detail:'Contrôle du fichier téléchargé avant son installation.'},
-    install:{state:'install',stage:'INSTALLATION',title:'Installation des données du jeu',status:'Installation des fichiers du jeu',
+    install:{state:'install',stage:'Installation',title:'Installation du jeu',status:'Installation des fichiers du jeu',
       detail:'Extraction en cours : ne fermez pas l’application.'}
   };
 
@@ -131,6 +132,7 @@
       smoothSpeed=0;lastDone=-1;
     }
 
+    stopBusy();
     card.setAttribute('data-state',info.state);
     stage.textContent=info.stage;
     title.textContent=info.title;
@@ -150,27 +152,38 @@
     retry.hidden=true;
   }
 
+  // Arrête l'animation "connexion" et cache le bouton "Entrer en jeu"
+  function stopBusy(){
+    track.classList.remove('busy');
+    window.clearTimeout(skipTimer);
+    skip.hidden=true;
+  }
+
   function connecting(){
     card.setAttribute('data-state','idle');
     setSteps(4,true);
-    stage.textContent='CONNEXION';
+    stage.textContent='Connexion';
     title.textContent='Connexion au serveur';
     message.textContent='Chargement de Crestwood Roleplay en cours…';
-    status.textContent='Authentification en cours';
-    detail.textContent='Cet écran se fermera dès que le bouton Spawn apparaîtra.';
+    status.textContent='Connexion en cours';
+    detail.textContent='Le jeu s’ouvre dès que le serveur répond.';
     bytesEl.textContent='Chargement du monde…';
     percentEl.textContent='…';
     track.classList.add('busy');
     speedEl.textContent='';
     etaEl.textContent='';
     retry.hidden=true;
+    // Si la connexion traîne, le joueur peut fermer l'écran lui-même.
+    window.clearTimeout(skipTimer);
+    skipTimer=window.setTimeout(()=>{skip.hidden=false;},SKIP_DELAY_MS);
   }
 
   function ready(){
+    stopBusy();
     card.setAttribute('data-state','ready');
     setSteps(4,true);
     setBar(100);
-    stage.textContent='TERMINÉ';
+    stage.textContent='Terminé';
     title.textContent='Données prêtes';
     message.textContent=sawDownload?'L’installation est terminée. Bon jeu !':'Vos données sont déjà installées : aucun téléchargement n’a été nécessaire.';
     status.textContent='Installation validée';
@@ -181,8 +194,9 @@
   }
 
   function error(text){
+    stopBusy();
     card.setAttribute('data-state','error');
-    stage.textContent='ACTION REQUISE';
+    stage.textContent='Action requise';
     title.textContent='Installation en pause';
     message.textContent=text||'Impossible de terminer l’installation des données.';
     status.textContent='L’installation doit être reprise';
@@ -193,9 +207,10 @@
   }
 
   function storageAccessRequired(){
+    stopBusy();
     card.setAttribute('data-state','permission');
     setSteps(1,false);
-    stage.textContent='AUTORISATION REQUISE';
+    stage.textContent='Autorisation requise';
     title.textContent='Autorisez le stockage';
     message.textContent='Autorisez l’accès aux fichiers pour installer les données dans /storage/emulated/0/data.';
     status.textContent='En attente de l’autorisation';
@@ -207,7 +222,7 @@
 
   function storageAccessGranted(){
     card.setAttribute('data-state','idle');
-    title.textContent='Préparation des données du jeu';
+    title.textContent='Préparation du jeu';
     message.textContent='Accès autorisé. Démarrage de l’installation…';
     status.textContent='Préparation du téléchargement';
     detail.textContent='Les fichiers seront installés dans /storage/emulated/0/data.';
@@ -217,13 +232,18 @@
     retry.hidden=true;
     card.setAttribute('data-state','idle');
     setSteps(1,false);
-    stage.textContent='REPRISE';
+    stage.textContent='Reprise';
     title.textContent='Reprise de l’installation';
     message.textContent='Vérification des fichiers déjà téléchargés…';
     status.textContent='Préparation de la reprise';
     detail.textContent='Un fichier valide déjà téléchargé sera réutilisé.';
     etaEl.textContent='';
     if(window.AndroidLoading&&typeof window.AndroidLoading.retry==='function')window.AndroidLoading.retry();
+  });
+
+  skip.addEventListener('click',()=>{
+    skip.hidden=true;
+    if(window.AndroidLoading&&typeof window.AndroidLoading.skip==='function')window.AndroidLoading.skip();
   });
 
   window.LoadingBridge={setProgress,ready,error,storageAccessRequired,storageAccessGranted,stopMusic,connecting};
