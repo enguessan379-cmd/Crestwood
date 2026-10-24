@@ -259,22 +259,22 @@ public final class DataInstaller {
             if (!cacheDirectory.exists() && !cacheDirectory.mkdirs()) throw new IOException("Não foi possível criar o cache de atualização");
             if (!target.getParentFile().exists() && !target.getParentFile().mkdirs()) throw new IOException("Não foi possível criar a pasta do jogo");
 
-            UpdateManifest manifest = fetchManifestWithRetry();
-            String markerValue = manifest.version + ":" + manifest.sha256;
             File marker = new File(target, ".gtasa_data_version");
 
-            // Se a pasta GTA já contém todos os arquivos obrigatórios (copiada manualmente,
-            // instalação anterior, outro launcher, etc.), não baixa nada de novo — só grava
-            // o marcador para acelerar a próxima verificação.
+            // Se a pasta já contém todos os arquivos obrigatórios (copiada manualmente, instalação
+            // anterior, outro launcher, etc.), não baixa nada — e nem sequer acessa a rede (funciona
+            // offline e abre na hora). Só grava o marcador se ele ainda não existir.
+            report(0, "Verificando arquivos da data já instalada", 0L, 0L);
             if (isComplete(target)) {
                 Log.i(TAG, "Data já presente em " + target + "; pulando download");
                 cleanupLegacyPrivateData(context, target);
-                if (!marker.isFile() || !markerValue.equals(readSmallFile(marker))) {
-                    writeSmallFile(marker, markerValue);
-                }
-                complete(target, manifest.extractedBytes);
+                if (!marker.isFile()) writeSmallFile(marker, "existing-data");
+                complete(target, Math.max(1L, directorySize(target)));
                 return;
             }
+
+            UpdateManifest manifest = fetchManifestWithRetry();
+            String markerValue = manifest.version + ":" + manifest.sha256;
 
             report(0, "Liberando espaço para a instalação", 0L, manifest.compressedBytes);
             cleanupObsoleteInstallFiles(context, target, staging);
@@ -1151,6 +1151,16 @@ public final class DataInstaller {
         } else {
             copyFile(source, target);
         }
+    }
+
+    /** Taille totale d'un dossier (affichage seulement). */
+    private static long directorySize(File file) {
+        if (file == null) return 0L;
+        File[] children = file.listFiles();
+        if (children == null) return file.length();
+        long total = 0L;
+        for (File child : children) total += child.isDirectory() ? directorySize(child) : child.length();
+        return total;
     }
 
     private static void deleteRecursively(File file) {
