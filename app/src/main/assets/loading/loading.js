@@ -1,90 +1,159 @@
 (()=>{
   'use strict';
   const $=id=>document.getElementById(id);
-  const bar=$('bar'),percent=$('percent'),bytes=$('bytes'),transfer=$('transfer');
-  const title=$('title'),message=$('message'),stage=$('stage'),status=$('status');
-  const detail=$('detail'),retry=$('retry'),dot=$('statusDot'),track=document.querySelector('.track');
-  let current={percent:0,done:0,total:0,speed:0,phase:''};
-  const clamp=value=>Math.max(0,Math.min(100,Number(value)||0));
-  const formatBytes=value=>{const bytesValue=Math.max(0,Number(value)||0);if(bytesValue<1024*1024)return `${Math.round(bytesValue/1024)} KB`;if(bytesValue<1024*1024*1024)return `${(bytesValue/(1024*1024)).toFixed(1)} MB`;return `${(bytesValue/(1024*1024*1024)).toFixed(2)} GB`};
-  const formatTime=value=>{const seconds=Math.max(0,Math.round(Number(value)||0));if(seconds<60)return `${seconds}s restantes`;const minutes=Math.floor(seconds/60);return minutes<60?`${minutes}min ${seconds%60}s restantes`:`${Math.floor(minutes/60)}h ${minutes%60}min restantes`};
-  const isDownload=phase=>/baixando|download concluído|retomando/i.test(phase||'');
-  const isVerify=phase=>/verificando integridade|verificando arquivo/i.test(phase||'');
-  const isExtract=phase=>/instalando|extraíd|extraindo|finalizando/i.test(phase||'');
-  function setHealthy(){if(dot){dot.style.background='#50e2a0';dot.style.boxShadow='0 0 12px rgba(80,226,160,.75)'}if(track)track.setAttribute('aria-valuenow',String(Math.round(current.percent)))}
-  function setProgress(value,phase,done,total,speed){
-    current={percent:clamp(value),phase:String(phase||''),done:Math.max(0,Number(done)||0),total:Math.max(0,Number(total)||0),speed:Math.max(0,Number(speed)||0)};
-    if(bar)bar.style.width=`${current.percent}%`;
-    if(percent)percent.textContent=`${Math.round(current.percent)}%`;
-    if(message&&current.phase)message.textContent=current.phase;
-    if(retry)retry.hidden=true;
-    setHealthy();
-    const downloading=isDownload(current.phase),verifying=isVerify(current.phase),extracting=isExtract(current.phase);
-    if(stage)stage.textContent=downloading?'DOWNLOAD DA DATA':verifying?'VERIFICAÇÃO':extracting?'INSTALAÇÃO DA DATA':current.percent>=100?'CONCLUÍDO':'PREPARANDO';
-    if(bytes){
-      if(current.total>0)bytes.textContent=`${formatBytes(current.done)} de ${formatBytes(current.total)}`;
-      else bytes.textContent='Aguardando dados do servidor';
-    }
-    if(downloading){
-      if(status)status.textContent='Baixando arquivos do jogo';
-      if(detail)detail.textContent='Transferência direta para o armazenamento privado do aplicativo.';
-      if(transfer)transfer.textContent=current.speed>0?`${formatBytes(current.speed)}/s · ${formatTime((current.total-current.done)/current.speed)}`:'Calculando velocidade de transferência...';
-    }else if(verifying){
-      if(status)status.textContent='Verificando integridade do arquivo';
-      if(detail)detail.textContent='Conferindo se o arquivo baixado não está corrompido antes de instalar.';
-      if(transfer)transfer.textContent='Isso pode levar alguns segundos.';
-    }else if(extracting){
-      if(status)status.textContent='Instalando arquivos do jogo';
-      if(detail)detail.textContent='A data está sendo extraída em uma área protegida antes de liberar o jogo.';
-      if(transfer)transfer.textContent='Não feche o aplicativo durante a instalação.';
-    }else if(current.percent>=100){
-      if(status)status.textContent='Data instalada com sucesso';
-      if(detail)detail.textContent='A verificação foi concluída. Preparando a tela inicial.';
-      if(transfer)transfer.textContent='Download, validação e instalação concluídos.';
+  const card=$('card'),bar=$('bar'),percentEl=$('percent'),bytesEl=$('bytes'),speedEl=$('speed'),etaEl=$('eta');
+  const title=$('title'),message=$('message'),stage=$('stage'),status=$('status'),detail=$('detail'),retry=$('retry');
+  const track=document.querySelector('.track');
+  const steps=Array.prototype.slice.call(document.querySelectorAll('#steps li'));
+
+  let sawDownload=false,smoothSpeed=0,lastDone=-1,lastTime=0;
+
+  const clamp=v=>Math.max(0,Math.min(100,Number(v)||0));
+  const norm=t=>String(t||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+  const dec=(v,d)=>v.toFixed(d).replace('.',',');
+  const fmtBytes=v=>{
+    v=Math.max(0,Number(v)||0);
+    if(v<1048576)return Math.round(v/1024)+' Ko';
+    if(v<1073741824)return dec(v/1048576,1)+' Mo';
+    return dec(v/1073741824,2)+' Go';
+  };
+  const fmtTime=s=>{
+    s=Math.max(0,Math.round(s));
+    if(s<60)return s+' s';
+    const m=Math.floor(s/60);
+    if(m<60)return m+' min '+String(s%60).padStart(2,'0')+' s';
+    return Math.floor(m/60)+' h '+String(m%60).padStart(2,'0')+' min';
+  };
+
+  // Textes affichés pour chaque étape (la phrase exacte envoyée par l'application s'affiche dans #message).
+  const INFO={
+    prepare:{state:'idle',stage:'PRÉPARATION',title:'Installation des données du jeu',status:'Vérification en cours',
+      detail:'Recherche d’une installation existante avant tout téléchargement.'},
+    download:{state:'download',stage:'TÉLÉCHARGEMENT',title:'Installation des données du jeu',status:'Téléchargement des fichiers du jeu',
+      detail:'Cette étape n’a lieu qu’une seule fois. Gardez l’application ouverte.'},
+    verify:{state:'verify',stage:'VÉRIFICATION',title:'Installation des données du jeu',status:'Vérification de l’intégrité',
+      detail:'Contrôle du fichier téléchargé avant son installation.'},
+    install:{state:'install',stage:'INSTALLATION',title:'Installation des données du jeu',status:'Installation des fichiers du jeu',
+      detail:'Extraction en cours : ne fermez pas l’application.'}
+  };
+
+  function setSteps(current,allDone){
+    steps.forEach((li,i)=>{
+      const n=i+1;
+      li.className=allDone||n<current?'done':n===current?'active':'';
+    });
+  }
+  function setBar(pct){
+    bar.style.width=pct+'%';
+    percentEl.textContent=Math.round(pct)+' %';
+    track.setAttribute('aria-valuenow',String(Math.round(pct)));
+  }
+
+  function setProgress(value,phase,done,total){
+    const pct=clamp(value),p=norm(phase),now=Date.now();
+    done=Math.max(0,Number(done)||0);
+    total=Math.max(0,Number(total)||0);
+
+    let key='prepare',step=1;
+    if(p==='donnees installees'||pct>=100){key='install';step=4;}
+    else if(/installation des fichiers|extraits|finalisation/.test(p)){key='install';step=3;}
+    else if(/integrite/.test(p)){key='verify';step=2;}
+    else if(/^telechargement|reprise/.test(p)){key='download';step=2;}
+    const info=INFO[key];
+
+    // Vitesse lissée (calculée ici, indépendamment de l'application)
+    if(key==='download'){
+      sawDownload=true;
+      if(lastDone>=0&&done<lastDone)smoothSpeed=0;
+      if(lastDone>=0&&done>lastDone&&now>lastTime){
+        const instant=(done-lastDone)*1000/(now-lastTime);
+        smoothSpeed=smoothSpeed?smoothSpeed*0.8+instant*0.2:instant;
+      }
+      lastDone=done;lastTime=now;
     }else{
-      if(status)status.textContent='Conectando ao servidor';
-      if(detail)detail.textContent='Verificando a versão e preparando a instalação segura.';
-      if(transfer)transfer.textContent='Conexão segura via HTTPS';
+      smoothSpeed=0;lastDone=-1;
     }
-  }
-  function ready(){
-    if(title)title.textContent='Data pronta para jogar';
-    setProgress(100,'Data instalada',current.total||current.done,current.total||current.done,0);
-  }
-  function error(text){
-    if(title)title.textContent='Instalação pausada';
-    if(message)message.textContent=text||'Não foi possível concluir a instalação da data.';
-    if(stage)stage.textContent='AÇÃO NECESSÁRIA';
-    if(status)status.textContent='A instalação precisa ser retomada';
-    if(detail)detail.textContent='O jogo continuará bloqueado até os arquivos obrigatórios serem instalados corretamente.';
-    if(transfer)transfer.textContent='Toque em TENTAR NOVAMENTE para continuar de forma segura.';
-    if(retry)retry.hidden=false;
-    if(dot){dot.style.background='#ff5d73';dot.style.boxShadow='0 0 12px rgba(255,93,115,.75)'}
-  }
-  function storageAccessRequired(){
-    if(title)title.textContent='Autorize o armazenamento';
-    if(message)message.textContent='Permita o acesso aos arquivos para instalar a data em /storage/emulated/0/GTA.';
-    if(stage)stage.textContent='AUTORIZAÇÃO NECESSÁRIA';
-    if(status)status.textContent='Aguardando permissão de armazenamento';
-    if(detail)detail.textContent='Após autorizar, a instalação será iniciada automaticamente.';
-    if(transfer)transfer.textContent='A pasta pública GTA será criada na memória interna.';
-    if(retry)retry.hidden=true;
-  }
-  function storageAccessGranted(){
-    if(title)title.textContent='Preparando a data do jogo';
-    if(message)message.textContent='Acesso autorizado. Iniciando a instalação...';
-    if(status)status.textContent='Preparando o download';
-    if(detail)detail.textContent='Os arquivos serão instalados em /storage/emulated/0/GTA.';
-  }
-  if(retry)retry.addEventListener('click',()=>{
+
+    card.setAttribute('data-state',info.state);
+    stage.textContent=info.stage;
+    title.textContent=info.title;
+    message.textContent=phase||info.title;
+    if(/nouvelle tentative/.test(p)){
+      status.textContent='Connexion instable';
+      detail.textContent='Nouvelle tentative automatique en cours…';
+    }else{
+      status.textContent=info.status;
+      detail.textContent=info.detail;
+    }
+    setSteps(step,pct>=100);
+    setBar(pct);
+    bytesEl.textContent=total>0?fmtBytes(done)+' sur '+fmtBytes(total):'En attente des données…';
+    speedEl.textContent=key==='download'&&smoothSpeed>0?'Vitesse : '+fmtBytes(smoothSpeed)+'/s':'';
+    etaEl.textContent=key==='download'&&smoothSpeed>0&&total>done?'Temps restant : environ '+fmtTime((total-done)/smoothSpeed):'';
     retry.hidden=true;
-    if(title)title.textContent='Retomando a instalação';
-    if(message)message.textContent='Verificando os arquivos já baixados...';
-    if(status)status.textContent='Preparando a retomada';
-    if(detail)detail.textContent='O arquivo válido já baixado será reutilizado.';
-    if(transfer)transfer.textContent='Mantendo o progresso concluído.';
+  }
+
+  function ready(){
+    card.setAttribute('data-state','ready');
+    setSteps(4,true);
+    setBar(100);
+    stage.textContent='TERMINÉ';
+    title.textContent='Données prêtes';
+    message.textContent=sawDownload?'L’installation est terminée. Bon jeu !':'Vos données sont déjà installées : aucun téléchargement n’a été nécessaire.';
+    status.textContent='Installation validée';
+    detail.textContent=sawDownload?'Téléchargement, vérification et installation terminés.':'Les fichiers du jeu ont été trouvés sur cet appareil.';
+    speedEl.textContent='';
+    etaEl.textContent='';
+    retry.hidden=true;
+  }
+
+  function error(text){
+    card.setAttribute('data-state','error');
+    stage.textContent='ACTION REQUISE';
+    title.textContent='Installation en pause';
+    message.textContent=text||'Impossible de terminer l’installation des données.';
+    status.textContent='L’installation doit être reprise';
+    detail.textContent='Le jeu reste bloqué tant que les fichiers obligatoires ne sont pas installés.';
+    speedEl.textContent='';
+    etaEl.textContent='Appuyez sur RÉESSAYER pour reprendre.';
+    retry.hidden=false;
+  }
+
+  function storageAccessRequired(){
+    card.setAttribute('data-state','permission');
+    setSteps(1,false);
+    stage.textContent='AUTORISATION REQUISE';
+    title.textContent='Autorisez le stockage';
+    message.textContent='Autorisez l’accès aux fichiers pour installer les données dans /storage/emulated/0/data.';
+    status.textContent='En attente de l’autorisation';
+    detail.textContent='Dès que l’accès est accordé, l’installation démarre automatiquement.';
+    speedEl.textContent='';
+    etaEl.textContent='';
+    retry.hidden=true;
+  }
+
+  function storageAccessGranted(){
+    card.setAttribute('data-state','idle');
+    title.textContent='Préparation des données du jeu';
+    message.textContent='Accès autorisé. Démarrage de l’installation…';
+    status.textContent='Préparation du téléchargement';
+    detail.textContent='Les fichiers seront installés dans /storage/emulated/0/data.';
+  }
+
+  retry.addEventListener('click',()=>{
+    retry.hidden=true;
+    card.setAttribute('data-state','idle');
+    setSteps(1,false);
+    stage.textContent='REPRISE';
+    title.textContent='Reprise de l’installation';
+    message.textContent='Vérification des fichiers déjà téléchargés…';
+    status.textContent='Préparation de la reprise';
+    detail.textContent='Un fichier valide déjà téléchargé sera réutilisé.';
+    etaEl.textContent='';
     if(window.AndroidLoading&&typeof window.AndroidLoading.retry==='function')window.AndroidLoading.retry();
   });
+
   window.LoadingBridge={setProgress,ready,error,storageAccessRequired,storageAccessGranted};
+  setSteps(1,false);
   if(window.AndroidLoading&&typeof window.AndroidLoading.start==='function')window.AndroidLoading.start();
 })();

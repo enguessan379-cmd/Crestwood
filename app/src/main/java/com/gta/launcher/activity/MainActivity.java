@@ -145,7 +145,7 @@ public class MainActivity extends AppCompatActivity {
                 boolean renderIntervalReached = now - lastRenderedProgressAtMs >= 350L;
                 if (!isFinal && !changedPercent && !renderIntervalReached) return;
                 long speed = 0L;
-                if (phase != null && phase.startsWith("Baixando") && lastProgressBytes >= 0L && done > lastProgressBytes && now > lastProgressAtMs) {
+                if (phase != null && phase.startsWith("Téléchargement des") && lastProgressBytes >= 0L && done > lastProgressBytes && now > lastProgressAtMs) {
                     speed = (done - lastProgressBytes) * 1000L / (now - lastProgressAtMs);
                 }
                 lastUpdatePercent = percent;
@@ -159,10 +159,10 @@ public class MainActivity extends AppCompatActivity {
                 dataReady = DataInstaller.isInstallReady(MainActivity.this);
                 runOnUiThread(() -> {
                     if (!dataReady) {
-                        showRecoverableError("Instalação incompleta. Toque em JOGAR para reparar.");
+                        showRecoverableError("Installation incomplète. Appuyez sur JOGAR pour réparer.");
                         return;
                     }
-                    if (connectionStatus != null) connectionStatus.setText("Data atualizada e validada");
+                    if (connectionStatus != null) connectionStatus.setText("Données à jour et validées");
                     showReadyThenHome();
                 });
             }
@@ -203,7 +203,7 @@ public class MainActivity extends AppCompatActivity {
             } catch (Exception error) {
                 storageAccessRequestOpen = false;
                 Log.e(TAG, "Falha abrindo a autorização de armazenamento", error);
-                evaluateUpdate("window.LoadingBridge&&LoadingBridge.error(" + quoteJs("Não foi possível abrir a autorização de armazenamento.") + ")");
+                evaluateUpdate("window.LoadingBridge&&LoadingBridge.error(" + quoteJs("Impossible d'ouvrir l'autorisation de stockage.") + ")");
             }
         } else if (ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
             legacyStorageAccessLauncher.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE);
@@ -231,7 +231,7 @@ public class MainActivity extends AppCompatActivity {
     private void showRecoverableError(String message) {
         dataReady = false;
         setStartEnabled(false);
-        if (connectionStatus != null) connectionStatus.setText("Instalação interrompida. Repare a data para continuar.");
+        if (connectionStatus != null) connectionStatus.setText("Installation interrompue. Réparez les données pour continuer.");
         if (updateOverlay != null) updateOverlay.setVisibility(View.VISIBLE);
         evaluateUpdate("window.LoadingBridge&&LoadingBridge.error(" + quoteJs(message) + ")");
     }
@@ -248,7 +248,7 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
         if (DataInstaller.isInstalling()) {
-            Toast.makeText(this, "A instalação da data ainda está em andamento.", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "L'installation des données est toujours en cours.", Toast.LENGTH_SHORT).show();
             return;
         }
         dataReady = false;
@@ -258,7 +258,7 @@ public class MainActivity extends AppCompatActivity {
         lastRenderedProgressAtMs = 0L;
         handler.removeCallbacksAndMessages(null);
         setStartEnabled(false);
-        if (connectionStatus != null) connectionStatus.setText("Reparando data do jogo...");
+        if (connectionStatus != null) connectionStatus.setText("Réparation des données du jeu...");
         if (updateOverlay != null) updateOverlay.setVisibility(View.VISIBLE);
         DataInstaller.repair(this);
     }
@@ -278,7 +278,7 @@ public class MainActivity extends AppCompatActivity {
 
     private void startGame() {
         if (!dataReady || !DataInstaller.isInstallReady(this)) {
-            beginDataRepair("A data do jogo não está completa. Reparando instalação...");
+            beginDataRepair("Les données du jeu sont incomplètes. Réparation de l'installation...");
             return;
         }
         try {
@@ -367,7 +367,7 @@ public class MainActivity extends AppCompatActivity {
 
     private final class LauncherUpdateBridge {
         @JavascriptInterface public void start() { DataInstaller.prepare(MainActivity.this); }
-        @JavascriptInterface public void retry() { runOnUiThread(() -> beginDataRepair("Tentando reparar a data do jogo...")); }
+        @JavascriptInterface public void retry() { runOnUiThread(() -> beginDataRepair("Tentative de réparation des données du jeu...")); }
     }
 
     @Override protected void onDestroy() {

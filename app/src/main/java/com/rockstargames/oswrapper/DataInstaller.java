@@ -74,6 +74,8 @@ public final class DataInstaller {
     private static final String[] TEXDB_FORMATS = { "dxt", "etc", "pvr" };
     private static final String[] TEXDB_PARTS = { "dat", "tmb", "toc" };
     private static final String[] BASE_REQUIRED_FILES = buildBaseRequiredFiles();
+    // Fichiers cles du controle tolerant "data presente" (en plus de tous les MANAGED_ROOTS).
+    private static final String[] CORE_FILES = { "data/gta.dat", "data/default.dat", "texdb/gta3.img" };
 
     private static String[] buildBaseRequiredFiles() {
         java.util.List<String> files = new java.util.ArrayList<>(java.util.Arrays.asList(
@@ -157,6 +159,8 @@ public final class DataInstaller {
     private static volatile String errorMessage = "";
     private static volatile Listener listener;
     private static volatile boolean prDownloaderInitialized;
+    // true apres repair() : le controle "data presente" tolerant est desactive, seul le controle strict compte.
+    private static volatile boolean forceStrictCheck;
 
     private DataInstaller() { }
 
@@ -177,7 +181,7 @@ public final class DataInstaller {
     public static synchronized void prepare(final Context context) {
         if (installing || success) return;
         if (context == null) {
-            fail(new IOException("Contexto do Launcher indisponível"));
+            fail(new IOException("Contexte du launcher indisponible"));
             return;
         }
         installing = true;
@@ -190,6 +194,7 @@ public final class DataInstaller {
 
     public static synchronized void repair(final Context context) {
         if (installing) return;
+        forceStrictCheck = true; // reparation demandee par l'utilisateur : plus de tolerance
         success = false;
         prepare(context);
     }
@@ -239,7 +244,7 @@ public final class DataInstaller {
         File target = getTargetDirectory(context);
         if (target == null) return false;
         try {
-            return new File(target, ".gtasa_data_version").isFile() && isComplete(target);
+            return new File(target, ".gtasa_data_version").isFile() && isDataUsable(target);
         } catch (Throwable ignored) {
             return false;
         }
@@ -254,49 +259,65 @@ public final class DataInstaller {
         File staging = target == null ? null : new File(target.getParentFile(), target.getName() + ".staging");
 
         try {
-            if (target == null || staging == null) throw new IOException("Diretório de instalação indisponível");
-            if (!hasSharedStorageAccess(context)) throw new IOException("Autorize o acesso aos arquivos para instalar em /storage/emulated/0/data");
-            if (!cacheDirectory.exists() && !cacheDirectory.mkdirs()) throw new IOException("Não foi possível criar o cache de atualização");
-            if (!target.getParentFile().exists() && !target.getParentFile().mkdirs()) throw new IOException("Não foi possível criar a pasta do jogo");
+            if (target == null || staging == null) throw new IOException("Dossier d'installation indisponible");
+            if (!hasSharedStorageAccess(context)) throw new IOException("Autorisez l'accès aux fichiers pour installer dans /storage/emulated/0/data");
+            if (!cacheDirectory.exists() && !cacheDirectory.mkdirs()) throw new IOException("Impossible de créer le cache de mise à jour");
+            if (!target.getParentFile().exists() && !target.getParentFile().mkdirs()) throw new IOException("Impossible de créer le dossier du jeu");
 
             File marker = new File(target, ".gtasa_data_version");
 
             // Se a pasta já contém todos os arquivos obrigatórios (copiada manualmente, instalação
             // anterior, outro launcher, etc.), não baixa nada — e nem sequer acessa a rede (funciona
             // offline e abre na hora). Só grava o marcador se ele ainda não existir.
-            report(0, "Verificando arquivos da data já instalada", 0L, 0L);
-            if (isComplete(target)) {
+            report(0, "Vérification des fichiers déjà installés", 0L, 0L);
+            // 1) controle strict (tous les fichiers obligatoires) ; 2) sinon controle "data presente" tolerant
+            // (dossiers racine + fichiers cles) : un fichier secondaire manquant ne declenche PAS un
+            // re-telechargement de plusieurs Go ; 3) sinon ancienne data complete dans GTA/ (deplacee, pas copiee).
+            // Apres un clic sur "Tentar novamente" (repair), seul le controle strict compte.
+            java.util.List<String> presentCheck = describeMissing(diskIndex(target), null);
+            boolean present = presentCheck.isEmpty();
+            if (!present && !forceStrictCheck && isCoreDataPresent(target)) {
+                Log.w(TAG, "Data presente em " + target + " mas incompleta pelo controle estrito (" + presentCheck.size() +
+                        " itens) ; download ignorado. Faltam: " +
+                        String.join(", ", presentCheck.subList(0, Math.min(presentCheck.size(), 25))));
+                present = true;
+            }
+            if (!present) present = adoptExistingData(context, target);
+            if (present) {
                 Log.i(TAG, "Data já presente em " + target + "; pulando download");
                 cleanupLegacyPrivateData(context, target);
                 if (!marker.isFile()) writeSmallFile(marker, "existing-data");
                 complete(target, Math.max(1L, directorySize(target)));
                 return;
             }
+            Log.w(TAG, "Data ausente ou incompleta em " + target + " (" + presentCheck.size() +
+                    " itens ausentes) ; download necessário. Faltam: " +
+                    String.join(", ", presentCheck.subList(0, Math.min(presentCheck.size(), 25))));
 
             UpdateManifest manifest = fetchManifestWithRetry();
             String markerValue = manifest.version + ":" + manifest.sha256;
 
-            report(0, "Liberando espaço para a instalação", 0L, manifest.compressedBytes);
+            report(0, "Préparation de l'espace pour l'installation", 0L, manifest.compressedBytes);
             cleanupObsoleteInstallFiles(context, target, staging);
             long existingDownload = zipFile.isFile() ? zipFile.length() : resumableBytes(partialFile, manifest.compressedBytes);
             ensureDownloadAndExtractionSpace(target, existingDownload, manifest);
 
             if (zipFile.isFile() && zipFile.length() == manifest.compressedBytes && isValidZipArchive(zipFile)) {
-                report(70, "Arquivo já baixado; verificando integridade", zipFile.length(), manifest.compressedBytes);
+                report(70, "Fichier déjà téléchargé ; vérification de l'intégrité", zipFile.length(), manifest.compressedBytes);
             } else {
                 if (zipFile.isFile() && zipFile.length() == manifest.compressedBytes) {
                     Log.w(TAG, "Arquivo em cache tinha o tamanho esperado mas não é um ZIP válido; baixando novamente");
                 }
                 deleteRecursively(zipFile);
-                report(0, "Baixando data do servidor", 0L, manifest.compressedBytes);
+                report(0, "Téléchargement des données du serveur", 0L, manifest.compressedBytes);
                 downloadFast(zipFile, partialFile, manifest);
             }
 
-            report(70, "Verificando integridade do arquivo", zipFile.length(), manifest.compressedBytes);
+            report(70, "Vérification de l'intégrité du fichier", zipFile.length(), manifest.compressedBytes);
             if (!isValidZipArchive(zipFile)) {
                 deleteRecursively(zipFile);
                 deleteRecursively(partialFile);
-                throw new IOException("O link de download não retornou um arquivo ZIP válido (provável expiração/bloqueio do link de origem). Tente novamente mais tarde.");
+                throw new IOException("Le lien de téléchargement n'a pas renvoyé un fichier ZIP valide (lien probablement expiré ou bloqué). Réessayez plus tard.");
             }
             if (manifest.sha256 == null) {
                 // Source statique sans SHA-256 de reference : inutile de relire tout le zip pour le hasher.
@@ -304,12 +325,12 @@ public final class DataInstaller {
                 if (zipFile.length() != manifest.compressedBytes) {
                     deleteRecursively(zipFile);
                     deleteRecursively(partialFile);
-                    throw new IOException("O arquivo baixado está incompleto. Tente novamente.");
+                    throw new IOException("Le fichier téléchargé est incomplet. Réessayez.");
                 }
             } else if (!manifest.sha256.equalsIgnoreCase(sha256(zipFile))) {
                 deleteRecursively(zipFile);
                 deleteRecursively(partialFile);
-                throw new IOException("O arquivo baixado não passou na verificação de integridade");
+                throw new IOException("Le fichier téléchargé n'a pas passé la vérification d'intégrité");
             }
 
             // Tamanho do zip baixado (confiável, já verificado: taille + zip valide) usado como referência
@@ -327,7 +348,7 @@ public final class DataInstaller {
 
             ensureExtractionSpace(target, manifest);
             deleteRecursively(staging);
-            if (!staging.mkdirs()) throw new IOException("Não foi possível preparar a instalação");
+            if (!staging.mkdirs()) throw new IOException("Impossible de préparer l'installation");
             extractZip(zipFile, staging, displayTotalBytes);
             java.util.Map<String, java.util.Set<String>> stagingMissingFormats = new java.util.LinkedHashMap<>();
             java.util.List<String> stagingMissing = describeMissing(diskIndex(staging), stagingMissingFormats);
@@ -343,7 +364,7 @@ public final class DataInstaller {
             }
             writeSmallFile(new File(target, ".gtasa_data_version"), markerValue);
             if (!isComplete(target)) {
-                throw new IOException("Faltam após mover para o destino final: " + String.join(", ", describeMissing(diskIndex(target), null)));
+                throw new IOException("Éléments manquants après le déplacement vers la destination finale : " + String.join(", ", describeMissing(diskIndex(target), null)));
             }
             deleteRecursively(zipFile);
             deleteRecursively(partialFile);
@@ -413,11 +434,11 @@ public final class DataInstaller {
             }
             String location = connection.getHeaderField("Location");
             connection.disconnect();
-            if (location == null || location.trim().isEmpty()) throw new IOException("Redirecionamento sem endereço de download");
+            if (location == null || location.trim().isEmpty()) throw new IOException("Redirection sans adresse de téléchargement");
             current = new URL(current, location);
-            if (!"https".equalsIgnoreCase(current.getProtocol())) throw new IOException("Redirecionamento de download inseguro");
+            if (!"https".equalsIgnoreCase(current.getProtocol())) throw new IOException("Redirection de téléchargement non sécurisée");
         }
-        throw new IOException("Muitos redirecionamentos no download");
+        throw new IOException("Trop de redirections pendant le téléchargement");
     }
 
     /** Le "Content-Range: bytes a-b/total" et retourne total, ou -1. */
@@ -453,7 +474,7 @@ public final class DataInstaller {
     private static void downloadFast(File zipFile, File partialFile, UpdateManifest manifest) throws IOException {
         File parent = zipFile.getParentFile();
         if (parent != null && !parent.exists() && !parent.mkdirs()) {
-            throw new IOException("Não foi possível preparar a pasta de download");
+            throw new IOException("Impossible de préparer le dossier de téléchargement");
         }
         if (!serverSupportsRanges(manifest.downloadUrl, manifest.compressedBytes)) {
             Log.w(TAG, "Serveur sans support Range (ou taille différente) ; repli sur PRDownloader");
@@ -498,7 +519,7 @@ public final class DataInstaller {
             else queue.add(index);
         }
         if (queue.isEmpty()) {
-            if (!partialFile.renameTo(zipFile)) throw new IOException("Não foi possível finalizar o download");
+            if (!partialFile.renameTo(zipFile)) throw new IOException("Impossible de finaliser le téléchargement");
             deleteRecursively(stateFile);
             return;
         }
@@ -512,7 +533,7 @@ public final class DataInstaller {
         final CountDownLatch finished = new CountDownLatch(workers);
         final String url = manifest.downloadUrl;
 
-        report(downloadPercent(alreadyDone, total), "Baixando data do servidor", alreadyDone, total);
+        report(downloadPercent(alreadyDone, total), "Téléchargement des données du serveur", alreadyDone, total);
 
         for (int w = 0; w < workers; w++) {
             activeWorkers.incrementAndGet();
@@ -535,7 +556,7 @@ public final class DataInstaller {
                     synchronized (failure) { if (failure[0] == null) failure[0] = error; }
                     abort.set(true);
                 } catch (Throwable error) {
-                    synchronized (failure) { if (failure[0] == null) failure[0] = new IOException("Falha no download: " + error); }
+                    synchronized (failure) { if (failure[0] == null) failure[0] = new IOException("Échec du téléchargement : " + error); }
                     abort.set(true);
                 } finally {
                     activeWorkers.decrementAndGet();
@@ -551,16 +572,16 @@ public final class DataInstaller {
         } catch (InterruptedException error) {
             abort.set(true);
             Thread.currentThread().interrupt();
-            throw new IOException("Download interrompido", error);
+            throw new IOException("Téléchargement interrompu", error);
         }
         if (failure[0] != null) throw failure[0]; // le .part + .chunks restent pour reprendre au prochain essai
-        if (downloaded.get() < total) throw new IOException("Download incompleto");
+        if (downloaded.get() < total) throw new IOException("Téléchargement incomplet");
         if (!partialFile.renameTo(zipFile)) {
             copyFile(partialFile, zipFile);
             deleteRecursively(partialFile);
         }
         deleteRecursively(stateFile);
-        report(70, "Download concluído", total, total);
+        report(70, "Téléchargement terminé", total, total);
     }
 
     /** Telecharge [start, end] dans output avec retries + reprise dans le bloc. */
@@ -569,13 +590,13 @@ public final class DataInstaller {
         long position = start;
         IOException lastError = null;
         for (int attempt = 1; attempt <= MAX_CHUNK_ATTEMPTS && position <= end; attempt++) {
-            if (abort.get()) throw new IOException("Download interrompido");
+            if (abort.get()) throw new IOException("Téléchargement interrompu");
             HttpURLConnection connection = null;
             try {
                 connection = openRangeConnection(url, position, end);
                 int code = connection.getResponseCode();
-                if (code == 200) throw new RangeUnsupportedException("Servidor ignorou o cabeçalho Range");
-                if (code != 206) throw new IOException("Servidor respondeu HTTP " + code + " durante o download");
+                if (code == 200) throw new RangeUnsupportedException("Le serveur a ignoré l'en-tête Range");
+                if (code != 206) throw new IOException("Le serveur a répondu HTTP " + code + " pendant le téléchargement");
                 output.seek(position);
                 try (InputStream input = connection.getInputStream()) {
                     int read;
@@ -583,10 +604,10 @@ public final class DataInstaller {
                         output.write(buffer, 0, read);
                         position += read;
                         long now = downloaded.addAndGet(read);
-                        report(downloadPercent(now, total), "Baixando data do servidor", now, total);
+                        report(downloadPercent(now, total), "Téléchargement des données du serveur", now, total);
                     }
                 }
-                if (position <= end && !abort.get()) throw new IOException("Conexão encerrada antes do fim do bloco");
+                if (position <= end && !abort.get()) throw new IOException("Connexion fermée avant la fin du bloc");
                 lastError = null;
                 break;
             } catch (RangeUnsupportedException error) {
@@ -599,15 +620,15 @@ public final class DataInstaller {
                         Thread.sleep(Math.min(MAX_RETRY_DELAY_MS, RETRY_DELAY_MS * attempt));
                     } catch (InterruptedException interrupted) {
                         Thread.currentThread().interrupt();
-                        throw new IOException("Download interrompido", interrupted);
+                        throw new IOException("Téléchargement interrompu", interrupted);
                     }
                 }
             } finally {
                 if (connection != null) connection.disconnect();
             }
         }
-        if (abort.get() && position <= end) throw lastError != null ? lastError : new IOException("Download interrompido");
-        if (position <= end) throw lastError != null ? lastError : new IOException("Falha no download do bloco");
+        if (abort.get() && position <= end) throw lastError != null ? lastError : new IOException("Téléchargement interrompu");
+        if (position <= end) throw lastError != null ? lastError : new IOException("Échec du téléchargement du bloc");
     }
 
     private static final int MAX_DOWNLOAD_ATTEMPTS = 5;
@@ -620,7 +641,7 @@ public final class DataInstaller {
     private static void downloadWithPRDownloader(File targetFile, UpdateManifest manifest) throws IOException {
         File parent = targetFile.getParentFile();
         if (parent != null && !parent.exists() && !parent.mkdirs()) {
-            throw new IOException("Não foi possível preparar a pasta de download");
+            throw new IOException("Impossible de préparer le dossier de téléchargement");
         }
         IOException lastError = null;
         for (int attempt = 1; attempt <= MAX_DOWNLOAD_ATTEMPTS; attempt++) {
@@ -631,7 +652,7 @@ public final class DataInstaller {
                     .build()
                     .setOnProgressListener(progress -> {
                         long total = Math.max(progress.totalBytes, manifest.compressedBytes);
-                        report(downloadPercent(progress.currentBytes, total), "Baixando data do servidor",
+                        report(downloadPercent(progress.currentBytes, total), "Téléchargement des données du serveur",
                                 progress.currentBytes, total);
                     })
                     .start(new OnDownloadListener() {
@@ -643,8 +664,8 @@ public final class DataInstaller {
                         @Override
                         public void onError(Error error) {
                             String detail = error != null && error.getServerErrorMessage() != null
-                                    ? error.getServerErrorMessage() : "erro de rede desconhecido";
-                            failure[0] = new IOException("Falha no download: " + detail);
+                                    ? error.getServerErrorMessage() : "erreur réseau inconnue";
+                            failure[0] = new IOException("Échec du téléchargement : " + detail);
                             latch.countDown();
                         }
                     });
@@ -653,31 +674,31 @@ public final class DataInstaller {
                 finished = latch.await(READ_TIMEOUT_MS * 4L, TimeUnit.MILLISECONDS);
             } catch (InterruptedException error) {
                 Thread.currentThread().interrupt();
-                throw new IOException("Download interrompido", error);
+                throw new IOException("Téléchargement interrompu", error);
             }
             if (!finished) {
                 PRDownloader.cancel(downloadId);
-                lastError = new IOException("Download expirou (tempo limite excedido)");
+                lastError = new IOException("Délai de téléchargement dépassé");
             } else if (failure[0] != null) {
                 lastError = failure[0];
             } else if (!targetFile.isFile() || targetFile.length() <= 0L) {
-                lastError = new IOException("Download concluído mas o arquivo está vazio");
+                lastError = new IOException("Téléchargement terminé mais le fichier est vide");
             } else {
-                report(70, "Download concluído", targetFile.length(), manifest.compressedBytes);
+                report(70, "Téléchargement terminé", targetFile.length(), manifest.compressedBytes);
                 return;
             }
             Log.w(TAG, "Tentativa " + attempt + "/" + MAX_DOWNLOAD_ATTEMPTS + " de download falhou: " + lastError.getMessage());
             if (attempt >= MAX_DOWNLOAD_ATTEMPTS) break;
             report(downloadPercent(0, manifest.compressedBytes),
-                    "Conexão interrompida; tentando novamente (" + attempt + "/" + MAX_DOWNLOAD_ATTEMPTS + ")", 0L, manifest.compressedBytes);
+                    "Connexion interrompue ; nouvelle tentative (" + attempt + "/" + MAX_DOWNLOAD_ATTEMPTS + ")", 0L, manifest.compressedBytes);
             try {
                 Thread.sleep(Math.min(MAX_RETRY_DELAY_MS, RETRY_DELAY_MS * attempt));
             } catch (InterruptedException error) {
                 Thread.currentThread().interrupt();
-                throw new IOException("Download interrompido", error);
+                throw new IOException("Téléchargement interrompu", error);
             }
         }
-        throw lastError != null ? lastError : new IOException("Falha no download após várias tentativas");
+        throw lastError != null ? lastError : new IOException("Échec du téléchargement après plusieurs tentatives");
     }
 
     private static HttpURLConnection openDownloadConnection(String urlString, long existing) throws IOException {
@@ -699,11 +720,11 @@ public final class DataInstaller {
             }
             String location = connection.getHeaderField("Location");
             connection.disconnect();
-            if (location == null || location.trim().isEmpty()) throw new IOException("Redirecionamento sem endereço de download");
+            if (location == null || location.trim().isEmpty()) throw new IOException("Redirection sans adresse de téléchargement");
             current = new URL(current, location);
-            if (!"https".equalsIgnoreCase(current.getProtocol())) throw new IOException("Redirecionamento de download inseguro");
+            if (!"https".equalsIgnoreCase(current.getProtocol())) throw new IOException("Redirection de téléchargement non sécurisée");
         }
-        throw new IOException("Muitos redirecionamentos no download");
+        throw new IOException("Trop de redirections pendant le téléchargement");
     }
 
     private static int detectStripDepth(java.util.zip.ZipFile zip) {
@@ -798,28 +819,28 @@ public final class DataInstaller {
                 if (name == null) continue;
                 File output = safeChild(staging, rootPath, name);
                 if (entry.isDirectory()) {
-                    if (!output.exists() && !output.mkdirs()) throw new IOException("Não foi possível criar a pasta da data");
+                    if (!output.exists() && !output.mkdirs()) throw new IOException("Impossible de créer le dossier des données");
                     continue;
                 }
                 File parent = output.getParentFile();
-                if (parent != null && !parent.exists() && !parent.mkdirs()) throw new IOException("Não foi possível criar a pasta da data");
+                if (parent != null && !parent.exists() && !parent.mkdirs()) throw new IOException("Impossible de créer le dossier des données");
                 try (InputStream in = new BufferedInputStream(zip.getInputStream(entry), 128 * 1024);
                      OutputStream out = new BufferedOutputStream(new FileOutputStream(output), 128 * 1024)) {
                     int read;
                     while ((read = in.read(buffer)) != -1) {
                         extracted += read;
-                        if (extracted > MAX_ALLOWED_EXTRACTED_BYTES) throw new IOException("A data excede o limite de segurança");
+                        if (extracted > MAX_ALLOWED_EXTRACTED_BYTES) throw new IOException("Les données dépassent la limite de sécurité");
                         out.write(buffer, 0, read);
                     }
                 }
                 // Progresso baseado na contagem de entradas do zip (confiável), não no tamanho
                 // "extractedBytes" declarado no zip (pode estar incorreto/desatualizado no pacote).
                 int percent = 71 + (int) Math.min(28L, processedEntries * 28L / totalEntries);
-                report(percent, "Instalando arquivos do jogo", Math.min(extracted, displayTotalBytes), displayTotalBytes);
+                report(percent, "Installation des fichiers du jeu", Math.min(extracted, displayTotalBytes), displayTotalBytes);
             }
         }
-        if (extracted <= 0L) throw new IOException("O pacote não contém arquivos para extrair");
-        report(99, "Arquivos extraídos; finalizando instalação", displayTotalBytes, displayTotalBytes);
+        if (extracted <= 0L) throw new IOException("Le paquet ne contient aucun fichier à extraire");
+        report(99, "Fichiers extraits ; finalisation de l'installation", displayTotalBytes, displayTotalBytes);
     }
 
     /** Lista o conteúdo de um diretório (usado só para diagnóstico em log quando a extração falha). */
@@ -845,9 +866,9 @@ public final class DataInstaller {
             try {
                 connection = openDownloadConnection(STATIC_DOWNLOAD_URL, 0L);
                 int response = connection.getResponseCode();
-                if (response != HttpURLConnection.HTTP_OK) throw new IOException("Servidor respondeu HTTP " + response + " ao verificar o pacote");
+                if (response != HttpURLConnection.HTTP_OK) throw new IOException("Le serveur a répondu HTTP " + response + " lors de la vérification du paquet");
                 long size = connection.getContentLengthLong();
-                if (size <= 0L) throw new IOException("Não foi possível determinar o tamanho do pacote de dados");
+                if (size <= 0L) throw new IOException("Impossible de déterminer la taille du paquet de données");
                 UpdateManifest manifest = new UpdateManifest(STATIC_VERSION, STATIC_DOWNLOAD_URL, null, size, MAX_ALLOWED_EXTRACTED_BYTES);
                 manifest.validate();
                 return manifest;
@@ -862,7 +883,7 @@ public final class DataInstaller {
             connection.setReadTimeout(READ_TIMEOUT_MS);
             connection.setRequestProperty("Accept", "application/json");
             connection.setRequestProperty("Cache-Control", "no-cache");
-            if (connection.getResponseCode() != HttpURLConnection.HTTP_OK) throw new IOException("Manifesto respondeu HTTP " + connection.getResponseCode());
+            if (connection.getResponseCode() != HttpURLConnection.HTTP_OK) throw new IOException("Le manifeste a répondu HTTP " + connection.getResponseCode());
             StringBuilder body = new StringBuilder();
             try (InputStream input = new BufferedInputStream(connection.getInputStream())) {
                 byte[] buffer = new byte[4096];
@@ -893,17 +914,50 @@ public final class DataInstaller {
                 if (!isRecoverableDownloadError(error)) throw error;
                 failures++;
                 if (failures >= MAX_MANIFEST_ATTEMPTS) break;
-                report(0, "Conectando ao servidor; tentando novamente (" + failures + "/" + MAX_MANIFEST_ATTEMPTS + ")", 0L, 0L);
+                report(0, "Connexion au serveur ; nouvelle tentative (" + failures + "/" + MAX_MANIFEST_ATTEMPTS + ")", 0L, 0L);
                 try {
                     Thread.sleep(Math.min(MAX_RETRY_DELAY_MS, RETRY_DELAY_MS * Math.max(1L, failures)));
                 } catch (InterruptedException interrupted) {
                     Thread.currentThread().interrupt();
-                    throw new IOException("Conexão interrompida", interrupted);
+                    throw new IOException("Connexion interrompue", interrupted);
                 }
             }
         }
-        throw new IOException("Servidor de atualização inacessível após " + MAX_MANIFEST_ATTEMPTS +
-                " tentativas. Verifique sua conexão ou tente novamente mais tarde.", lastError);
+        throw new IOException("Serveur de mise à jour inaccessible après " + MAX_MANIFEST_ATTEMPTS +
+                " tentatives. Vérifiez votre connexion ou réessayez plus tard.", lastError);
+    }
+
+    /**
+     * Cherche une data DEJA complete dans les anciens emplacements de ce launcher
+     * (/storage/emulated/0/GTA et <Android/data/pkg/files>/GTA). Si trouvee, elle est deplacee
+     * (renameTo : instantane, meme volume) vers le dossier cible. Rien n'est telecharge ni copie.
+     * Retourne true si la cible est complete apres l'operation.
+     */
+    private static boolean adoptExistingData(Context context, File target) {
+        if (context == null || target == null) return false;
+        java.util.List<File> candidates = new java.util.ArrayList<>();
+        @SuppressWarnings("deprecation")
+        File sharedRoot = Environment.getExternalStorageDirectory();
+        if (sharedRoot != null) candidates.add(new File(sharedRoot, "GTA"));
+        File privateExternal = context.getExternalFilesDir(null);
+        if (privateExternal != null) candidates.add(new File(privateExternal, "GTA"));
+        for (File candidate : candidates) {
+            try {
+                if (samePath(candidate, target) || !candidate.isDirectory()) continue;
+                if (!isComplete(candidate)) {
+                    Log.i(TAG, "Pasta antiga " + candidate + " existe mas está incompleta; ignorada");
+                    continue;
+                }
+                Log.i(TAG, "Data completa encontrada em " + candidate + "; movendo para " + target);
+                report(0, "Réutilisation des données déjà installées", 0L, 0L);
+                deleteRecursively(target); // cible incomplete (sinon on ne serait pas ici) : remplacee
+                if (candidate.renameTo(target) && isComplete(target)) return true;
+                Log.w(TAG, "Não foi possível mover " + candidate + " para " + target + "; download normal");
+            } catch (Throwable error) {
+                Log.w(TAG, "Falha ao reutilizar " + candidate, error);
+            }
+        }
+        return false;
     }
 
     private static void cleanupObsoleteInstallFiles(Context context, File target, File staging) {
@@ -936,8 +990,8 @@ public final class DataInstaller {
         long required = remainingDownload + manifest.extractedBytes + STORAGE_MARGIN_BYTES;
         long available = getUsableSpaceForTarget(target);
         if (available < required) {
-            throw new IOException("Espaço livre insuficiente para baixar e extrair a data. Libere ao menos " +
-                    ((required - available + (1024L * 1024L - 1L)) / (1024L * 1024L)) + " MB antes de iniciar a instalação.");
+            throw new IOException("Espace libre insuffisant pour télécharger et extraire les données. Libérez au moins " +
+                    ((required - available + (1024L * 1024L - 1L)) / (1024L * 1024L)) + " Mo avant de lancer l'installation.");
         }
     }
 
@@ -945,8 +999,8 @@ public final class DataInstaller {
         long required = manifest.extractedBytes + STORAGE_MARGIN_BYTES;
         long available = getUsableSpaceForTarget(target);
         if (available < required) {
-            throw new IOException("Espaço livre insuficiente para extrair a data. Libere ao menos " +
-                    ((required - available + (1024L * 1024L - 1L)) / (1024L * 1024L)) + " MB e tente novamente.");
+            throw new IOException("Espace libre insuffisant pour extraire les données. Libérez au moins " +
+                    ((required - available + (1024L * 1024L - 1L)) / (1024L * 1024L)) + " Mo puis réessayez.");
         }
     }
 
@@ -963,20 +1017,36 @@ public final class DataInstaller {
     private static boolean isRecoverableDownloadError(IOException error) {
         if (error == null) return true;
         String text = error.getMessage() == null ? "" : error.getMessage().toLowerCase();
-        return !(text.contains("espaço") || text.contains("storage") || text.contains("permission") ||
-                text.contains("permiss") || text.contains("insegura") || text.contains("além do tamanho"));
+        return !(text.contains("espace") || text.contains("storage") || text.contains("permission") ||
+                text.contains("permiss") || text.contains("non sécuris") || text.contains("au-delà de la taille"));
     }
 
     private static File safeChild(File root, String canonicalRoot, String name) throws IOException {
-        if (name == null || name.length() == 0) throw new IOException("Entrada ZIP inválida");
+        if (name == null || name.length() == 0) throw new IOException("Entrée ZIP invalide");
         File output = new File(root, name);
         String outputPath = output.getCanonicalPath();
-        if (!outputPath.startsWith(canonicalRoot)) throw new IOException("Entrada ZIP insegura");
+        if (!outputPath.startsWith(canonicalRoot)) throw new IOException("Entrée ZIP non sécurisée");
         return output;
     }
 
     private static boolean isComplete(File root) {
         return describeMissing(diskIndex(root), null).isEmpty();
+    }
+
+    /**
+     * Controle tolerant : tous les dossiers/fichiers racine geres existent et les fichiers cles sont non vides.
+     * Ne verifie PAS les formats de texture ni les fichiers secondaires (voir isComplete pour le controle strict).
+     */
+    private static boolean isCoreDataPresent(File root) {
+        FileIndex index = diskIndex(root);
+        for (String name : MANAGED_ROOTS) if (!index.hasRoot(name)) return false;
+        for (String name : CORE_FILES) if (!index.hasFile(name)) return false;
+        return true;
+    }
+
+    /** Data utilisable : complete (strict) ou, hors reparation, simplement presente (tolerant). */
+    private static boolean isDataUsable(File root) {
+        return isComplete(root) || (!forceStrictCheck && isCoreDataPresent(root));
     }
 
     /**
@@ -1033,17 +1103,17 @@ public final class DataInstaller {
         java.util.Set<String> formatItems = new java.util.HashSet<>();
         if (missingFormats != null && !missingFormats.isEmpty()) {
             TextureFormatProbe.Result probe = TextureFormatProbe.get();
-            message.append("O pacote de dados não tem as texturas que este celular usa");
+            message.append("Le paquet de données ne contient pas les textures utilisées par ce téléphone");
             if (probe != null && !probe.renderer.isEmpty()) message.append(" (GPU ").append(probe.renderer).append(")");
-            message.append(". Faltam texturas no formato ");
+            message.append(". Textures manquantes au format ");
             boolean firstFormat = true;
             for (java.util.Map.Entry<String, java.util.Set<String>> entry : missingFormats.entrySet()) {
                 if (!firstFormat) message.append("; ");
                 firstFormat = false;
-                message.append(entry.getKey().toUpperCase(java.util.Locale.ROOT)).append(" em ")
+                message.append(entry.getKey().toUpperCase(java.util.Locale.ROOT)).append(" dans ")
                         .append(String.join(", ", entry.getValue()));
             }
-            message.append(". Hospede um pacote completo com os arquivos texdb/<base>/<base>.<formato>.dat, .tmb e .toc.");
+            message.append(". Hébergez un paquet complet avec les fichiers texdb/<base>/<base>.<format>.dat, .tmb et .toc.");
             for (String format : TEXDB_FORMATS) {
                 for (String base : TEXDB_BASES) for (String part : TEXDB_PARTS) formatItems.add(texdbPath(base, format, part));
             }
@@ -1055,19 +1125,19 @@ public final class DataInstaller {
         }
         if (!others.isEmpty()) {
             if (message.length() > 0) message.append(' ');
-            message.append("Faltam no pacote: ");
+            message.append("Éléments manquants dans le paquet : ");
             int shown = Math.min(others.size(), 8);
             message.append(String.join(", ", others.subList(0, shown)));
             if (others.size() > shown) message.append(" … (+").append(others.size() - shown).append(")");
         }
-        if (message.length() == 0) message.append("Faltam arquivos obrigatórios no pacote de dados.");
+        if (message.length() == 0) message.append("Des fichiers obligatoires manquent dans le paquet de données.");
         return message.toString();
     }
 
     private static void complete(File target, long extractedBytesTotal) {
         success = true;
         installing = false;
-        report(100, "Data instalada", extractedBytesTotal, extractedBytesTotal);
+        report(100, "Données installées", extractedBytesTotal, extractedBytesTotal);
         readyLatch.countDown();
         Listener current = listener;
         if (current != null) current.onComplete(target);
@@ -1125,7 +1195,7 @@ public final class DataInstaller {
 
     private static void writeSmallFile(File file, String value) throws IOException {
         File parent = file.getParentFile();
-        if (parent != null && !parent.exists() && !parent.mkdirs()) throw new IOException("Não foi possível salvar a confirmação da data");
+        if (parent != null && !parent.exists() && !parent.mkdirs()) throw new IOException("Impossible d'enregistrer la confirmation des données");
         try (FileOutputStream output = new FileOutputStream(file, false)) {
             output.write(value.getBytes(StandardCharsets.UTF_8));
             output.flush();
@@ -1134,7 +1204,7 @@ public final class DataInstaller {
 
     private static void copyFile(File source, File target) throws IOException {
         File parent = target.getParentFile();
-        if (parent != null && !parent.exists() && !parent.mkdirs()) throw new IOException("Não foi possível preparar o destino");
+        if (parent != null && !parent.exists() && !parent.mkdirs()) throw new IOException("Impossible de préparer la destination");
         try (InputStream input = new BufferedInputStream(new FileInputStream(source), 128 * 1024);
              OutputStream output = new BufferedOutputStream(new FileOutputStream(target), 128 * 1024)) {
             byte[] buffer = new byte[128 * 1024];
@@ -1145,7 +1215,7 @@ public final class DataInstaller {
 
     private static void copyRecursively(File source, File target) throws IOException {
         if (source.isDirectory()) {
-            if (!target.exists() && !target.mkdirs()) throw new IOException("Não foi possível criar a pasta da instalação");
+            if (!target.exists() && !target.mkdirs()) throw new IOException("Impossible de créer le dossier d'installation");
             File[] files = source.listFiles();
             if (files != null) for (File file : files) copyRecursively(file, new File(target, file.getName()));
         } else {
@@ -1187,11 +1257,11 @@ public final class DataInstaller {
         }
 
         void validate() throws IOException {
-            if (version == null || version.trim().isEmpty()) throw new IOException("Manifesto sem versão");
-            if (downloadUrl == null || !downloadUrl.startsWith("https://")) throw new IOException("URL de download insegura");
-            if (sha256 != null && !sha256.matches("^[a-fA-F0-9]{64}$")) throw new IOException("SHA-256 inválido no manifesto");
-            if (compressedBytes <= 0L) throw new IOException("Tamanho compactado inválido");
-            if (extractedBytes <= 0L || extractedBytes > MAX_ALLOWED_EXTRACTED_BYTES) throw new IOException("Tamanho extraído inválido");
+            if (version == null || version.trim().isEmpty()) throw new IOException("Manifeste sans version");
+            if (downloadUrl == null || !downloadUrl.startsWith("https://")) throw new IOException("URL de téléchargement non sécurisée");
+            if (sha256 != null && !sha256.matches("^[a-fA-F0-9]{64}$")) throw new IOException("SHA-256 invalide dans le manifeste");
+            if (compressedBytes <= 0L) throw new IOException("Taille compressée invalide");
+            if (extractedBytes <= 0L || extractedBytes > MAX_ALLOWED_EXTRACTED_BYTES) throw new IOException("Taille extraite invalide");
         }
     }
 }
