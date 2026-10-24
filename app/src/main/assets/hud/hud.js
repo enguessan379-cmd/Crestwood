@@ -347,6 +347,7 @@
     }
     bridge?.setHudEditorOpen?.(state.hudEditing);
     renderDrivingHud();
+    reframeHud();
     syncTouchBounds();
     renderRadio();
     renderEngine();
@@ -373,6 +374,7 @@
 
   function scheduleHudSync() {
     applyHudLayout();
+    reframeHud();
     renderDrivingHud();
     renderRadio();
     renderEngine();
@@ -380,7 +382,7 @@
     syncTouchBounds();
     [0, 80, 180, 420, 800].forEach((delay) => {
       window.setTimeout(() => {
-        if (!hudDrag) applyHudLayout();
+        if (!hudDrag) { applyHudLayout(); reframeHud(); }
         syncTouchBounds();
       }, delay);
     });
@@ -467,6 +469,7 @@
       item.style.right = "auto";
       item.style.bottom = "auto";
       item.style.transform = "none";
+      item.style.translate = "";
       setHudItemScale(item, pos.scale || 1);
     });
     selectHudItem(activeHudItem || movableItems[0]);
@@ -481,11 +484,38 @@
       item.style.right = "";
       item.style.bottom = "";
       item.style.transform = "";
+      item.style.translate = "";
       item.dataset.hudScale = "1";
       item.style.removeProperty("--hud-item-scale");
     });
     selectHudItem(movableItems[0]);
+    reframeHud();
     syncTouchBounds();
+  }
+
+  // Recadrage : garde chaque element du HUD entierement visible dans l'ecran (marge de securite),
+  // quelle que soit la taille / le ratio / l'encoche de l'appareil. Utilise la propriete CSS "translate"
+  // (independante de transform et scale) et ne touche pas aux positions enregistrees par l'editeur.
+  const REFRAME_MARGIN = 6;
+  function reframeHud() {
+    if (state.hudEditing) return;
+    const viewW = Math.max(1, window.innerWidth);
+    const viewH = Math.max(1, window.innerHeight);
+    movableItems.forEach((item) => {
+      if (item.dataset.hudKey === "speedometer") return; // sa zone transparente deborde volontairement du bas
+      if (item.style.left) return; // position choisie dans l'editeur : deja bornee par applyHudLayout()
+      item.style.translate = "";
+      if (item.hidden) return;
+      const rect = item.getBoundingClientRect();
+      if (rect.width < 2 || rect.height < 2) return;
+      let dx = 0;
+      let dy = 0;
+      if (rect.left < REFRAME_MARGIN) dx = REFRAME_MARGIN - rect.left;
+      else if (rect.right > viewW - REFRAME_MARGIN) dx = viewW - REFRAME_MARGIN - rect.right;
+      if (rect.top < REFRAME_MARGIN) dy = REFRAME_MARGIN - rect.top;
+      else if (rect.bottom > viewH - REFRAME_MARGIN) dy = viewH - REFRAME_MARGIN - rect.bottom;
+      if (dx || dy) item.style.translate = `${Math.round(dx)}px ${Math.round(dy)}px`;
+    });
   }
 
   function syncTouchBounds() {
@@ -698,6 +728,7 @@
     hudDrag.element.style.right = "auto";
     hudDrag.element.style.bottom = "auto";
     hudDrag.element.style.transform = "none";
+    hudDrag.element.style.translate = "";
     syncTouchBounds();
     event.preventDefault();
   }
@@ -2318,6 +2349,8 @@
   startBrasiliaClock();
   window.addEventListener("focus", () => tickBrasiliaClock(true));
   document.addEventListener("visibilitychange", () => tickBrasiliaClock(true));
+  window.addEventListener("resize", () => { reframeHud(); syncTouchBounds(); });
+  window.addEventListener("orientationchange", () => window.setTimeout(() => { reframeHud(); syncTouchBounds(); }, 200));
   scheduleHudSync();
   updateHudInfo(state);
   tickBrasiliaClock(true);

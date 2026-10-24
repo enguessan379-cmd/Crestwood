@@ -107,6 +107,8 @@
   .card{background:#fff;border-radius:14px;padding:13px;margin-bottom:10px;box-shadow:0 1px 4px rgba(0,0,0,.08);}
   .home-bar{position:absolute;bottom:7px;left:50%;transform:translateX(-50%);width:118px;height:5px;background:rgba(255,255,255,.96);border-radius:999px;z-index:100;cursor:pointer;box-shadow:0 1px 5px rgba(0,0,0,.35),0 0 1px rgba(255,255,255,.8);transition:width .18s ease,height .18s ease,opacity .18s ease,background .18s ease;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);} 
 .home-bar:active{width:128px;height:6px;opacity:.82;}
+.home-bar{touch-action:none;}
+.home-bar::after{content:'';position:absolute;left:-44px;right:-44px;top:-28px;bottom:-12px;}
   .iosSwitch{width:51px;height:31px;border-radius:16px;background:#e9e9eb;position:relative;transition:background .2s;flex:none;}
   .iosSwitch .knob{position:absolute;top:2px;left:2px;width:27px;height:27px;border-radius:50%;background:#fff;box-shadow:0 2px 5px rgba(0,0,0,.25);transition:transform .2s;}
   .iosSwitch.on{background:#34c759;}
@@ -1901,15 +1903,29 @@ function goHomeFromBar(){
   if(document.getElementById('lock').classList.contains('active'))return;
   closeApp();
 }
+/* Ferme le téléphone (retour au jeu) via le pont Android ; dans un navigateur on revient juste à l'accueil. */
+function closePhone(){
+  try{
+    if(window.AndroidHUD&&AndroidHUD.onHudAction){AndroidHUD.onHudAction('settings:close','{}');return;}
+  }catch(e){}
+  goHomeFromBar();
+}
 (function(){
   const bar=document.getElementById('homeBar');
   if(!bar)return;
   let sy=null,moved=false;
-  bar.addEventListener('pointerdown',e=>{sy=e.clientY;moved=false;});
+  bar.addEventListener('pointerdown',e=>{sy=e.clientY;moved=false;try{bar.setPointerCapture(e.pointerId);}catch(_){}});
   bar.addEventListener('pointermove',e=>{if(sy!=null && Math.abs(e.clientY-sy)>6)moved=true;});
+  bar.addEventListener('pointercancel',()=>{sy=null;});
   bar.addEventListener('pointerup',e=>{
-    if(sy!=null && (moved && sy-e.clientY>16 || !moved))goHomeFromBar();
+    if(sy==null)return;
+    const swipeUp=moved && sy-e.clientY>16;
+    const inApp=!document.getElementById('home').classList.contains('active') && !document.getElementById('lock').classList.contains('active');
     sy=null;
+    /* Glisser vers le haut depuis une application : retour à l'accueil. */
+    if(swipeUp && inApp){closeApp();return;}
+    /* Appui simple (ou glisser depuis l'accueil / l'écran verrouillé) : on ferme le téléphone. */
+    if(!moved || swipeUp)closePhone();
   });
 })();
 

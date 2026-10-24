@@ -1898,6 +1898,55 @@ void RLEDecompress_hook(uint8_t* pDest, size_t uiDestSize, const uint8_t* pSrc, 
     }
 }
 
+// ---------------------------------------------------------------------------------------------
+// RLEDecompress borne (libGame.so arm64 : _Z13RLEDecompressPhjPKhjj, +0x7982BC).
+// L'original (desassemble) fait : while (dst < fin) { si src[0]==escape : copie <src[1]> fois le segment
+// src+2 ; sinon copie 1 segment }. Le nombre de repetitions n'est PAS borne par la fin du buffer, et le
+// dernier segment peut aussi depasser. Sous Android 11+ (allocateur Scudo, pages de garde) ce depassement
+// tombe sur une page non mappee => SIGSEGV dans memcpy <- RLEDecompress <- LoadFullTexture <-
+// CTouchInterface::CreateAll (logcat.txt). Android <= 10 (jemalloc) ecrasait la memoire voisine sans planter.
+// Resultat identique a l'original pour des donnees valides ; le surplus est simplement ignore.
+// Ne rappelle pas l'original (Redirect) : arguments 32 bits comme dans la signature (Phjpkhjj).
+// ---------------------------------------------------------------------------------------------
+void RLEDecompress_safe(uint8_t* pDest, uint32_t uiDestSize, const uint8_t* pSrc, uint32_t uiSegSize, uint32_t uiEscape)
+{
+    if (!pDest || !pSrc || uiSegSize == 0) return;
+
+    uint8_t* const pEnd = pDest + uiDestSize;
+    bool overflow = false;
+
+    while (pDest < pEnd) {
+        if (uiEscape == (uint32_t)pSrc[0]) {
+            uint32_t count = pSrc[1];
+            while (count > 0) {
+                size_t rem = (size_t)(pEnd - pDest);
+                if (rem == 0) { overflow = true; break; }
+                size_t n = (uiSegSize < rem) ? uiSegSize : rem;
+                if (n < uiSegSize) overflow = true;
+                memcpy(pDest, pSrc + 2, n);
+                pDest += n;
+                count--;
+            }
+            pSrc += 2 + (size_t)uiSegSize;
+        } else {
+            size_t rem = (size_t)(pEnd - pDest);
+            size_t n = (uiSegSize < rem) ? uiSegSize : rem;
+            if (n < uiSegSize) overflow = true;
+            memcpy(pDest, pSrc, n);
+            pDest += n;
+            pSrc += uiSegSize;
+        }
+    }
+
+    if (overflow) {
+        static int s_logged = 0;
+        if (s_logged < 8) {
+            s_logged++;
+            Log("RLEDecompress: donnees RLE depassant le buffer (%u octets, segment %u) - surplus ignore", uiDestSize, uiSegSize);
+        }
+    }
+}
+
 void* g_pSprintButton = nullptr;
 void (*CWidgetButtonSprint_Constructor)(void* thiz, char const* name, void* pos);
 void (*CWidgetButtonSprint_Destructor)(void* thiz);
@@ -2122,6 +2171,8 @@ void InstallSpecialHooks()
     CHook::RET("_ZN4CPed31RemoveWeaponWhenEnteringVehicleEi"); // CPed::RemoveWeaponWhenEnteringVehicle
 
     //CHook::InstallPLT(g_libGTASA + (VER_x32 ? 0x6701D4 : 0x840708), &RLEDecompress_hook, &RLEDecompress);
+    // Crash Android 11+ (Scudo) a la creation des widgets tactiles : decompression RLE bornee.
+    CHook::Redirect("_Z13RLEDecompressPhjPKhjj", &RLEDecompress_safe);
 
     // CHook::InlineHook("_Z11OS_FileReadPvS_i", &OS_FileRead_hook, &OS_FileRead);
 

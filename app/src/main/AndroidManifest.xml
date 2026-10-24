@@ -46,6 +46,7 @@
         android:usesCleartextTraffic="true"
         android:hardwareAccelerated="true"
         android:requestLegacyExternalStorage="true"
+        android:allowNativeHeapPointerTagging="false"
         android:allowBackup="true"
         android:appComponentFactory="androidx.core.app.CoreComponentFactory"
         android:theme="@style/Theme.AppCompat.Light.NoActionBar">

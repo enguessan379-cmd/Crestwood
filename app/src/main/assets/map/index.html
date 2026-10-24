@@ -1,0 +1,384 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Carte - Crestwood</title>
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: transparent; }
+  body {
+    font-family: Inter, "Segoe UI", Roboto, Arial, sans-serif;
+    color: #fff;
+    -webkit-user-select: none; user-select: none;
+  }
+
+  .screen {
+    position: fixed; inset: 0;
+    display: flex; gap: 10px;
+    padding: max(10px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+    background: rgba(4, 8, 13, 0.5);
+  }
+
+  .glass {
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  /* ----------------------------- Panneau gauche ----------------------------- */
+  .side {
+    width: 190px; flex: 0 0 190px;
+    display: flex; flex-direction: column; gap: 8px;
+    padding: 10px; overflow-y: auto;
+  }
+  .side h1 { margin: 0; font-size: 15px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; text-shadow: 0 1px 3px #000; }
+  .side h1 small { display: block; margin-top: 2px; font-size: 10px; font-weight: 600; letter-spacing: .02em; text-transform: none; color: rgba(255,255,255,.65); }
+  .side h2 { margin: 6px 0 0; font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: rgba(255,255,255,.6); }
+
+  .chips { display: flex; flex-wrap: wrap; gap: 5px; }
+  .chip {
+    padding: 6px 9px; border-radius: 9px; font-size: 11.5px; font-weight: 600; color: #fff;
+    border: 1px solid rgba(255, 255, 255, 0.2); background: rgba(255, 255, 255, 0.06);
+  }
+  .chip:active { background: rgba(0, 245, 225, 0.18); border-color: rgba(0, 245, 225, 0.75); }
+
+  .legend { display: grid; gap: 5px; font-size: 11px; color: rgba(255,255,255,.82); }
+  .legend span { display: flex; align-items: center; gap: 7px; }
+  .legend i { width: 10px; height: 10px; border-radius: 3px; flex: 0 0 10px; }
+
+  .coords { margin-top: auto; padding: 8px; border-radius: 10px; font-size: 11px; line-height: 1.35; color: rgba(255,255,255,.8); background: rgba(0,0,0,.22); }
+  .coords b { color: #12dfff; }
+
+  .btn {
+    width: 100%; padding: 10px 8px; border-radius: 10px; font: 800 12px/1 inherit; letter-spacing: .04em; text-transform: uppercase; color: #fff;
+    border: 1px solid rgba(0, 245, 225, 0.75); background: rgba(0, 245, 225, 0.2);
+  }
+  .btn.ghost { border-color: rgba(255,255,255,.22); background: rgba(255,255,255,.06); font-weight: 700; }
+  .btn:active { transform: scale(.97); }
+  .btn[disabled] { opacity: .4; }
+
+  /* -------------------------------- Carte --------------------------------- */
+  .mapbox { position: relative; flex: 1 1 auto; min-width: 0; overflow: hidden; }
+  #view { position: absolute; inset: 0; touch-action: none; cursor: grab; }
+  #world { position: absolute; left: 0; top: 0; transform-origin: 0 0; will-change: transform; --s: 1; }
+  #world svg, #world .mapimg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  .mapimg { object-fit: fill; }
+
+  .pin { position: absolute; transform: translate(-50%, -50%) scale(calc(1 / var(--s, 1))); pointer-events: none; text-align: center; white-space: nowrap; }
+  .pin .dot { display: block; margin: 0 auto 2px; width: 8px; height: 8px; border-radius: 50%; background: #fff; box-shadow: 0 0 0 2px rgba(0,0,0,.45); }
+  .pin.city .dot { width: 10px; height: 10px; background: #12dfff; }
+  .pin.county .dot { display: none; }
+  .pin span { font-size: 11px; font-weight: 700; text-shadow: 0 1px 3px #000, 0 0 6px #000; }
+  .pin.city span { font-size: 13px; font-weight: 800; }
+  .pin.county span { font-size: 10px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: rgba(255,255,255,.55); }
+  .pin.wp .dot { width: 14px; height: 14px; background: #ff3b5c; box-shadow: 0 0 0 3px rgba(255,59,92,.35), 0 0 12px #ff3b5c; }
+  .pin.me .dot { width: 14px; height: 14px; background: #34e27e; box-shadow: 0 0 0 3px rgba(52,226,126,.35), 0 0 12px #34e27e; }
+  .pin[hidden] { display: none; }
+
+  /* Commandes flottantes */
+  .close {
+    position: absolute; top: 8px; right: 8px; z-index: 5;
+    width: 42px; height: 42px; border-radius: 12px; font-size: 26px; line-height: 1; color: #fff;
+    border: 1px solid rgba(255,255,255,.3); background: rgba(10, 14, 20, 0.5);
+  }
+  .close:active { background: rgba(255, 59, 92, .45); }
+  .zoom { position: absolute; right: 8px; bottom: 8px; z-index: 5; display: grid; gap: 6px; }
+  .zoom button {
+    width: 38px; height: 38px; border-radius: 10px; font-size: 20px; font-weight: 700; line-height: 1; color: #fff;
+    border: 1px solid rgba(255,255,255,.26); background: rgba(10, 14, 20, 0.5);
+  }
+  .zoom button:active { background: rgba(0,245,225,.25); }
+  .compass { position: absolute; left: 10px; top: 10px; z-index: 5; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font-size: 12px; font-weight: 800; border: 1px solid rgba(255,255,255,.3); background: rgba(10,14,20,.5); }
+  .hint { position: absolute; left: 50%; bottom: 8px; transform: translateX(-50%); z-index: 4; padding: 5px 10px; border-radius: 999px; font-size: 10.5px; color: rgba(255,255,255,.8); background: rgba(10,14,20,.5); pointer-events: none; white-space: nowrap; }
+</style>
+</head>
+<body>
+<div class="screen">
+  <aside class="side glass">
+    <h1>Carte<small>San Andreas &middot; Crestwood</small></h1>
+
+    <h2>Aller &agrave;</h2>
+    <div class="chips" id="chips"></div>
+
+    <h2>L&eacute;gende</h2>
+    <div class="legend">
+      <span><i style="background:#12dfff"></i>Ville</span>
+      <span><i style="background:#ff3b5c"></i>Point plac&eacute;</span>
+      <span><i style="background:#34e27e"></i>Ma position</span>
+    </div>
+
+    <div class="coords" id="coords">Touche la carte pour placer un point.</div>
+    <button class="btn ghost" id="clearWp" type="button" disabled>Effacer le point</button>
+    <button class="btn" id="gps" type="button">Lancer le GPS</button>
+  </aside>
+
+  <main class="mapbox glass">
+    <div id="view">
+      <div id="world"></div>
+    </div>
+    <div class="compass">N</div>
+    <button class="close" id="close" type="button" aria-label="Fermer la carte">&times;</button>
+    <div class="zoom">
+      <button id="zin" type="button" aria-label="Zoom avant">+</button>
+      <button id="zout" type="button" aria-label="Zoom arri&egrave;re">&minus;</button>
+      <button id="zfit" type="button" aria-label="Recentrer">&#9678;</button>
+    </div>
+    <div class="hint">Glisse pour d&eacute;placer &middot; pince pour zoomer &middot; touche pour placer un point</div>
+  </main>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  /* Le monde de GTA SA fait 6000 x 6000 unités : x et y vont de -3000 à +3000. */
+  var WORLD = 6000, MAXZ = 7;
+
+  var view = document.getElementById("view");
+  var world = document.getElementById("world");
+  var coordsBox = document.getElementById("coords");
+  var clearBtn = document.getElementById("clearWp");
+
+  /* ---------------- Fond de carte : image si fournie, sinon schéma ---------------- */
+  var SCHEMA =
+    '<svg viewBox="0 0 1000 1000" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none">' +
+    '<defs>' +
+      '<clipPath id="land"><path d="M380 30 L900 25 L975 90 L985 500 L960 900 L880 975 L560 970 L430 930 L380 860 L340 760 L360 640 L330 560 L390 480 L360 400 L330 320 L350 200 L370 120 Z ' +
+      'M60 120 L200 70 L300 110 L320 230 L300 330 L330 420 L310 520 L260 600 L280 700 L240 820 L160 900 L70 860 L40 700 L60 520 L30 380 L40 250 Z"/></clipPath>' +
+      '<pattern id="grid" width="83.33" height="83.33" patternUnits="userSpaceOnUse"><path d="M83.33 0H0V83.33" fill="none" stroke="rgba(255,255,255,.07)" stroke-width="1"/></pattern>' +
+    '</defs>' +
+    '<rect width="1000" height="1000" fill="#0c2236"/>' +
+    '<rect width="1000" height="1000" fill="url(#grid)"/>' +
+    '<g clip-path="url(#land)">' +
+      '<rect width="1000" height="1000" fill="#37503a"/>' +
+      '<rect x="340" y="20" width="660" height="290" fill="#b99a62" opacity=".75"/>' +
+      '<rect x="30" y="60" width="300" height="280" fill="#b99a62" opacity=".75"/>' +
+      '<rect x="340" y="310" width="660" height="320" fill="#4b6b45" opacity=".9"/>' +
+      '<rect x="30" y="560" width="300" height="400" fill="#24402b" opacity=".95"/>' +
+      '<rect x="560" y="640" width="440" height="340" fill="#59634a" opacity=".85"/>' +
+    '</g>' +
+    '<g fill="none" stroke="rgba(255,255,255,.18)" stroke-width="2.4" stroke-linecap="round" stroke-dasharray="9 7">' +
+      '<path d="M833 783 L800 560 L833 250"/>' +
+      '<path d="M833 783 L600 610 L380 450 L167 433"/>' +
+      '<path d="M833 250 L560 260 L380 150 L200 120"/>' +
+      '<path d="M167 433 L170 650 L190 860"/>' +
+    '</g>' +
+    '<g stroke="#e8d27a" stroke-width="3" fill="none"><path d="M330 425 L380 435"/><path d="M325 150 L365 160"/></g>' +
+    '<g fill="rgba(190,200,215,.4)" stroke="rgba(255,255,255,.35)" stroke-width="1.4">' +
+      '<ellipse cx="833" cy="783" rx="92" ry="70"/>' +
+      '<ellipse cx="167" cy="433" rx="46" ry="56"/>' +
+      '<ellipse cx="833" cy="250" rx="72" ry="58"/>' +
+    '</g>' +
+    '</svg>';
+
+  var img = new Image();
+  img.className = "mapimg";
+  img.alt = "";
+  img.draggable = false;
+  img.onload = function () { world.querySelector("svg").style.display = "none"; world.insertBefore(img, world.firstChild); };
+  img.onerror = function () { /* pas d'image : on garde le schéma */ };
+  world.innerHTML = SCHEMA;
+  img.src = "map.jpg"; /* optionnel : dépose une image carrée de la carte GTA SA ici pour l'utiliser */
+
+  /* --------------------------------- Repères --------------------------------- */
+  var PLACES = [
+    { n: "Los Santos",   x: 2000,  y: -1700, t: "city" },
+    { n: "San Fierro",   x: -2000, y: 400,   t: "city" },
+    { n: "Las Venturas", x: 2000,  y: 1500,  t: "city" },
+    { n: "Red County",   x: 400,   y: -200,  t: "county" },
+    { n: "Flint County", x: -300,  y: -1500, t: "county" },
+    { n: "Whetstone",    x: -1800, y: -2500, t: "county" },
+    { n: "Bone County",  x: -300,  y: 1900,  t: "county" },
+    { n: "Tierra Robada",x: -1700, y: 2000,  t: "county" },
+    { n: "Mont Chiliad", x: -2300, y: -1600, t: "poi" },
+    { n: "Angel Pine",   x: -2100, y: -2300, t: "poi" },
+    { n: "Fort Carson",  x: -200,  y: 1050,  t: "poi" },
+    { n: "Zone 69",      x: 200,   y: 2000,  t: "poi" },
+    { n: "Palomino Creek", x: 2300, y: -100, t: "poi" },
+    { n: "Montgomery",   x: 1300,  y: 300,   t: "poi" },
+    { n: "Dillimore",    x: 700,   y: -500,  t: "poi" },
+    { n: "Blueberry",    x: 200,   y: -200,  t: "poi" },
+    { n: "El Quebrados", x: -1450, y: 2450,  t: "poi" },
+    { n: "Bayside",      x: -2450, y: 2300,  t: "poi" }
+  ];
+
+  function frac(v, invert) { var f = (v + WORLD / 2) / WORLD; return invert ? 1 - f : f; }
+
+  function makePin(cls, label, x, y) {
+    var el = document.createElement("div");
+    el.className = "pin " + cls;
+    el.style.left = (frac(x) * 100) + "%";
+    el.style.top = (frac(y, true) * 100) + "%";
+    el.innerHTML = '<i class="dot"></i><span></span>';
+    el.lastChild.textContent = label;
+    world.appendChild(el);
+    return el;
+  }
+
+  var chips = document.getElementById("chips");
+  PLACES.forEach(function (p) {
+    makePin(p.t, p.n, p.x, p.y);
+    if (p.t === "city") {
+      var b = document.createElement("button");
+      b.type = "button"; b.className = "chip"; b.textContent = p.n;
+      b.addEventListener("click", function () { focusOn(p.x, p.y, 2.8); });
+      chips.appendChild(b);
+    }
+  });
+  ["Tout"].forEach(function (label) {
+    var b = document.createElement("button");
+    b.type = "button"; b.className = "chip"; b.textContent = label;
+    b.addEventListener("click", fit);
+    chips.appendChild(b);
+  });
+
+  var wpPin = makePin("wp", "Point", 0, 0); wpPin.hidden = true;
+  var mePin = makePin("me", "Moi", 0, 0); mePin.hidden = true;
+
+  /* ------------------------------ Zoom / déplacement ------------------------------ */
+  var S = 0, s = 1, tx = 0, ty = 0;
+
+  function box() { return view.getBoundingClientRect(); }
+
+  function clamp() {
+    var r = box(), w = S * s;
+    tx = w <= r.width ? (r.width - w) / 2 : Math.min(0, Math.max(r.width - w, tx));
+    ty = w <= r.height ? (r.height - w) / 2 : Math.min(0, Math.max(r.height - w, ty));
+  }
+
+  function apply() {
+    clamp();
+    world.style.transform = "translate(" + tx + "px," + ty + "px) scale(" + s + ")";
+    world.style.setProperty("--s", s);
+  }
+
+  function fit() {
+    var r = box();
+    S = Math.max(120, Math.min(r.width, r.height) - 14);
+    world.style.width = world.style.height = S + "px";
+    s = 1; tx = ty = 0; apply();
+  }
+
+  function zoomAt(factor, cx, cy) {
+    var ns = Math.min(MAXZ, Math.max(1, s * factor)), k = ns / s;
+    tx = cx - (cx - tx) * k; ty = cy - (cy - ty) * k; s = ns; apply();
+  }
+
+  function focusOn(x, y, z) {
+    var r = box();
+    s = Math.min(MAXZ, Math.max(1, z));
+    tx = r.width / 2 - frac(x) * S * s;
+    ty = r.height / 2 - frac(y, true) * S * s;
+    apply();
+  }
+
+  function worldFromClient(cx, cy) {
+    var r = box();
+    var fx = (cx - r.left - tx) / (S * s), fy = (cy - r.top - ty) / (S * s);
+    return { x: Math.round(fx * WORLD - WORLD / 2), y: Math.round((1 - fy) * WORLD - WORLD / 2), inside: fx >= 0 && fx <= 1 && fy >= 0 && fy <= 1 };
+  }
+
+  var pts = {}, moved = false, startX = 0, startY = 0, lastDist = 0;
+
+  function dist() {
+    var k = Object.keys(pts);
+    if (k.length < 2) return 0;
+    var a = pts[k[0]], b = pts[k[1]];
+    return Math.hypot(a.x - b.x, a.y - b.y);
+  }
+
+  view.addEventListener("pointerdown", function (e) {
+    view.setPointerCapture(e.pointerId);
+    pts[e.pointerId] = { x: e.clientX, y: e.clientY };
+    if (Object.keys(pts).length === 1) { moved = false; startX = e.clientX; startY = e.clientY; }
+    else { moved = true; lastDist = dist(); }
+  });
+
+  view.addEventListener("pointermove", function (e) {
+    var p = pts[e.pointerId];
+    if (!p) return;
+    var n = Object.keys(pts).length;
+    if (n >= 2) {
+      var d = dist(), r = box(), k = Object.keys(pts);
+      var mx = (pts[k[0]].x + pts[k[1]].x) / 2 - r.left, my = (pts[k[0]].y + pts[k[1]].y) / 2 - r.top;
+      p.x = e.clientX; p.y = e.clientY;
+      var nd = dist();
+      if (lastDist > 0 && nd > 0) zoomAt(nd / lastDist, mx, my);
+      lastDist = nd;
+      return;
+    }
+    if (Math.hypot(e.clientX - startX, e.clientY - startY) > 8) moved = true;
+    if (moved) { tx += e.clientX - p.x; ty += e.clientY - p.y; apply(); }
+    p.x = e.clientX; p.y = e.clientY;
+  });
+
+  function endPointer(e) {
+    var was = pts[e.pointerId];
+    delete pts[e.pointerId];
+    lastDist = 0;
+    if (was && !moved && e.type === "pointerup" && Object.keys(pts).length === 0) {
+      var w = worldFromClient(e.clientX, e.clientY);
+      if (w.inside) setWaypoint(w.x, w.y);
+    }
+  }
+  view.addEventListener("pointerup", endPointer);
+  view.addEventListener("pointercancel", endPointer);
+
+  view.addEventListener("wheel", function (e) {
+    e.preventDefault();
+    var r = box();
+    zoomAt(e.deltaY < 0 ? 1.2 : 1 / 1.2, e.clientX - r.left, e.clientY - r.top);
+  }, { passive: false });
+
+  /* ------------------------------ Point / position ------------------------------ */
+  var waypoint = null;
+
+  function setWaypoint(x, y) {
+    waypoint = { x: x, y: y };
+    wpPin.style.left = (frac(x) * 100) + "%";
+    wpPin.style.top = (frac(y, true) * 100) + "%";
+    wpPin.hidden = false;
+    coordsBox.innerHTML = "Point : <b>X " + x + "</b> &middot; <b>Y " + y + "</b>";
+    clearBtn.disabled = false;
+  }
+
+  function clearWaypoint() {
+    waypoint = null; wpPin.hidden = true; clearBtn.disabled = true;
+    coordsBox.textContent = "Touche la carte pour placer un point.";
+  }
+
+  /* API pour le jeu : window.MapApp.setPlayer(x, y) affiche la position du joueur. */
+  window.MapApp = {
+    setPlayer: function (x, y) {
+      x = Number(x); y = Number(y);
+      if (!isFinite(x) || !isFinite(y)) return;
+      mePin.style.left = (frac(x) * 100) + "%";
+      mePin.style.top = (frac(y, true) * 100) + "%";
+      mePin.hidden = false;
+    },
+    setWaypoint: setWaypoint,
+    clearWaypoint: clearWaypoint
+  };
+
+  /* --------------------------------- Boutons --------------------------------- */
+  function send(action, payload) {
+    try {
+      if (window.AndroidHUD && window.AndroidHUD.onHudAction) { window.AndroidHUD.onHudAction(action, payload || "{}"); return true; }
+    } catch (err) { /* pas de pont natif (aperçu navigateur) */ }
+    return false;
+  }
+
+  document.getElementById("close").addEventListener("click", function () { if (!send("settings:close")) history.back(); });
+  document.getElementById("gps").addEventListener("click", function () { send("map:gps"); });
+  clearBtn.addEventListener("click", clearWaypoint);
+  document.getElementById("zin").addEventListener("click", function () { var r = box(); zoomAt(1.5, r.width / 2, r.height / 2); });
+  document.getElementById("zout").addEventListener("click", function () { var r = box(); zoomAt(1 / 1.5, r.width / 2, r.height / 2); });
+  document.getElementById("zfit").addEventListener("click", fit);
+
+  window.addEventListener("resize", fit);
+  fit();
+})();
+</script>
+</body>
+</html>

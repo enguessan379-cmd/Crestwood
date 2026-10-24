@@ -1339,7 +1339,7 @@ button {
 .project-logo {
   position: absolute;
   left: 50%;
-  top: max(-10px, calc(env(safe-area-inset-top) - 10px));
+  top: max(6px, env(safe-area-inset-top));
   width: clamp(72px, 8.5vw, 112px);
   height: auto;
   opacity: 0.78;

@@ -530,6 +530,15 @@ public class SAMP extends GTASA implements HeightProvider.HeightListener {
                 openInteractionPage("blazer/index.html");
                 return;
             }
+            if ("map:open".equals(action)) {
+                openInteractionPage("map/index.html");
+                return;
+            }
+            if ("map:gps".equals(action)) {
+                closeConfig();
+                sendHudCommand(CMD_MAP);
+                return;
+            }
             if ("settings:close".equals(action)) {
                 closeConfig();
                 return;
@@ -758,7 +767,7 @@ public class SAMP extends GTASA implements HeightProvider.HeightListener {
                 case "phone": openPhonePage(); break;
                 case "settings": openConfig(); break;
                 case "inventory": sendHudCommand(CMD_INVENTORY); break;
-                case "map": sendHudCommand(CMD_MAP); break;
+                case "map": openInteractionPage("map/index.html"); break;
                 case "audio": sendHudCommand(CMD_AUDIO); break;
                 case "store": sendHudCommand(CMD_STORE); break;
                 case "records": openInteractionPage("blazer/index.html"); break;
