@@ -191,12 +191,26 @@ void CGame::SetWorldWeather(int byteWeatherID)
     }
 }
 // 0.3.7
+// HUD classique de GTA San Andreas (barres de vie/armure, argent, arme, etoiles, horloge,
+// nom de zone, nom de vehicule) : desactive, le HUD Crestwood (HTML/CEF) le remplace.
+// Mettre kHideClassicHud a false pour reafficher le HUD natif.
+static const bool kHideClassicHud = true;
+// Le radar natif est conserve car le HUD HTML n'a pas de minimap. Mettre a true pour le cacher aussi.
+static const bool kHideClassicRadar = false;
+
 void CGame::DisplayHUD(bool bDisp)
 {
+	// Adresses (libGame.so arm64) :
+	//   0x9F13E8 = CTheScripts::bDisplayHud                 (barres, argent, arme, etoiles, horloge)
+	//   0xA65E5C = CHud::bScriptDontDisplayRadar            (radar)
+	//   0xA65E5E = CHud::bScriptDontDisplayVehicleName      (nom du vehicule)
+	//   0xA65E5F = CHud::bScriptDontDisplayAreaName         (nom de la zone)
 	if (bDisp)
 	{
-		*(uint8_t*)(g_libGTASA + 0x9F13E8) = 1;
-		*(uint8_t*)(g_libGTASA + 0xA65E5C) = 0;
+		*(uint8_t*)(g_libGTASA + 0x9F13E8) = kHideClassicHud ? 0 : 1;
+		*(uint8_t*)(g_libGTASA + 0xA65E5C) = kHideClassicRadar ? 1 : 0;
+		*(uint8_t*)(g_libGTASA + 0xA65E5E) = kHideClassicHud ? 1 : 0;
+		*(uint8_t*)(g_libGTASA + 0xA65E5F) = kHideClassicHud ? 1 : 0;
 	}
 	else
 	{

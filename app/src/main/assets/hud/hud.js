@@ -247,9 +247,16 @@
     const items = statusItems.get(name);
     if (!items) return;
     const level = clampPercent(value);
+    // Palier d'alerte : sert au CSS (pulsation + valeur affichee quand c'est bas).
+    // Le gilet n'a pas d'alerte, il est simplement masque quand il est vide.
+    const tier = name === "armour"
+      ? (level <= 0 ? "empty" : "ok")
+      : (level <= 15 ? "critical" : level <= 30 ? "low" : "ok");
     items.forEach((item) => {
       item.style.setProperty("--status-fill", `${level}%`);
       item.setAttribute("aria-valuenow", String(level));
+      item.dataset.level = tier;
+      item.dataset.value = String(level);
     });
   }
 

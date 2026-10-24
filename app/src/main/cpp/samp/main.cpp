@@ -371,7 +371,9 @@ void MainLoop()
 		if (localPed && localPed->m_pPed) {
 							const bool dead = localPed->IsDead();
 				const bool running = !dead && (localPed->m_pPed->m_nMoveState == PEDMOVE_RUN || localPed->m_pPed->m_nMoveState == PEDMOVE_SPRINT);
-				CVehicleGTA* vehicle = localPed->GetGtaVehicle();
+				// IsInVehicle() = bInVehicle && pVehicle : pVehicle seul peut rester non nul a pied
+				// (sortie de vehicule), ce qui laissait le speedo affiche.
+				CVehicleGTA* vehicle = localPed->IsInVehicle() ? localPed->GetGtaVehicle() : nullptr;
 				const bool inVehicle = vehicle != nullptr;
 				float vehicleSpeed = 0.0f;
 				float vehicleHealth = 100.0f;

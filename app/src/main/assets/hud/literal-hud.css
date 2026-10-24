@@ -129,3 +129,70 @@
 .literal-status-bars, .animations-toggle-button { transform-origin: bottom left; }
 .phone-notification-layer { transform-origin: bottom right; }
 .project-logo { transform-origin: top center; }
+
+/* ------------------------------------------------------------------
+   Ameliorations du HUD en jeu
+   ------------------------------------------------------------------ */
+
+/* Speedo : jamais visible a pied (garde-fou CSS en plus de l'attribut hidden du JS).
+   .vehicle-hud-active est pose par renderDrivingHud() uniquement quand le joueur est en vehicule. */
+.hud-root:not(.vehicle-hud-active):not(.hud-editing) .vehicle-speedometer {
+  display: none !important;
+}
+
+/* Cases de statut : meilleur contraste sur fond clair, relief leger. */
+.literal-life-box {
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.14),
+    0 2px 6px rgba(0, 0, 0, 0.5);
+  background-color: rgba(0, 0, 0, 0.62);
+}
+
+/* Valeur chiffree : visible seulement quand la jauge est basse. */
+.literal-life-box[data-level="low"]::after,
+.literal-life-box[data-level="critical"]::after {
+  content: attr(data-value);
+  position: absolute;
+  right: 2px;
+  bottom: 1px;
+  z-index: 3;
+  font: 800 10px/1 "Montserrat", "Roboto", sans-serif;
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
+  transform: skew(10deg, 0deg);
+}
+
+/* Alertes : pulsation orange (bas) puis rouge plus rapide (critique). */
+.literal-life-box[data-level="low"] {
+  animation: literalLifeLow 1.8s ease-in-out infinite;
+}
+
+.literal-life-box[data-level="critical"] {
+  animation: literalLifeCritical 0.9s ease-in-out infinite;
+}
+
+@keyframes literalLifeLow {
+  0%, 100% { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14), 0 2px 6px rgba(0, 0, 0, 0.5); }
+  50%      { box-shadow: inset 0 0 0 2px rgba(255, 170, 40, 0.9), 0 0 10px rgba(255, 170, 40, 0.55); }
+}
+
+@keyframes literalLifeCritical {
+  0%, 100% { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14), 0 2px 6px rgba(0, 0, 0, 0.5); }
+  50%      { box-shadow: inset 0 0 0 2px rgba(255, 50, 50, 1), 0 0 14px rgba(255, 50, 50, 0.8); }
+}
+
+/* Gilet : masque quand il est a 0 (sauf dans l'editeur de HUD). */
+.literal-life-box.armour[data-level="empty"] {
+  display: none;
+}
+
+.hud-editing .literal-life-box.armour[data-level="empty"] {
+  display: flex;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .literal-life-box[data-level="low"],
+  .literal-life-box[data-level="critical"] {
+    animation: none;
+  }
+}
