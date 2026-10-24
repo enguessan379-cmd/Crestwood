@@ -8,6 +8,18 @@
 
   let sawDownload=false,smoothSpeed=0,lastDone=-1,lastTime=0;
 
+  // Défilement cinématique des captures Crestwood RP en arrière-plan.
+  const sceneLayer=document.querySelector('.bg');
+  const scenes=['scenes/crestwood-scene-1.webp','scenes/crestwood-scene-2.webp','scenes/crestwood-scene-3.webp','scenes/crestwood-scene-4.webp','scenes/crestwood-scene-5.webp'];
+  let sceneIndex=0;
+  scenes.slice(1).forEach(src=>{const preload=new Image();preload.src=src;});
+  window.setInterval(()=>{
+    if(!sceneLayer)return;
+    sceneIndex=(sceneIndex+1)%scenes.length;
+    sceneLayer.style.backgroundImage='url("'+scenes[sceneIndex]+'")';
+  },6500);
+
+
   const clamp=v=>Math.max(0,Math.min(100,Number(v)||0));
   const norm=t=>String(t||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
   const dec=(v,d)=>v.toFixed(d).replace('.',',');

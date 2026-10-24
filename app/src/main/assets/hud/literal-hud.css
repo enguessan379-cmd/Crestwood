@@ -196,3 +196,6 @@
     animation: none;
   }
 }
+
+/* Compteur véhicule plus petit et moins envahissant. */
+.hud-root .vehicle-speedometer{width:245px!important;height:190px!important;bottom:calc(env(safe-area-inset-bottom) - 4px)!important;transform:translateX(-50%) scale(.82)!important;transform-origin:bottom center!important}
