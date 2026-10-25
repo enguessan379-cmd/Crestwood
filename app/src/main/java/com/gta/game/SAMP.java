@@ -61,6 +61,22 @@ public class SAMP extends GTASA implements HeightProvider.HeightListener {
     private boolean configOpen;
     private boolean pharmacyOpen;
     private boolean bankOpen;
+    // Ecran de connexion HTML (assets/login/index.html), pilote par les dialogues "@auth" (ids 9520-9522)
+    private boolean authOpen;
+    // Inventaire HTML (assets/inventory/index.html), pilote par les dialogues "@inv" (ids 9530-9532)
+    private boolean invOpen;
+    private volatile boolean invReady;
+    private volatile String pendingInvJson;
+    private Runnable invWatchdog;
+    // Panneau d'administration HTML (assets/admin/index.html), pilote par les dialogues "@admin" (ids 9540-9542)
+    private boolean adminOpen;
+    private volatile boolean adminReady;
+    private volatile String pendingAdminJson;
+    private Runnable adminWatchdog;
+    private volatile boolean authReady;
+    private volatile String pendingAuthJson;
+    private final Handler authHandler = new Handler(Looper.getMainLooper());
+    private Runnable authWatchdog;
     private volatile String pendingBankJson;
     private volatile boolean bankReady;
     private final Handler bankHandler = new Handler(Looper.getMainLooper());
@@ -142,6 +158,36 @@ public class SAMP extends GTASA implements HeightProvider.HeightListener {
                 final String interactJson = content == null ? "{}" : content.replace("\u0000", "").trim();
                 lastInteractJson = interactJson;
                 hudJs("window.HudBridge && HudBridge.setInteract && HudBridge.setInteract(" + JSONObject.quote(interactJson) + ")");
+                return;
+            }
+        }
+        // Connexion / inscription : dialogues speciaux ids 9520 (ouvrir), 9521 (reponse du serveur), 9522 (fermer),
+        // titre "@auth", contenu JSON. Rien n'est affiche en dialogue : on pilote assets/login/index.html.
+        if (dialogId >= 9520 && dialogId <= 9522) {
+            final String capAuth = caption.replace("\u0000", "").replaceAll("\\{[0-9A-Fa-f]{6}\\}", "").trim();
+            final boolean authJson = content != null && content.trim().startsWith("{");
+            if (capAuth.startsWith("@auth") || authJson) {
+                Log.i(TAG, "[auth] dialogue " + dialogId + " intercepte");
+                handleAuthDialog(dialogId, content);
+                return;
+            }
+            Log.w(TAG, "[auth] dialogue " + dialogId + " NON intercepte, titre='" + caption + "'");
+        }
+        // Administration : ids 9540 (ouvrir), 9541 (mise a jour), 9542 (fermer), titre "@admin", contenu JSON.
+        if (dialogId >= 9540 && dialogId <= 9542) {
+            final String capAdm = caption.replace("\u0000", "").replaceAll("\\{[0-9A-Fa-f]{6}\\}", "").trim();
+            final boolean admJson = content != null && content.trim().startsWith("{");
+            if (capAdm.startsWith("@admin") || admJson) {
+                handleAdminDialog(dialogId, content);
+                return;
+            }
+        }
+        // Inventaire : ids 9530 (ouvrir), 9531 (mise a jour), 9532 (fermer), titre "@inv", contenu JSON.
+        if (dialogId >= 9530 && dialogId <= 9532) {
+            final String capInv = caption.replace("\u0000", "").replaceAll("\\{[0-9A-Fa-f]{6}\\}", "").trim();
+            final boolean invJson = content != null && content.trim().startsWith("{");
+            if (capInv.startsWith("@inv") || invJson) {
+                handleInvDialog(dialogId, content);
                 return;
             }
         }
@@ -333,6 +379,21 @@ public class SAMP extends GTASA implements HeightProvider.HeightListener {
             }
             @Override public void onPageFinished(WebView view, String url) {
                 Log.i(TAG, "[webview] page chargee : " + url);
+                String invJson = pendingInvJson;
+                if (invJson != null && url != null && url.endsWith("inventory/index.html")) {
+                    pendingInvJson = null;
+                    view.evaluateJavascript("window.InvApp && InvApp.openFromNative(" + JSONObject.quote(invJson) + ")", null);
+                }
+                String admJson = pendingAdminJson;
+                if (admJson != null && url != null && url.endsWith("admin/index.html")) {
+                    pendingAdminJson = null;
+                    view.evaluateJavascript("window.AdminApp && AdminApp.openFromNative(" + JSONObject.quote(admJson) + ")", null);
+                }
+                String authJson = pendingAuthJson;
+                if (authJson != null && url != null && url.endsWith("login/index.html")) {
+                    pendingAuthJson = null;
+                    view.evaluateJavascript("window.DXAuth && DXAuth.openFromNative(" + JSONObject.quote(authJson) + ")", null);
+                }
                 String json = pendingBankJson;
                 if (json != null && url != null && url.endsWith("bank/index.html")) {
                     pendingBankJson = null;
@@ -351,7 +412,12 @@ public class SAMP extends GTASA implements HeightProvider.HeightListener {
         settings.setDisplayZoomControls(false);
         settings.setLoadWithOverviewMode(false);
         settings.setUseWideViewPort(false);
+        // La musique de l'ecran de connexion doit pouvoir demarrer sans toucher l'ecran
+        settings.setMediaPlaybackRequiresUserGesture(false);
         hudWebView.addJavascriptInterface(new HudAndroidBridge(), "AndroidHUD");
+        hudWebView.addJavascriptInterface(new SampAuthBridge(), "SampAuth");
+        hudWebView.addJavascriptInterface(new SampInvBridge(), "SampInv");
+        hudWebView.addJavascriptInterface(new SampAdminBridge(), "SampAdmin");
         hudWebView.addJavascriptInterface(new SampHudBridge(), "SampHud");
         hudWebView.addJavascriptInterface(new SampBankBridge(), "SampBank");
         hudWebView.setVisibility(View.VISIBLE);
@@ -497,6 +563,322 @@ public class SAMP extends GTASA implements HeightProvider.HeightListener {
         });
     }
 
+    // ---- Inventaire (page assets/inventory/index.html) ----
+    private void handleInvDialog(final int dialogId, final String rawJson) {
+        String tmp = rawJson == null ? "{}" : rawJson;
+        int js = tmp.indexOf('{');
+        int je = tmp.lastIndexOf('}');
+        final String json = (js >= 0 && je > js) ? tmp.substring(js, je + 1) : "{}";
+        runOnUiThread(() -> {
+            if (hudWebView == null || isFinishing()) return;
+            if (dialogId == 9532) {            // fermeture demandee par le serveur
+                closeInvPage(false);
+            } else if (dialogId == 9530) {     // ouverture
+                openInvPage(json);
+            } else if (invOpen) {              // 9531 : mise a jour (objets, message)
+                hudWebView.evaluateJavascript("window.InvApp && InvApp.onUpdateFromNative(" + JSONObject.quote(json) + ")", null);
+            }
+        });
+    }
+
+    private void openInvPage(String json) {
+        if (hudWebView == null || authOpen) return;
+        if (invOpen && invReady) {
+            hudWebView.evaluateJavascript("window.InvApp && InvApp.onUpdateFromNative(" + JSONObject.quote(json) + ")", null);
+            return;
+        }
+        Log.i(TAG, "[inv] ouverture de l'inventaire");
+        invOpen = true;
+        invReady = false;
+        configOpen = true;
+        bankOpen = false;
+        pharmacyOpen = false;
+        pendingInvJson = json;
+        hudWebView.setWheelOpen(false);
+        hudWebView.setPhonePage(false);
+        hudWebView.setFullscreenPage(true);
+        hudWebView.setVisibility(View.VISIBLE);
+        hudWebView.loadUrl("file:///android_asset/inventory/index.html");
+        if (invWatchdog != null) authHandler.removeCallbacks(invWatchdog);
+        invWatchdog = () -> {
+            if (invOpen && !invReady) {
+                Log.e(TAG, "[inv] la page ne s'est pas affichee a temps -> fermeture de secours");
+                closeInvPage(true);
+            }
+        };
+        authHandler.postDelayed(invWatchdog, 5000);
+    }
+
+    private void closeInvPage(final boolean notifyServer) {
+        runOnUiThread(() -> {
+            if (hudWebView == null) return;
+            boolean wasOpen = invOpen;
+            if (invWatchdog != null) { authHandler.removeCallbacks(invWatchdog); invWatchdog = null; }
+            invOpen = false;
+            invReady = false;
+            configOpen = false;
+            pendingInvJson = null;
+            hudWebView.setFullscreenPage(false);
+            hudWebView.setPhonePage(false);
+            hudWebView.setVisibility(View.VISIBLE);
+            hudWebView.loadUrl("file:///android_asset/hud/index.html");
+            if (notifyServer && wasOpen) sendChatInput("/invact close x 0");
+        });
+    }
+
+    private final class SampInvBridge {
+        // JS -> serveur : /invact <use|drop> <objet> <quantite>
+        @JavascriptInterface public void action(String type, String json) {
+            try {
+                String t = type == null ? "" : type.replaceAll("[^a-z]", "");
+                if (!t.equals("use") && !t.equals("drop")) return;
+                JSONObject o = new JSONObject(json == null || json.isEmpty() ? "{}" : json);
+                String item = o.optString("item", "").replaceAll("[^a-z_]", "");
+                long qty = Math.max(1L, Math.min(99L, o.optLong("qty", 1)));
+                if (item.isEmpty() || item.length() > 23) return;
+                sendHudCommand("/invact " + t + " " + item + " " + qty);
+            } catch (Exception e) {
+                Log.e(TAG, "inv action", e);
+            }
+        }
+
+        @JavascriptInterface public void close() {
+            closeInvPage(true);
+        }
+
+        @JavascriptInterface public void ready() {
+            invReady = true;
+            Log.i(TAG, "[inv] page affichee");
+        }
+    }
+
+    // ---- Administration (page assets/admin/index.html) ----
+    private void handleAdminDialog(final int dialogId, final String rawJson) {
+        String tmp = rawJson == null ? "{}" : rawJson;
+        int js = tmp.indexOf('{');
+        int je = tmp.lastIndexOf('}');
+        final String json = (js >= 0 && je > js) ? tmp.substring(js, je + 1) : "{}";
+        runOnUiThread(() -> {
+            if (hudWebView == null || isFinishing()) return;
+            if (dialogId == 9542) {            // fermeture demandee par le serveur
+                closeAdminPage(false);
+            } else if (dialogId == 9540) {     // ouverture (/adminpanel)
+                openAdminPage(json);
+            } else if (adminOpen) {            // 9541 : mise a jour (joueurs, message)
+                hudWebView.evaluateJavascript("window.AdminApp && AdminApp.onUpdateFromNative(" + JSONObject.quote(json) + ")", null);
+            }
+        });
+    }
+
+    private void openAdminPage(String json) {
+        if (hudWebView == null || authOpen) return;
+        if (adminOpen && adminReady) {
+            hudWebView.evaluateJavascript("window.AdminApp && AdminApp.onUpdateFromNative(" + JSONObject.quote(json) + ")", null);
+            return;
+        }
+        Log.i(TAG, "[admin] ouverture du panneau admin");
+        adminOpen = true;
+        adminReady = false;
+        configOpen = true;
+        invOpen = false;
+        bankOpen = false;
+        pharmacyOpen = false;
+        pendingAdminJson = json;
+        hudWebView.setWheelOpen(false);
+        hudWebView.setPhonePage(false);
+        hudWebView.setFullscreenPage(true);
+        hudWebView.setVisibility(View.VISIBLE);
+        hudWebView.loadUrl("file:///android_asset/admin/index.html");
+        if (adminWatchdog != null) authHandler.removeCallbacks(adminWatchdog);
+        adminWatchdog = () -> {
+            if (adminOpen && !adminReady) {
+                Log.e(TAG, "[admin] la page ne s'est pas affichee a temps -> fermeture de secours");
+                closeAdminPage(true);
+            }
+        };
+        authHandler.postDelayed(adminWatchdog, 5000);
+    }
+
+    private void closeAdminPage(final boolean notifyServer) {
+        runOnUiThread(() -> {
+            if (hudWebView == null) return;
+            boolean wasOpen = adminOpen;
+            if (adminWatchdog != null) { authHandler.removeCallbacks(adminWatchdog); adminWatchdog = null; }
+            adminOpen = false;
+            adminReady = false;
+            configOpen = false;
+            pendingAdminJson = null;
+            hudWebView.setFullscreenPage(false);
+            hudWebView.setPhonePage(false);
+            hudWebView.setVisibility(View.VISIBLE);
+            hudWebView.loadUrl("file:///android_asset/hud/index.html");
+            if (notifyServer && wasOpen) sendChatInput("/adminact close 0");
+        });
+    }
+
+    private final class SampAdminBridge {
+        // JS -> serveur : /adminact <action> <id> <texte>. Le serveur re-verifie le niveau a chaque action.
+        @JavascriptInterface public void action(String type, String json) {
+            try {
+                String t = type == null ? "" : type.replaceAll("[^a-z]", "");
+                if (t.isEmpty() || t.length() > 12) return;
+                JSONObject o = new JSONObject(json == null || json.isEmpty() ? "{}" : json);
+                long id = Math.max(0L, Math.min(9999L, o.optLong("id", 0)));
+                String arg = o.optString("arg", "")
+                        .replaceAll("[\\p{Cntrl}\"\\\\%]", " ")
+                        .trim();
+                if (arg.length() > 90) arg = arg.substring(0, 90);
+                sendHudCommand("/adminact " + t + " " + id + (arg.isEmpty() ? "" : " " + arg));
+            } catch (Exception e) {
+                Log.e(TAG, "admin action", e);
+            }
+        }
+
+        @JavascriptInterface public void close() {
+            closeAdminPage(true);
+        }
+
+        @JavascriptInterface public void ready() {
+            adminReady = true;
+            Log.i(TAG, "[admin] page affichee");
+        }
+    }
+
+    // ---- Connexion (page assets/login/index.html) ----
+    private void handleAuthDialog(final int dialogId, final String rawJson) {
+        String tmp = rawJson == null ? "{}" : rawJson;
+        int js = tmp.indexOf('{');
+        int je = tmp.lastIndexOf('}');
+        final String json = (js >= 0 && je > js) ? tmp.substring(js, je + 1) : "{}";
+        // Le serveur parle : l'ecran de chargement ne doit plus masquer la page de connexion
+        loadingClosedByGame = true;
+        hideLoadingScreen();
+        runOnUiThread(() -> {
+            if (hudWebView == null || isFinishing()) {
+                Log.e(TAG, "[auth] WebView indisponible, ouverture impossible");
+                return;
+            }
+            if (dialogId == 9522) {            // fermeture demandee par le serveur (connexion reussie)
+                closeAuthPage();
+            } else if (dialogId == 9520) {     // ouverture
+                openAuthPage(json);
+            } else if (authOpen) {             // 9521 : reponse (succes / erreur / changement d'onglet)
+                hudWebView.evaluateJavascript("window.DXAuth && DXAuth.handleResponse(" + JSONObject.quote(json) + ")", null);
+            }
+        });
+    }
+
+    private void openAuthPage(String json) {
+        if (hudWebView == null) return;
+        if (authOpen && authReady) {
+            // deja affichee : on reapplique seulement l'onglet / le pseudo
+            hudWebView.evaluateJavascript("window.DXAuth && DXAuth.openFromNative(" + JSONObject.quote(json) + ")", null);
+            return;
+        }
+        Log.i(TAG, "[auth] ouverture de la page de connexion");
+        authOpen = true;
+        authReady = false;
+        configOpen = true;
+        bankOpen = false;
+        pharmacyOpen = false;
+        pendingAuthJson = json;
+        hudWebView.setWheelOpen(false);
+        hudWebView.setPhonePage(false);
+        hudWebView.setFullscreenPage(true);
+        hudWebView.setVisibility(View.VISIBLE);
+        hudWebView.loadUrl("file:///android_asset/login/index.html");
+
+        // Garde-fou : si la page ne s affiche pas en 6 s, on la ferme pour ne pas laisser un ecran vide
+        // (le serveur peut la rouvrir : voir Auth_OnRequestClass).
+        cancelAuthWatchdog();
+        authWatchdog = () -> {
+            if (authOpen && !authReady) {
+                Log.e(TAG, "[auth] la page ne s'est pas affichee a temps -> fermeture de secours");
+                Toast.makeText(SAMP.this, "Ecran de connexion indisponible, reessaie.", Toast.LENGTH_SHORT).show();
+                closeAuthPage();
+            }
+        };
+        authHandler.postDelayed(authWatchdog, 6000);
+    }
+
+    private void cancelAuthWatchdog() {
+        if (authWatchdog != null) {
+            authHandler.removeCallbacks(authWatchdog);
+            authWatchdog = null;
+        }
+    }
+
+    private void closeAuthPage() {
+        runOnUiThread(() -> {
+            if (hudWebView == null) return;
+            cancelAuthWatchdog();
+            authOpen = false;
+            authReady = false;
+            configOpen = false;
+            pendingAuthJson = null;
+            hudWebView.hideKeyboard();
+            hudWebView.setFullscreenPage(false);
+            hudWebView.setPhonePage(false);
+            hudWebView.setVisibility(View.VISIBLE);
+            // recharger le HUD arrete aussi la musique de la page de connexion
+            hudWebView.loadUrl("file:///android_asset/hud/index.html");
+        });
+    }
+
+    private final class SampAuthBridge {
+        // JS -> serveur : /authact <type> <arguments...>
+        // Les champs sont deja valides cote page (pseudo, e-mail, mot de passe sans espace ni / \).
+        @JavascriptInterface public void action(String type, String json) {
+            try {
+                String t = type == null ? "" : type.toLowerCase().replaceAll("[^a-z]", "");
+                if (t.isEmpty() || t.equals("openlink")) return;
+                JSONObject o = new JSONObject(json == null || json.isEmpty() ? "{}" : json);
+                String user = cleanAuthToken(o.optString("username", ""), 24);
+                String command;
+                switch (t) {
+                    case "login":
+                        command = "/authact login " + user + " " + cleanAuthToken(o.optString("password", ""), 100);
+                        break;
+                    case "register":
+                        command = "/authact register " + user + " " + cleanAuthToken(o.optString("email", ""), 63)
+                                + " " + cleanAuthToken(o.optString("password", ""), 100);
+                        break;
+                    case "requestrecoverycode":
+                        command = "/authact code " + user;
+                        break;
+                    case "recover":
+                        command = "/authact recover " + user + " " + cleanAuthToken(o.optString("code", ""), 18)
+                                + " " + cleanAuthToken(o.optString("newPassword", ""), 100);
+                        break;
+                    default:
+                        return;
+                }
+                // Le chat SA-MP limite une commande a 128 caracteres : au-dela le serveur la tronquerait
+                if (command.length() > 127) {
+                    runOnUiThread(() -> Toast.makeText(SAMP.this, "Donnees trop longues (pseudo + mot de passe).", Toast.LENGTH_SHORT).show());
+                    return;
+                }
+                sendHudCommand(command);
+            } catch (Exception e) {
+                Log.e(TAG, "auth action", e);
+            }
+        }
+
+        // Appele par login/app.js quand la page est bien affichee (annule le garde-fou)
+        @JavascriptInterface public void ready() {
+            authReady = true;
+            runOnUiThread(() -> cancelAuthWatchdog());
+            Log.i(TAG, "[auth] page affichee");
+        }
+    }
+
+    /** Un seul argument de commande : ni espace ni caractere de controle, longueur bornee. */
+    private static String cleanAuthToken(String value, int max) {
+        if (value == null) return "";
+        String v = value.replaceAll("[\\s\\x00-\\x1F\\x7F]", "");
+        return v.length() > max ? v.substring(0, max) : v;
+    }
+
     // ---- Banque (page assets/bank/index.html) ----
     private void handleBankDialog(final int dialogId, final String rawJson) {
         String tmp = rawJson == null ? "{}" : rawJson;
@@ -600,6 +982,9 @@ public class SAMP extends GTASA implements HeightProvider.HeightListener {
     private void closeConfig() {
         runOnUiThread(() -> {
             if (hudWebView == null) return;
+            if (authOpen) return;
+            invOpen = false;
+            adminOpen = false;
             configOpen = false;
             pharmacyOpen = false;
             bankOpen = false;
@@ -613,6 +998,18 @@ public class SAMP extends GTASA implements HeightProvider.HeightListener {
 
     @Override
     public void onBackPressed() {
+        if (authOpen) {
+            // la connexion est obligatoire : le bouton retour ne ferme pas la page
+            return;
+        }
+        if (adminOpen) {
+            closeAdminPage(true);
+            return;
+        }
+        if (invOpen) {
+            closeInvPage(true);
+            return;
+        }
         if (bankOpen) {
             closeBankPage(true);
             return;

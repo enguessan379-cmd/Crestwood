@@ -319,16 +319,16 @@
 .hud-root .quick-actions { top: calc(min(33vh, 15.3vw) + 8px + env(safe-area-inset-top)); }
 
 /* Ajustements demandés : minimap circulaire, sans halo bleu, HUD gauche décalé vers le bord. */
-.hud-root .minimap-frame{--mm-left:2px;--mm-top:2px;--mm-size:min(27vh,12.5vw);box-sizing:border-box!important;border:4px solid #fff!important;border-radius:50%!important;background:rgba(5,8,12,.2)!important;box-shadow:0 2px 8px rgba(0,0,0,.38)!important;overflow:hidden!important}
+.hud-root .minimap-frame{--mm-left:0px;--mm-top:2px;--mm-size:min(34vh,16vw);left:var(--mm-left)!important;box-sizing:border-box!important;border:2px solid #fff!important;border-radius:50%!important;background:rgba(5,8,12,.2)!important;box-shadow:0 2px 8px rgba(0,0,0,.38)!important;overflow:hidden!important}
 .hud-root .minimap-frame .minimap-canvas{border-radius:50%!important;clip-path:circle(50% at 50% 50%)}
 .hud-root .minimap-frame::before,.hud-root .minimap-frame::after,.hud-root .minimap-frame i{display:none!important;content:none!important;box-shadow:none!important;filter:none!important}
-.hud-root .quick-actions{left:max(2px,env(safe-area-inset-left))!important;top:calc(min(27vh,12.5vw) + 7px + env(safe-area-inset-top))!important}
+.hud-root .quick-actions{left:0!important;top:calc(min(34vh,16vw) + 6px + env(safe-area-inset-top))!important}
 
 /* ------------------------------------------------------------------
    Logo Crestwood agrandi (en haut au centre)
    ------------------------------------------------------------------ */
 .hud-root .project-logo {
-  --hud-item-scale: 1;
+  --hud-item-scale: 0.8;
   width: clamp(150px, 17vw, 230px);
   opacity: 0.92;
   filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.55));
@@ -379,7 +379,7 @@
    ligne 1 = 3 pastilles « icône | séparateur | valeur » (lieu, heure, pièces)
    lignes suivantes = banque et argent en texte simple, alignés à droite
    ------------------------------------------------------------------ */
-.hud-root .hud-info-panel { --hud-item-scale: 0.8; }
+.hud-root .hud-info-panel { --hud-item-scale: 0.64; }
 
 .hud-root .hud-info-panel .info-grid {
   grid-template-columns: repeat(3, max-content) !important;
@@ -463,4 +463,17 @@
 .hud-root .hud-info-panel .info-pill.money strong {
   font-size: 14px !important;
   font-weight: 700 !important;
+}
+
+/* ------------------------------------------------------------------
+   Jauges de statut (vie, faim, soif, energie, gilet) : a droite, sous le panneau d'infos.
+   (En vehicule elles restent dans le compteur de vitesse.)
+   Pour ajuster : top = distance depuis le haut, right = distance depuis le bord droit.
+   ------------------------------------------------------------------ */
+.hud-root .literal-status-bars {
+  left: auto !important;
+  bottom: auto !important;
+  right: max(14px, env(safe-area-inset-right)) !important;
+  top: calc(70px + env(safe-area-inset-top)) !important;
+  transform-origin: top right !important;
 }

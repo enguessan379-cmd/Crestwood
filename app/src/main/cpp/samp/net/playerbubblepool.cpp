@@ -366,12 +366,12 @@ void CPlayerBubblePool::Draw(ImGuiRenderer* renderer)
         ImVec2 a = ImVec2(Out.x - ts.x / 2 - pad, bottom - ts.y - pad * 2);
         ImVec2 c = ImVec2(Out.x + ts.x / 2 + pad, bottom);
 
-        ImColor bg(0, 0, 0, 175);
-        ImColor border = ImColor(__builtin_bswap32(b->uiColor | 0x000000FF));
+        // Bulle noire unie, sans contour colore (l'ancien liseré a la couleur du joueur donnait des
+        // bords bizarres). Presque opaque + pointe qui chevauche d'1 px le corps : aucune couture visible.
+        ImColor bg(8, 8, 8, 235);
 
         renderer->drawRect(a, c, bg, true, rounding);
-        renderer->drawRect(a, c, border, false, rounding, 1.5f);
-        renderer->drawTriangle(ImVec2(Out.x - tail * 0.7f, bottom), ImVec2(Out.x + tail * 0.7f, bottom),
+        renderer->drawTriangle(ImVec2(Out.x - tail * 0.7f, bottom - 1.0f), ImVec2(Out.x + tail * 0.7f, bottom - 1.0f),
                                ImVec2(Out.x, tipY), bg, true);
         renderer->drawText(ImVec2(a.x + pad, a.y + pad), ImColor(255, 255, 255, 255), text, false, fs);
     }
