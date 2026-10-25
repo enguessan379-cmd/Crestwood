@@ -6,6 +6,7 @@
 #include "game.h"
 #include "../net/netgame.h"
 #include "../gui/gui.h"
+#include "../gui/CharacterCreator.h"
 #include "Textures/TextureDatabase.h"
 #include "Textures/TextureDatabaseEntry.h"
 #include "Textures/TextureDatabaseRuntime.h"
@@ -435,8 +436,13 @@ uint32_t CHudColours__GetIntColour(uintptr* thiz, uint8 colour_id)
 void (*AND_TouchEvent)(int type, int num, int posX, int posY);
 void AND_TouchEvent_hook(int type, int num, int posX, int posY)
 {
-    // imgui
-    //bool bRet = pUI->OnTouchEvent(type, num, posX, posY);
+    // Panneau ImGui (creation / vetements) ouvert : les touches vont a ImGui
+    // et PAS au jeu (sinon la camera bouge et les boutons ne repondent pas).
+    if (pUI != nullptr && CharacterCreator::IsVisible())
+    {
+        pUI->OnTouchEvent(type, num != 0, posX, posY);
+        return AND_TouchEvent(1, 0, 0, 0);
+    }
 
     if (pGame->IsGamePaused())
         return AND_TouchEvent(type, num, posX, posY);

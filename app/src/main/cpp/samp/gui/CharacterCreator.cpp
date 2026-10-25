@@ -49,6 +49,7 @@ namespace {
 	// jogo, o mesmo lugar onde o "+" troca o modelo sem crash) executa o
 	// setup no primeiro tick.
 	std::string g_selectJson;
+	uint32_t g_autoSpawnTick = 0; // spawn direct : repli vers la selection si le serveur ne repond pas
 	bool g_selectSetupPending = false;
 
 	// MODE TEST : panneau de vêtements ouvert en local par le bouton du HUD,
@@ -535,9 +536,15 @@ namespace {
 			ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
 			ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
 			ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
-			ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.005f, 0.010f, 0.009f, 0.88f));
+			ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.0f, 0.0f, 0.0f, 0.0f)); // plein ecran transparent : le personnage reste visible
 			const bool open = ImGui::Begin(title, nullptr,
 				ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoSavedSettings);
+			if (open) {
+				// fond sombre uniquement derriere le panneau de gauche
+				const float panelBgW = std::min(560.0f, display.x * 0.46f) + 34.0f;
+				ImGui::GetWindowDrawList()->AddRectFilled(ImVec2(0.0f, 0.0f), ImVec2(panelBgW, display.y),
+					IM_COL32(2, 4, 4, 215));
+			}
 			if (open && pUI && pUI->fontSmall()) ImGui::PushFont(pUI->fontSmall());
 			return open;
 		}
@@ -751,12 +758,24 @@ void CharacterCreator::OpenSelect(const std::string& json)
 	g_pedHidden = !g_hasChar;
 	g_state = State::Select;
 
+	// SPAWN DIRECT : le joueur a deja un personnage -> pas d'ecran de selection,
+	// on demande le spawn tout de suite (le serveur repond avec APPLY_LOOK/CLOSE).
+	if (g_hasChar) {
+		g_pedHidden = false;
+		g_selectSetupPending = false;
+		g_selectModelRetries = 0;
+		g_state = State::Waiting;
+		g_autoSpawnTick = GetTickCount();
+		CharacterCreator::SendSpawnRequest();
+	}
+
 	// Le bouton de spawn (NASCER) est affiche : on ferme l'ecran de chargement du launcher.
 	if (pJavaWrapper) pJavaWrapper->HideLoadingScreen();
 }
 
 void CharacterCreator::OpenCreate()
 {
+	g_autoSpawnTick = 0;
 	g_testMode = false;
 	g_selectModelRetries = 0;
 	g_selectSetupPending = false;
@@ -768,6 +787,7 @@ void CharacterCreator::OpenCreate()
 
 void CharacterCreator::ApplyLook(const std::string& json)
 {
+	g_autoSpawnTick = 0;
 	g_testMode = false;
 	g_selectModelRetries = 0;
 	g_selectSetupPending = false;
@@ -782,6 +802,7 @@ void CharacterCreator::ApplyLook(const std::string& json)
 
 void CharacterCreator::CloseAll()
 {
+	g_autoSpawnTick = 0;
 	g_testMode = false;
 	g_selectModelRetries = 0;
 	g_selectSetupPending = false;
@@ -817,6 +838,12 @@ void CharacterCreator::Render()
 	}
 
 	if (g_state == State::Hidden) return;
+
+	// Repli du spawn direct : pas de reponse serveur apres 8 s -> ecran de selection
+	if (g_state == State::Waiting && g_autoSpawnTick != 0 && GetTickCount() - g_autoSpawnTick > 8000) {
+		g_autoSpawnTick = 0;
+		g_state = State::Select;
+	}
 
 	// Garante que o boneco fique de frente pra câmera enquanto a criação está
 	// aberta (reaplica a cada 300ms, sem brigar com a animação do jogo). Neste

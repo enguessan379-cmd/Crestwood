@@ -109,6 +109,7 @@ bool UI::initialize()
 
 void UI::render()
 {
+    m_bPushNotSeen = false;
     ImGuiWrapper::render();
 
     renderDebug();
@@ -119,6 +120,13 @@ void UI::render()
         ImGuiIO& io = ImGui::GetIO();
         io.MousePos = ImVec2(-1, -1);
         m_bNeedClearMousePos = false;
+    }
+
+    if (m_bReleasePending) {
+        // la frame qui vient de passer a vu l'appui : le relachement sera vu a la suivante
+        ImGui::GetIO().MouseDown[0] = false;
+        m_bNeedClearMousePos = true;
+        m_bReleasePending = false;
     }
 }
 
@@ -179,11 +187,18 @@ bool UI::OnTouchEvent(int type, bool multi, int x, int y)
         case TOUCH_PUSH:
             io.MousePos = ImVec2(x, y);
             io.MouseDown[0] = true;
+            m_bPushNotSeen = true;
+            m_bReleasePending = false;
             break;
 
         case TOUCH_POP:
-            io.MouseDown[0] = false;
-            m_bNeedClearMousePos = true;
+            if (m_bPushNotSeen) {
+                // aucune frame ImGui n'a encore vu l'appui : on retarde le relachement
+                m_bReleasePending = true;
+            } else {
+                io.MouseDown[0] = false;
+                m_bNeedClearMousePos = true;
+            }
             break;
 
         case TOUCH_MOVE:

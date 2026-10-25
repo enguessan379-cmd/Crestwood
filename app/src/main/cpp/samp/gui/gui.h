@@ -104,6 +104,8 @@ private:
     float m_fFontSize;
 
     bool m_bNeedClearMousePos = false;
+    volatile bool m_bPushNotSeen = false;
+    volatile bool m_bReleasePending = false;
 
     DataStructures::SingleProducerConsumer<BUFFERED_COMMAND_TEXTDRAW> m_BufferedCommandTextdraws;
 
