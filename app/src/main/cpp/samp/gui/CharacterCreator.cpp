@@ -7,6 +7,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstring>
+#include <mutex>
 #include <string>
 
 #include "../main.h"
@@ -18,6 +19,7 @@
 #include "../net/netgame.h"
 #include "../java/jniutil.h"
 #include "ClothesCustomization.h"
+#include "../game/BrlTextureShader.h"
 #include "gui.h"
 #include "../vendor/imgui/imgui.h"
 
@@ -50,6 +52,15 @@ namespace {
 	// setup no primeiro tick.
 	std::string g_selectJson;
 	uint32_t g_autoSpawnTick = 0; // spawn direct : repli vers la selection si le serveur ne repond pas
+	std::atomic<bool> g_autoSpawnPending{false}; // spawn direct en attente (envoye par le thread du jeu)
+
+	// Apparence recue du serveur (APPLY_LOOK) : le handler tourne sur le thread
+	// RESEAU. On ne touche jamais au ped depuis la : on memorise le JSON et le
+	// thread du jeu (Render) l'applique des que le ped est stable.
+	std::atomic<bool> g_pendingLook{false};
+	std::mutex g_pendingLookMutex;
+	std::string g_pendingLookJson;
+	uint32_t g_pendingLookTick = 0;
 	bool g_selectSetupPending = false;
 
 	// MODE TEST : panneau de vêtements ouvert en local par le bouton du HUD,
@@ -98,8 +109,16 @@ namespace {
 		if (ped->IsInVehicle()) return false;
 		const uint32_t model = ped->m_pPed->m_nModelIndex;
 		if (model == 0 || model > 20000) return false;
+		BrlTextureShader::ResetLocalPlayer(); // les anciens materiaux vont etre liberes
 		ped->SetModelIndex(model);
 		return true;
+	}
+
+	// Ped local present, dans le monde et avec son modele 3D cree.
+	bool LocalPedStable()
+	{
+		CPlayerPed* ped = pGame ? pGame->FindPlayerPed() : nullptr;
+		return ped && ped->m_pPed && ped->m_pPed->IsAdded() && ped->m_pPed->m_pRwObject;
 	}
 
 	void FallGuard()
@@ -304,9 +323,15 @@ namespace {
 	void PreviewGender(int gender)
 	{
 		ClothesCustomization::Reset(gender);
-		if (pGame) {
-			if (CPlayerPed* ped = pGame->FindPlayerPed()) {
-				ped->SetModelIndex(gender == 1 ? 9 : 163);
+		CPlayerPed* ped = pGame ? pGame->FindPlayerPed() : nullptr;
+		if (ped && ped->m_pPed && ped->m_pPed->IsAdded() && ped->m_pPed->m_pRwObject && !ped->IsInVehicle()) {
+			// Retire les textures posees sur l'ancien modele AVANT de le remplacer
+			// (sinon le shader garde des pointeurs vers des materiaux liberes).
+			BrlTextureShader::ResetLocalPlayer();
+			const uint32_t target = gender == 1 ? 9 : 163;
+			// Ne recree le modele que s'il change vraiment (HOMME deja actif = rien a faire).
+			if (ped->m_pPed->m_nModelIndex != target) {
+				ped->SetModelIndex(target);
 			}
 		}
 		ClothesCustomization::ApplyCurrent();
@@ -322,7 +347,8 @@ namespace {
 		g_editTarget = EditTarget::None;
 		g_pedHidden = false;
 		SetPedVisible(true);
-		ClearStuckFall();
+		// (ClearStuckFall retire : inutile en mode test, le joueur est deja debout,
+		//  et vider les taches du ped local peut faire planter CPlayerInfo::Process)
 		PreviewGender(g_gender);
 		g_state = State::Creating;
 	}
@@ -760,13 +786,14 @@ void CharacterCreator::OpenSelect(const std::string& json)
 
 	// SPAWN DIRECT : le joueur a deja un personnage -> pas d'ecran de selection,
 	// on demande le spawn tout de suite (le serveur repond avec APPLY_LOOK/CLOSE).
+	// La demande est envoyee par Render() (thread du jeu), une fois le ped stable.
 	if (g_hasChar) {
 		g_pedHidden = false;
 		g_selectSetupPending = false;
 		g_selectModelRetries = 0;
+		g_autoSpawnTick = 0;
+		g_autoSpawnPending = true;
 		g_state = State::Waiting;
-		g_autoSpawnTick = GetTickCount();
-		CharacterCreator::SendSpawnRequest();
 	}
 
 	// Le bouton de spawn (NASCER) est affiche : on ferme l'ecran de chargement du launcher.
@@ -776,6 +803,7 @@ void CharacterCreator::OpenSelect(const std::string& json)
 void CharacterCreator::OpenCreate()
 {
 	g_autoSpawnTick = 0;
+	g_autoSpawnPending = false;
 	g_testMode = false;
 	g_selectModelRetries = 0;
 	g_selectSetupPending = false;
@@ -788,10 +816,17 @@ void CharacterCreator::OpenCreate()
 void CharacterCreator::ApplyLook(const std::string& json)
 {
 	g_autoSpawnTick = 0;
+	g_autoSpawnPending = false;
 	g_testMode = false;
 	g_selectModelRetries = 0;
 	g_selectSetupPending = false;
-	ApplyLookFromJson(json);
+	// Thread reseau : on memorise seulement. Render() applique sur le thread du jeu.
+	{
+		std::lock_guard<std::mutex> lock(g_pendingLookMutex);
+		g_pendingLookJson = json;
+	}
+	g_pendingLookTick = GetTickCount();
+	g_pendingLook = true;
 	if (g_editTarget != EditTarget::None && pUI && pUI->keyboard()) {
 		pUI->keyboard()->hide();
 	}
@@ -803,6 +838,7 @@ void CharacterCreator::ApplyLook(const std::string& json)
 void CharacterCreator::CloseAll()
 {
 	g_autoSpawnTick = 0;
+	g_autoSpawnPending = false;
 	g_testMode = false;
 	g_selectModelRetries = 0;
 	g_selectSetupPending = false;
@@ -837,12 +873,49 @@ void CharacterCreator::Render()
 		}
 	}
 
+	// Apparence envoyee par le serveur : appliquee ici (thread du jeu), seulement
+	// quand le ped est stable et que son skin est gere par le systeme de vetements.
+	if (g_pendingLook.load()) {
+		const uint32_t nowLook = GetTickCount();
+		if (LocalPedStable() && ClothesCustomization::IsSupportedLocalSkin() && nowLook - g_pendingLookTick > 400) {
+			g_pendingLook = false;
+			std::string json;
+			{
+				std::lock_guard<std::mutex> lock(g_pendingLookMutex);
+				json = g_pendingLookJson;
+			}
+			ApplyLookFromJson(json);
+		}
+		else if (nowLook - g_pendingLookTick > 15000) {
+			g_pendingLook = false; // abandon : le ped n'est jamais devenu stable
+		}
+	}
+
 	if (g_state == State::Hidden) return;
 
+	// SPAWN DIRECT (joueur avec personnage) : on attend que le ped soit stable, puis
+	// on envoie la demande. Aucune manipulation du ped ici (pas de modele, pas de taches).
+	if (g_state == State::Waiting && g_autoSpawnPending.load()) {
+		const uint32_t nowSpawn = GetTickCount();
+		if (nowSpawn - g_selectOpenTick > 1200 && LocalPedStable()) {
+			g_autoSpawnPending = false;
+			g_autoSpawnTick = nowSpawn;
+			CharacterCreator::SendSpawnRequest();
+		}
+		else if (nowSpawn - g_selectOpenTick > 10000) {
+			g_autoSpawnPending = false;
+			g_state = State::Select; // repli : le joueur appuie sur ENTRER EN JEU
+		}
+		return;
+	}
+
 	// Repli du spawn direct : pas de reponse serveur apres 8 s -> ecran de selection
-	if (g_state == State::Waiting && g_autoSpawnTick != 0 && GetTickCount() - g_autoSpawnTick > 8000) {
-		g_autoSpawnTick = 0;
-		g_state = State::Select;
+	if (g_state == State::Waiting && g_autoSpawnTick != 0) {
+		if (GetTickCount() - g_autoSpawnTick > 8000) {
+			g_autoSpawnTick = 0;
+			g_state = State::Select;
+		}
+		return; // pas de rotation/FallGuard pendant que le serveur deplace le joueur
 	}
 
 	// Garante que o boneco fique de frente pra câmera enquanto a criação está

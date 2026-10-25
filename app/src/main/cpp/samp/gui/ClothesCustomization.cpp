@@ -668,9 +668,11 @@ namespace {
 		WantTexture(wanted, "fantasy_tatto_arm_r", g_look.tattooArmRight > 0 ? MaleTattooTextureName("arm", g_look.tattooArmRight) : kClearTexture);
 	}
 
+	// Textures actuellement posees sur le ped local (videe par Reset() quand le modele change).
+	std::unordered_map<std::string, std::string> g_appliedTextures;
+
 	void CommitWantedTextures(const std::unordered_map<std::string, std::string>& wanted)
 	{
-		static std::unordered_map<std::string, std::string> g_appliedTextures;
 
 		for (auto it = g_appliedTextures.begin(); it != g_appliedTextures.end();) {
 			if (!wanted.contains(it->first)) {
@@ -878,6 +880,7 @@ ClothesLook& ClothesCustomization::Look()
 
 void ClothesCustomization::Reset(int gender)
 {
+	g_appliedTextures.clear();
 	g_look = ClothesLook{};
 	// Padrões do gênero
 	g_look.skinTone = 1;

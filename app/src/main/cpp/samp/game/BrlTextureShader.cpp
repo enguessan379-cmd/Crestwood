@@ -169,6 +169,7 @@ namespace {
 				material->texture = it->second;
 				g_originalMaterialTextures.erase(it);
 			}
+			g_originalMaterialNames.erase(material);
 		}
 
 		return atomic;
@@ -375,6 +376,17 @@ bool BrlTextureShader::SetLocalPlayerTexture(const std::string& sourceTexture, c
 		ForEachAtomic(ped->m_pPed->m_pRwObject, ApplyAtomicCallback, &context);
 	}
 	return true;
+}
+
+void BrlTextureShader::ResetLocalPlayer()
+{
+	if (CPlayerPed* ped = FindLocalPed(); ped && ped->m_pPed && ped->m_pPed->m_pRwObject) {
+		RestoreObject(ped->m_pPed->m_pRwObject);
+	}
+
+	const ShaderKey key{BrlShaderTargetType::Player, kLocalPlayerShaderId, 0};
+	std::lock_guard lock(g_shaderMutex);
+	g_rules.erase(key);
 }
 
 bool BrlTextureShader::ClearLocalPlayerTexture(const std::string& sourceTexture)

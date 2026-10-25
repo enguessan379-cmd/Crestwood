@@ -33,6 +33,11 @@ public:
     static bool SetPlayerTexture(uint16_t playerId, const std::string& sourceTexture, const std::string& replacementTexture);
     static bool SetLocalPlayerTexture(const std::string& sourceTexture, const std::string& replacementTexture);
     static bool ClearLocalPlayerTexture(const std::string& sourceTexture);
+
+    // Restaure les textures d'origine du ped local et oublie ses regles.
+    // A appeler AVANT de changer son modele (SetModelIndex) : les anciens
+    // RpMaterial* sont liberes et ne doivent plus rester dans les caches.
+    static void ResetLocalPlayer();
     static bool SetVehicleTexture(uint16_t vehicleId, const std::string& sourceTexture, const std::string& replacementTexture);
     static bool SetObjectTexture(uint16_t objectId, const std::string& sourceTexture, const std::string& replacementTexture);
     static bool SetWeaponTexture(uint16_t playerId, uint8_t weaponId, const std::string& sourceTexture, const std::string& replacementTexture);
