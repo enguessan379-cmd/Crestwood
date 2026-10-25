@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Banking NEXION</title>
+    <link rel="stylesheet" href="bank.css">
+</head>
+<body>
+
+<!-- Container Principal -->
+<div class="bank-container" id="bankContainer">
+
+    <!-- OVERLAY: Registro Inicial da Senha -->
+    <div class="overlay" id="registerOverlay">
+        <div class="pin-container">
+            <div class="pin-logo">
+                <span>Banking</span>
+                <h2>NEXION</h2>
+            </div>
+            <div class="pin-subtitle">Crie sua Senha de Acesso</div>
+            <div class="pin-input-box" id="regPinDisplay">&bull;&bull;&bull;&bull;</div>
+
+            <div class="keypad">
+                <button class="key-btn" onclick="addPin('1', 'reg')">1</button>
+                <button class="key-btn" onclick="addPin('2', 'reg')">2</button>
+                <button class="key-btn" onclick="addPin('3', 'reg')">3</button>
+                <button class="key-btn" onclick="addPin('4', 'reg')">4</button>
+                <button class="key-btn" onclick="addPin('5', 'reg')">5</button>
+                <button class="key-btn" onclick="addPin('6', 'reg')">6</button>
+                <button class="key-btn" onclick="addPin('7', 'reg')">7</button>
+                <button class="key-btn" onclick="addPin('8', 'reg')">8</button>
+                <button class="key-btn" onclick="addPin('9', 'reg')">9</button>
+                <button class="key-btn zero" onclick="addPin('0', 'reg')">0</button>
+                <button class="key-btn" onclick="clearPin('reg')">
+                    <svg class="icon" viewBox="0 0 24 24"><path d="M21 5H8L2 12l6 7h13a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1z"/><path d="M18 9l-6 6M12 9l6 6"/></svg>
+                </button>
+            </div>
+
+            <button class="btn-action-pin" onclick="saveInitialPin()">Registrar Senha</button>
+        </div>
+    </div>
+
+    <!-- OVERLAY: Login / Confirmação de Senha -->
+    <div class="overlay" id="authOverlay">
+        <div class="pin-container">
+            <div class="pin-logo">
+                <span>Banking</span>
+                <h2>NEXION</h2>
+            </div>
+            <div class="pin-subtitle" id="authSubtitle">Insira sua Senha para Acessar</div>
+            <div class="pin-input-box" id="authPinDisplay">&bull;&bull;&bull;&bull;</div>
+
+            <div class="keypad">
+                <button class="key-btn" onclick="addPin('1', 'auth')">1</button>
+                <button class="key-btn" onclick="addPin('2', 'auth')">2</button>
+                <button class="key-btn" onclick="addPin('3', 'auth')">3</button>
+                <button class="key-btn" onclick="addPin('4', 'auth')">4</button>
+                <button class="key-btn" onclick="addPin('5', 'auth')">5</button>
+                <button class="key-btn" onclick="addPin('6', 'auth')">6</button>
+                <button class="key-btn" onclick="addPin('7', 'auth')">7</button>
+                <button class="key-btn" onclick="addPin('8', 'auth')">8</button>
+                <button class="key-btn" onclick="addPin('9', 'auth')">9</button>
+                <button class="key-btn zero" onclick="addPin('0', 'auth')">0</button>
+                <button class="key-btn" onclick="clearPin('auth')">
+                    <svg class="icon" viewBox="0 0 24 24"><path d="M21 5H8L2 12l6 7h13a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1z"/><path d="M18 9l-6 6M12 9l6 6"/></svg>
+                </button>
+            </div>
+
+            <button class="btn-action-pin" id="btnAuthConfirm" onclick="confirmAuth()">Acessar Conta</button>
+            <button class="btn-modal-cancel" id="btnAuthCancel" style="width: 100%; margin-top: 8px; display: none;" onclick="cancelAuth()">Cancelar</button>
+        </div>
+    </div>
+
+    <!-- OVERLAY: Modal de Saque / Depósito / Transferência -->
+    <div class="overlay" id="actionModal">
+        <div class="modal-box">
+            <div class="modal-header">
+                <span>Banking</span>
+                <h2>NEXION</h2>
+            </div>
+            <div class="modal-tag" id="modalTag">Sacar Dinheiro</div>
+            <p class="modal-desc">Estamos comprometidos em fornecer um serviço excepcional, atendendo de forma eficiente e altamente personalizada.</p>
+
+            <input type="number" inputmode="numeric" class="modal-input" id="inputPassport" placeholder="Insira o passaporte do jogador..." style="display: none;">
+            <input type="number" inputmode="numeric" class="modal-input" id="inputAmount" placeholder="Insira o valor...">
+
+            <div class="modal-buttons">
+                <button class="btn-modal-cancel" onclick="closeOverlay('actionModal')">Voltar</button>
+                <button class="btn-modal-confirm" id="btnModalConfirm" onclick="proceedToAuth()">Confirmar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Cabeçalho Principal -->
+    <div class="header">
+        <div class="logo-area">
+            <div class="logo-icon">
+                <svg class="icon" viewBox="0 0 24 24"><path d="M3 21h18M4 21V10M20 21V10M2 10l10-7 10 7H2zM8 21v-7M12 21v-7M16 21v-7"/></svg>
+            </div>
+            <div class="logo-text">
+                <span>Banking</span>
+                <h1>NEXION</h1>
+            </div>
+        </div>
+        <button class="btn-exit" onclick="closeBank()">
+            <svg class="icon" viewBox="0 0 24 24"><path d="M12 2v10"/><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/></svg>
+            SAIR
+        </button>
+    </div>
+
+    <!-- Perfil do Jogador -->
+    <div class="user-profile">
+        <div class="profile-left">
+            <div class="user-avatar">
+                <svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+            </div>
+            <div class="user-info">
+                <strong id="playerName">Carregando...</strong>
+                <span>Sem multas pendentes</span>
+            </div>
+        </div>
+        <div>
+            <span class="cash-pill" id="playerCash">$ 0</span>
+            <span class="user-badge">Conta Verificada</span>
+        </div>
+    </div>
+
+    <!-- Conteúdo Principal -->
+    <div class="main-grid">
+        <div>
+            <!-- Cartão -->
+            <div class="credit-card-blue">
+                <div class="card-top">
+                    <div class="card-brand">NEXION</div>
+                    <div class="card-chip"></div>
+                </div>
+                <div class="card-number-blue" id="cardNumber">&bull;&bull;&bull;&bull; &bull;&bull;&bull;&bull; 0000</div>
+                <div class="card-bottom-blue">
+                    <div>
+                        <span class="card-label">Saldo em Conta</span>
+                        <div class="card-value" id="bankBalance">$ 0</div>
+                    </div>
+                    <svg class="icon card-signal" viewBox="0 0 24 24"><path d="M5 12.55a11 11 0 0 1 14.08 0M8.53 16.11a6 6 0 0 1 6.95 0M12 20h.01"/></svg>
+                </div>
+            </div>
+        </div>
+
+        <div>
+            <!-- Ações Rápidas -->
+            <div class="actions-grid">
+                <div class="action-card" onclick="openActionModal('sacar')">
+                    <div class="icon-box">
+                        <svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 17V7M8 11l4-4 4 4"/></svg>
+                    </div>
+                    <div class="action-text">
+                        <p>Sacar</p>
+                        <span>Dinheiro</span>
+                    </div>
+                </div>
+                <div class="action-card" onclick="openActionModal('depositar')">
+                    <div class="icon-box">
+                        <svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 7v10M8 13l4 4 4-4"/></svg>
+                    </div>
+                    <div class="action-text">
+                        <p>Depositar</p>
+                        <span>Dinheiro</span>
+                    </div>
+                </div>
+                <div class="action-card" onclick="openActionModal('transferir')">
+                    <div class="icon-box">
+                        <svg class="icon" viewBox="0 0 24 24"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+                    </div>
+                    <div class="action-text">
+                        <p>Transferir</p>
+                        <span>Dinheiro</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Empréstimo (em breve) -->
+            <div class="loan-box">
+                <div class="loan-info">
+                    <p>Empréstimo Rápido</p>
+                    <span>Em breve...</span>
+                </div>
+                <button class="btn-blue" style="opacity: 0.5;" disabled>Solicitar</button>
+            </div>
+
+            <!-- Histórico -->
+            <div class="history-section">
+                <div class="history-header">
+                    <h4>Últimas movimentações</h4>
+                </div>
+                <div class="history-list" id="historyList">
+                    <div class="empty-history">Nenhuma movimentação recente</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script src="bank.js"></script>
+
+</body>
+</html>

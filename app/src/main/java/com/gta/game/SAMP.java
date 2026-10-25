@@ -56,6 +56,8 @@ public class SAMP extends GTASA implements HeightProvider.HeightListener {
     private EditText chatInput;
     private boolean configOpen;
     private boolean pharmacyOpen;
+    private boolean bankOpen;
+    private volatile String pendingBankJson;
     private boolean cameraOpen;
     private volatile int hudHunger = 100;
     private volatile int hudThirst = 100;
@@ -121,6 +123,12 @@ public class SAMP extends GTASA implements HeightProvider.HeightListener {
         final String content = new String(bArr2);
         final String leftBtnText = new String(bArr3);
         final String rightBtnText = new String(bArr4);
+        // Banque : le serveur envoie l'etat en JSON dans un dialogue special (ids 9500-9502,
+        // titre "@bank"). On ne l'affiche pas : il va a la page assets/bank/index.html.
+        if (dialogId >= 9500 && dialogId <= 9502 && "@bank".equals(caption)) {
+            handleBankDialog(dialogId, content);
+            return;
+        }
         // Le dialogue de connexion du serveur (login/inscription) s'affiche DERRIERE l'ecran de chargement :
         // sans cette ligne le joueur ne pouvait jamais le voir, donc jamais arriver au spawn.
         loadingClosedByGame = true;
@@ -282,7 +290,15 @@ public class SAMP extends GTASA implements HeightProvider.HeightListener {
         if (hudWebView == null) return;
         hudWebView.setBackgroundColor(Color.TRANSPARENT);
         hudWebView.setLayerType(View.LAYER_TYPE_HARDWARE, null);
-        hudWebView.setWebViewClient(new WebViewClient());
+        hudWebView.setWebViewClient(new WebViewClient() {
+            @Override public void onPageFinished(WebView view, String url) {
+                String json = pendingBankJson;
+                if (json != null && url != null && url.endsWith("bank/index.html")) {
+                    pendingBankJson = null;
+                    view.evaluateJavascript("window.BankApp && BankApp.openFromNative(" + JSONObject.quote(json) + ")", null);
+                }
+            }
+        });
         WebSettings settings = hudWebView.getSettings();
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
@@ -296,6 +312,7 @@ public class SAMP extends GTASA implements HeightProvider.HeightListener {
         settings.setUseWideViewPort(false);
         hudWebView.addJavascriptInterface(new HudAndroidBridge(), "AndroidHUD");
         hudWebView.addJavascriptInterface(new SampHudBridge(), "SampHud");
+        hudWebView.addJavascriptInterface(new SampBankBridge(), "SampBank");
         hudWebView.setVisibility(View.VISIBLE);
         hudWebView.loadUrl("file:///android_asset/hud/index.html");
     }
@@ -439,11 +456,75 @@ public class SAMP extends GTASA implements HeightProvider.HeightListener {
         });
     }
 
+    // ---- Banque (page assets/bank/index.html) ----
+    private void handleBankDialog(final int dialogId, final String json) {
+        runOnUiThread(() -> {
+            if (hudWebView == null || isFinishing()) return;
+            if (dialogId == 9502) {            // fermeture demandee par le serveur
+                closeBankPage(false);
+            } else if (dialogId == 9500) {     // ouverture
+                openBankPage(json);
+            } else if (bankOpen) {             // 9501 : mise a jour (solde, historique, message)
+                hudWebView.evaluateJavascript("window.BankApp && BankApp.onUpdateFromNative(" + JSONObject.quote(json) + ")", null);
+            }
+        });
+    }
+
+    private void openBankPage(String json) {
+        if (hudWebView == null) return;
+        bankOpen = true;
+        configOpen = true;
+        pharmacyOpen = false;
+        pendingBankJson = json;
+        hudWebView.setWheelOpen(false);
+        hudWebView.setPhonePage(false);
+        hudWebView.setFullscreenPage(true);
+        hudWebView.setVisibility(View.VISIBLE);
+        hudWebView.loadUrl("file:///android_asset/bank/index.html");
+    }
+
+    private void closeBankPage(final boolean notifyServer) {
+        runOnUiThread(() -> {
+            if (hudWebView == null) return;
+            boolean wasOpen = bankOpen;
+            bankOpen = false;
+            configOpen = false;
+            pendingBankJson = null;
+            hudWebView.setFullscreenPage(false);
+            hudWebView.setPhonePage(false);
+            hudWebView.setVisibility(View.VISIBLE);
+            hudWebView.loadUrl("file:///android_asset/hud/index.html");
+            if (notifyServer && wasOpen) sendChatInput("/bankact close 0 0 0");
+        });
+    }
+
+    private final class SampBankBridge {
+        // JS -> serveur : /bankact <type> <pin> <montant> <cible>
+        @JavascriptInterface public void action(String type, String json) {
+            try {
+                String t = type == null ? "" : type.replaceAll("[^a-z_]", "");
+                if (t.isEmpty()) return;
+                JSONObject o = new JSONObject(json == null || json.isEmpty() ? "{}" : json);
+                long pin = Math.max(0L, Math.min(9999L, o.optLong("pin", 0)));
+                long amount = Math.max(0L, Math.min(2000000000L, o.optLong("amount", 0)));
+                long target = Math.max(0L, Math.min(1000L, o.optLong("target", 0)));
+                sendHudCommand("/bankact " + t + " " + pin + " " + amount + " " + target);
+            } catch (Exception e) {
+                Log.e(TAG, "bank action", e);
+            }
+        }
+
+        @JavascriptInterface public void close() {
+            closeBankPage(true);
+        }
+    }
+
     private void closeConfig() {
         runOnUiThread(() -> {
             if (hudWebView == null) return;
             configOpen = false;
             pharmacyOpen = false;
+            bankOpen = false;
             cameraOpen = false;
             hudWebView.setFullscreenPage(false);
             hudWebView.setPhonePage(false);
@@ -454,6 +535,10 @@ public class SAMP extends GTASA implements HeightProvider.HeightListener {
 
     @Override
     public void onBackPressed() {
+        if (bankOpen) {
+            closeBankPage(true);
+            return;
+        }
         if (cameraOpen) {
             closePhoneCamera();
             return;

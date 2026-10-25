@@ -111,6 +111,8 @@ public   class GameView extends SurfaceView implements SurfaceHolder.Callback2 {
 
     public void onPause() {
         Log.i(TAG, "[!!] onPause");
+        // Pause reelle (activite en arriere-plan) : on arrete le rendu et on previent le natif
+        setHasFocus(false);
         GameThread.INSTANCE.onPause();
         Iterator<GameViewHandler> it = this.handlers.iterator();
         while (it.hasNext()) {
@@ -120,6 +122,7 @@ public   class GameView extends SurfaceView implements SurfaceHolder.Callback2 {
 
     public void onResume() {
         Log.i(TAG, "[!!] onResume");
+        setHasFocus(true);
         GameThread.INSTANCE.onResume();
         // چاککردنی لووپەکە لێرەدا
         for (GameViewHandler handler : this.handlers) {
@@ -137,12 +140,12 @@ public   class GameView extends SurfaceView implements SurfaceHolder.Callback2 {
     public void onWindowFocusChanged(boolean hasWindowFocus) {
         super.onWindowFocusChanged(hasWindowFocus);
         Log.i(TAG, "[!!] onWindowFocusChanged: " + hasWindowFocus);
-        setHasFocus(hasWindowFocus);
-        if (this.hasFocus) {
-            onResume();
-        } else {
-            onPause();
-        }
+        // FIX : descendre la tuile de notifications, une capture d'ecran, une notif
+        // "heads-up", etc. font perdre le FOCUS de la fenetre sans mettre l'activite en
+        // pause. Avant, on appelait onPause() ici -> GameNative.implOnPause() -> le jeu
+        // ouvrait le menu pause (map/stats). Maintenant la pause native n'est declenchee
+        // que par le vrai cycle de vie de l'activite (GameActivityBase.onPause/onResume).
+        // Le rendu continue normalement derriere la tuile.
     }
 
     public void setup(GameActivityBase activity) {
