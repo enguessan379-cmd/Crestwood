@@ -182,6 +182,25 @@ public class SAMP extends GTASA implements HeightProvider.HeightListener {
                 return;
             }
         }
+        // Vetements : ids 9550 (appliquer l'apparence sauvegardee), 9551 (ouvrir l'editeur), 9552 (fermer),
+        // titre "@clothes", contenu JSON. Rien n'est affiche en dialogue : le panneau natif prend le relais.
+        if (dialogId >= 9550 && dialogId <= 9554) {
+            final String capCloth = caption.replace("\u0000", "").replaceAll("\\{[0-9A-Fa-f]{6}\\}", "").trim();
+            final boolean clothJson = content != null && content.trim().startsWith("{");
+            if (capCloth.startsWith("@clothes") || clothJson) {
+                String rawCloth = content == null ? "{}" : content.replace("\u0000", "").trim();
+                int cs = rawCloth.indexOf('{');
+                int ce = rawCloth.lastIndexOf('}');
+                final String clothPayload = (cs >= 0 && ce > cs) ? rawCloth.substring(cs, ce + 1) : "{}";
+                final int clothId = dialogId;
+                try {
+                    onClothesDialog(clothId, clothPayload);
+                } catch (UnsatisfiedLinkError e) {
+                    Log.e(TAG, "[clothes] natif indisponible : " + e.getMessage());
+                }
+                return;
+            }
+        }
         // Inventaire : ids 9530 (ouvrir), 9531 (mise a jour), 9532 (fermer), titre "@inv", contenu JSON.
         if (dialogId >= 9530 && dialogId <= 9532) {
             final String capInv = caption.replace("\u0000", "").replaceAll("\\{[0-9A-Fa-f]{6}\\}", "").trim();
@@ -259,6 +278,8 @@ public class SAMP extends GTASA implements HeightProvider.HeightListener {
     private native void openChatInput();
     private native void sendChatInput(String input);
     private native void openClothesTest();
+    /** Dialogues "@clothes" du serveur (ids 9550 appliquer, 9551 ouvrir l'editeur, 9552 fermer, 9553/9554 apparence d'un autre joueur : appliquer/retirer). */
+    private native void onClothesDialog(int dialogId, String json);
 
     @Override
     public void onStart() {

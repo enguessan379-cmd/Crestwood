@@ -33,6 +33,8 @@ public:
     static bool SetPlayerTexture(uint16_t playerId, const std::string& sourceTexture, const std::string& replacementTexture);
     static bool SetLocalPlayerTexture(const std::string& sourceTexture, const std::string& replacementTexture);
     static bool ClearLocalPlayerTexture(const std::string& sourceTexture);
+    // Idem pour un joueur distant (restaure la texture d'origine sur son ped s'il est streame).
+    static bool ClearPlayerTexture(uint16_t playerId, const std::string& sourceTexture);
 
     // Restaure les textures d'origine du ped local et oublie ses regles.
     // A appeler AVANT de changer son modele (SetModelIndex) : les anciens

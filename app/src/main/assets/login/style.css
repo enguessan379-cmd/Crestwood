@@ -1720,3 +1720,35 @@ form {
 .news-pagination {
     margin-top: 12px !important;
 }
+
+
+/* Crestwood RP — responsive login repair (Android WebView / landscape) */
+html, body { min-height: 100%; height: 100%; }
+.auth-page { height: 100dvh; min-height: 0; }
+.auth-center {
+    left: 61%; top: 50%; width: min(560px, calc(100vw - 32px));
+    min-height: 0; max-height: calc(100dvh - 24px); overflow-y: auto;
+    padding: 10px 4px 16px; scrollbar-width: none;
+}
+.auth-center::-webkit-scrollbar { display: none; }
+.auth-tabs { width: min(400px, 100%); margin-bottom: clamp(18px, 4vh, 40px); }
+.auth-screen { width: 100%; }
+.auth-screen form { width: 100%; }
+.auth-screen .field { min-width: 0; }
+.auth-screen input { min-width: 0; }
+.auth-screen .primary-button { width: 100%; }
+.corner-brand { z-index: 3; }
+@media (max-width: 760px) {
+    .left-character { width: 100%; opacity: .34; }
+    .auth-center { left: 50%; width: min(520px, calc(100vw - 28px)); }
+    .background-layer { background-position: 35% center; }
+}
+@media (orientation: landscape) and (max-height: 560px) {
+    .auth-center { left: 61%; top: 50%; max-height: calc(100dvh - 12px); padding: 4px 4px 8px; }
+    .auth-tabs { height: 42px; margin-bottom: 12px; padding: 3px; }
+    .auth-tab { height: 34px; }
+    .screen-header { margin-bottom: 14px; }
+    .screen-header h1 { margin-top: 0; }
+    .auth-screen .field { min-height: 48px; margin-bottom: 10px; }
+    .auth-screen .primary-button { min-height: 46px; }
+}

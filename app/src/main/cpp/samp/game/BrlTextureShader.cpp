@@ -401,6 +401,24 @@ bool BrlTextureShader::ClearLocalPlayerTexture(const std::string& sourceTexture)
 	return true;
 }
 
+bool BrlTextureShader::ClearPlayerTexture(uint16_t playerId, const std::string& sourceTexture)
+{
+	if (playerId == kLocalPlayerShaderId) return ClearLocalPlayerTexture(sourceTexture);
+
+	const ShaderKey key{BrlShaderTargetType::Player, playerId, 0};
+	if (!ClearRuleSource(key, sourceTexture)) return false;
+
+	if (pNetGame && pNetGame->GetPlayerPool()) {
+		if (CRemotePlayer* remote = pNetGame->GetPlayerPool()->GetAt(static_cast<PLAYERID>(playerId))) {
+			CPlayerPed* ped = remote->GetPlayerPed();
+			if (ped && ped->m_pPed && ped->m_pPed->m_pRwObject) {
+				RestoreSourceOnObject(ped->m_pPed->m_pRwObject, ped->m_pPed->m_nModelIndex, sourceTexture);
+			}
+		}
+	}
+	return true;
+}
+
 bool BrlTextureShader::SetVehicleTexture(uint16_t vehicleId, const std::string& sourceTexture, const std::string& replacementTexture)
 {
 	return SetRule({BrlShaderTargetType::Vehicle, vehicleId, 0}, sourceTexture, replacementTexture, CurrentVehicleModelId(vehicleId));

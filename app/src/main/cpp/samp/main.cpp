@@ -329,6 +329,20 @@ extern "C" {
 			CharacterCreator::RequestOpenTest();
 		}
 
+		// Dialogues serveur "@clothes" (ids 9550-9552) : apparence sauvegardee / editeur.
+		JNIEXPORT void JNICALL Java_com_gta_game_SAMP_onClothesDialog(JNIEnv *pEnv, jobject thiz, jint dialogId, jstring json)
+		{
+			std::string payload;
+			if (json) {
+				const char* text = pEnv->GetStringUTFChars(json, nullptr);
+				if (text) {
+					payload = text;
+					pEnv->ReleaseStringUTFChars(json, text);
+				}
+			}
+			CharacterCreator::OnServerDialog(static_cast<int>(dialogId), payload);
+		}
+
 		JNIEXPORT void JNICALL Java_com_gta_game_SAMP_openChatInput(JNIEnv *pEnv, jobject thiz)
 		{
 			if (pUI && pUI->chat()) pUI->chat()->touchPopEvent();

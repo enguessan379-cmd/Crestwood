@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <array>
 #include <cstdio>
+#include <cstring>
 #include <string>
 #include <unordered_map>
 
@@ -398,8 +399,15 @@ namespace {
 		g_look.policeHat = ClampU8(g_look.policeHat, 0, 1);
 	}
 
+	// Contexte d'application : par defaut le ped local. ApplyRemote() le bascule
+	// temporairement sur un joueur distant (modele force + regles de ce joueur).
+	uint16_t g_ctxPlayer = 0xFFFF;
+	uint16_t g_ctxModel = 0;
+	std::unordered_map<uint16_t, std::unordered_map<std::string, std::string>> g_remoteApplied;
+
 	uint16_t CurrentLocalModelId()
 	{
+		if (g_ctxModel != 0) return g_ctxModel;
 		if (!pGame) return 0;
 		CPlayerPed* ped = pGame->FindPlayerPed();
 		if (!ped || !ped->m_pPed) return 0;
@@ -408,6 +416,7 @@ namespace {
 
 	bool CurrentLocalPedReady()
 	{
+		if (g_ctxModel != 0) return true;
 		if (!pGame) return false;
 		CPlayerPed* ped = pGame->FindPlayerPed();
 		return ped && ped->m_pPed && ped->m_pPed->m_pRwObject;
@@ -673,11 +682,17 @@ namespace {
 
 	void CommitWantedTextures(const std::unordered_map<std::string, std::string>& wanted)
 	{
+		const bool remote = g_ctxPlayer != 0xFFFF;
+		auto& applied = remote ? g_remoteApplied[g_ctxPlayer] : g_appliedTextures;
+		auto clearTex = [&](const std::string& material) {
+			if (remote) BrlTextureShader::ClearPlayerTexture(g_ctxPlayer, material);
+			else BrlTextureShader::ClearLocalPlayerTexture(material);
+		};
 
-		for (auto it = g_appliedTextures.begin(); it != g_appliedTextures.end();) {
+		for (auto it = applied.begin(); it != applied.end();) {
 			if (!wanted.contains(it->first)) {
-				BrlTextureShader::ClearLocalPlayerTexture(it->first);
-				it = g_appliedTextures.erase(it);
+				clearTex(it->first);
+				it = applied.erase(it);
 			}
 			else {
 				++it;
@@ -686,14 +701,15 @@ namespace {
 
 		for (const auto& [material, texture] : wanted) {
 			if (texture == kClearTexture && !BrlTextureShader::HasTexture(texture)) {
-				BrlTextureShader::ClearLocalPlayerTexture(material);
-				g_appliedTextures.erase(material);
+				clearTex(material);
+				applied.erase(material);
 				continue;
 			}
-			auto it = g_appliedTextures.find(material);
-			if (it == g_appliedTextures.end() || it->second != texture) {
-				BrlTextureShader::SetLocalPlayerTexture(material, texture);
-				g_appliedTextures[material] = texture;
+			auto it = applied.find(material);
+			if (it == applied.end() || it->second != texture) {
+				if (remote) BrlTextureShader::SetPlayerTexture(g_ctxPlayer, material, texture);
+				else BrlTextureShader::SetLocalPlayerTexture(material, texture);
+				applied[material] = texture;
 			}
 		}
 	}
@@ -826,33 +842,98 @@ namespace {
 		CommitWantedTextures(wanted);
 	}
 
-	bool ArrowButton(const char* id, const char* label)
+	// ------------------------------------------------------------
+	// Interface du panneau : onglets + sélecteurs tactiles
+	// ------------------------------------------------------------
+	// 0 visage, 1 cheveux, 2 habits, 3 tatouages, 4 police
+	int g_panelTab = 0;
+
+	// Chaque sélecteur appartient à un onglet, déduit de son libellé : le code
+	// de chaque skin (homme, femme, police) reste donc une simple liste de lignes.
+	int TabOfLabel(const char* label)
 	{
-		ImGui::PushID(id);
-		bool clicked = ImGui::Button(label, ImVec2(58.0f, 44.0f));
-		ImGui::PopID();
-		return clicked;
+		if (std::strstr(label, "Tatouage")) return 3;
+		if (std::strstr(label, "Arme") || std::strstr(label, "Gilet") || std::strstr(label, "Béret")) return 4;
+		if (std::strstr(label, "cheveux")) return 1;
+		if (std::strstr(label, "Hauts") || std::strstr(label, "du haut") || std::strcmp(label, "Bas") == 0 ||
+			std::strstr(label, "du bas") || std::strstr(label, "Chaussures") || std::strstr(label, "des chaussures")) return 2;
+		return 0; // peau, visage, maquillage, sourcils, barbe
+	}
+
+	void FormatValue(char* buf, size_t n, int value, int minValue, int maxValue)
+	{
+		if (minValue == 0 && maxValue == 1) {
+			std::snprintf(buf, n, "%s", value ? "Oui" : "Non");
+		}
+		else if (minValue == 0 && value == 0) {
+			std::snprintf(buf, n, "Aucun");
+		}
+		else {
+			std::snprintf(buf, n, "%d / %d", value, maxValue);
+		}
 	}
 
 	bool DrawSelectorInternal(const char* label, uint8_t& value, int minValue, int maxValue, bool applyOnChange)
 	{
+		if (TabOfLabel(label) != g_panelTab) return false;
+
 		bool changed = false;
-		ImGui::Text("%s", label);
-		// Alinha os botões < valor > logo após o texto do rótulo, com uma
-		// margem proporcional à fonte (a fonte do launcher escala com a
-		// resolução; um deslocamento fixo em px quebrava o layout em HD).
-		ImGui::SameLine(ImGui::CalcTextSize(label).x + ImGui::GetFontSize() * 2.2f);
-		if (ArrowButton(label, "<")) {
+		ImGui::PushID(label);
+
+		const float btnW = 58.0f;
+		const float btnH = 50.0f;
+		const float gap = 8.0f;
+		const float avail = ImGui::GetContentRegionAvail().x;
+		const float boxW = std::max(avail - btnW * 2.0f - gap * 2.0f, 80.0f);
+
+		ImGui::TextColored(ImVec4(0.62f, 0.69f, 0.66f, 1.0f), "%s", label);
+
+		ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 10.0f);
+		ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.06f, 0.14f, 0.10f, 1.0f));
+		ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.0f, 0.42f, 0.24f, 1.0f));
+		ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.0f, 0.72f, 0.38f, 1.0f));
+
+		if (ImGui::Button("<", ImVec2(btnW, btnH))) {
 			value = value <= minValue ? maxValue : value - 1;
 			changed = true;
 		}
-		ImGui::SameLine();
-		ImGui::Text("%02d", value);
-		ImGui::SameLine();
-		if (ArrowButton(label, ">")) {
+		ImGui::SameLine(0.0f, gap);
+
+		// Zone centrale : valeur + barre de progression
+		{
+			const ImVec2 p = ImGui::GetCursorScreenPos();
+			ImDrawList* dl = ImGui::GetWindowDrawList();
+			dl->AddRectFilled(p, ImVec2(p.x + boxW, p.y + btnH), IM_COL32(8, 18, 14, 255), 10.0f);
+			dl->AddRect(p, ImVec2(p.x + boxW, p.y + btnH), IM_COL32(0, 210, 120, 70), 10.0f, 0, 1.0f);
+
+			char txt[24];
+			FormatValue(txt, sizeof(txt), value, minValue, maxValue);
+			const ImVec2 ts = ImGui::CalcTextSize(txt);
+			dl->AddText(ImVec2(p.x + (boxW - ts.x) * 0.5f, p.y + (btnH - ts.y) * 0.5f - 4.0f),
+				IM_COL32(245, 250, 247, 255), txt);
+
+			if (maxValue > minValue) {
+				const float frac = static_cast<float>(value - minValue) / static_cast<float>(maxValue - minValue);
+				const float x0 = p.x + 14.0f;
+				const float x1 = p.x + boxW - 14.0f;
+				const float y = p.y + btnH - 9.0f;
+				dl->AddRectFilled(ImVec2(x0, y), ImVec2(x1, y + 3.0f), IM_COL32(255, 255, 255, 28), 2.0f);
+				dl->AddRectFilled(ImVec2(x0, y), ImVec2(x0 + (x1 - x0) * frac, y + 3.0f), IM_COL32(0, 215, 120, 255), 2.0f);
+			}
+			ImGui::Dummy(ImVec2(boxW, btnH));
+		}
+
+		ImGui::SameLine(0.0f, gap);
+		if (ImGui::Button(">", ImVec2(btnW, btnH))) {
 			value = value >= maxValue ? minValue : value + 1;
 			changed = true;
 		}
+
+		ImGui::PopStyleColor(3);
+		ImGui::PopStyleVar();
+		ImGui::Dummy(ImVec2(0.0f, 8.0f));
+		ImGui::PopID();
+
 		if (changed && applyOnChange) {
 			ClothesCustomization::ApplyCurrent();
 		}
@@ -870,6 +951,33 @@ namespace {
 			color = 1;
 			ClothesCustomization::ApplyCurrent();
 		}
+	}
+
+	// Barre d'onglets (boutons de largeur égale, adaptés au tactile)
+	void DrawTabBar(bool withPolice)
+	{
+		struct Tab { const char* name; int id; };
+		const Tab tabs[] = {
+			{ "VISAGE", 0 }, { "CHEVEUX", 1 }, { "HABITS", 2 }, { "TATOUAGES", 3 }, { "POLICE", 4 }
+		};
+		const int count = withPolice ? 5 : 4;
+		if (g_panelTab >= count) g_panelTab = 0;
+
+		const float gap = 6.0f;
+		const float tabW = (ImGui::GetContentRegionAvail().x - gap * (count - 1)) / count;
+
+		ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 10.0f);
+		for (int i = 0; i < count; ++i) {
+			if (i > 0) ImGui::SameLine(0.0f, gap);
+			const bool active = g_panelTab == tabs[i].id;
+			ImGui::PushStyleColor(ImGuiCol_Button, active ? ImVec4(0.0f, 0.72f, 0.38f, 1.0f) : ImVec4(0.05f, 0.10f, 0.08f, 1.0f));
+			ImGui::PushStyleColor(ImGuiCol_ButtonHovered, active ? ImVec4(0.0f, 0.78f, 0.42f, 1.0f) : ImVec4(0.0f, 0.30f, 0.18f, 1.0f));
+			ImGui::PushStyleColor(ImGuiCol_Text, active ? ImVec4(0.0f, 0.0f, 0.0f, 1.0f) : ImVec4(0.80f, 0.86f, 0.83f, 1.0f));
+			if (ImGui::Button(tabs[i].name, ImVec2(tabW, 42.0f))) g_panelTab = tabs[i].id;
+			ImGui::PopStyleColor(3);
+		}
+		ImGui::PopStyleVar();
+		ImGui::Dummy(ImVec2(0.0f, 6.0f));
 	}
 }
 
@@ -978,6 +1086,35 @@ void ClothesCustomization::ApplyCurrent()
 	CommitWantedTextures(wanted);
 }
 
+void ClothesCustomization::ApplyRemote(uint16_t playerId, const ClothesLook& look, uint16_t modelId)
+{
+	if (playerId == 0xFFFF) return;
+	if (!IsSupportedSkin(modelId)) {
+		ClearRemote(playerId);
+		return;
+	}
+	const ClothesLook saved = g_look;
+	g_ctxPlayer = playerId;
+	g_ctxModel = modelId;
+	g_look = look;
+	ApplyCurrent();
+	g_look = saved;
+	g_ctxPlayer = 0xFFFF;
+	g_ctxModel = 0;
+}
+
+void ClothesCustomization::ClearRemote(uint16_t playerId)
+{
+	auto it = g_remoteApplied.find(playerId);
+	if (it != g_remoteApplied.end()) {
+		for (const auto& entry : it->second) {
+			BrlTextureShader::ClearPlayerTexture(playerId, entry.first);
+		}
+		g_remoteApplied.erase(it);
+	}
+	BrlTextureShader::ClearPlayer(playerId);
+}
+
 void ClothesCustomization::RenderPanel()
 {
 	const uint16_t modelId = CurrentLocalModelId();
@@ -986,7 +1123,8 @@ void ClothesCustomization::RenderPanel()
 	const bool policeMaleSkin = modelId == 280;
 	const bool supportedSkin = IsSupportedSkin(modelId);
 
-	ImGui::BeginChild("clothes_scroll", ImVec2(0.0f, 0.0f), true, ImGuiWindowFlags_AlwaysVerticalScrollbar);
+	DrawTabBar(policeFemaleSkin || policeMaleSkin);
+	ImGui::BeginChild("clothes_scroll", ImVec2(0.0f, 0.0f), false, ImGuiWindowFlags_AlwaysVerticalScrollbar);
 	if (!supportedSkin) {
 		ImGui::TextWrapped("Utilisez le skin 9, 163, 246 ou 280 pour tester les shaders de peau/vêtements.");
 	}
@@ -994,29 +1132,22 @@ void ClothesCustomization::RenderPanel()
 		DrawSelector("Couleur de peau", g_look.skinTone, 1, 6);
 		ClampFemaleSelection();
 		DrawSelector("Texture du visage", g_look.face, 1, kFemaleFaceCountByTone[g_look.skinTone]);
-		ImGui::Separator();
 		DrawSelectorResettingColor("Style de maquillage", g_look.makeupStyle, g_look.makeupColor, 0, kFemaleMakeupStyleCount);
 		if (g_look.makeupStyle > 0) {
 			DrawSelector("Couleur du maquillage", g_look.makeupColor, 1, kFemaleMakeupColorCount);
 		}
-		ImGui::Separator();
 		DrawSelectorResettingColor("Style de sourcils", g_look.eyebrowStyle, g_look.eyebrowColor, 0, kMaleEyebrowStyleCount);
 		if (g_look.eyebrowStyle > 0) {
 			DrawSelector("Couleur des sourcils", g_look.eyebrowColor, 1, kMaleEyebrowColorCount);
 		}
-		ImGui::Separator();
 		DrawSelectorResettingColor("Style de cheveux", g_look.hairStyle, g_look.hairColor, 1, static_cast<int>(kFemaleHairStyles.size()));
 		DrawSelector("Couleur des cheveux", g_look.hairColor, 1, kFemaleHairStyles[g_look.hairStyle - 1].maxValue);
-		ImGui::Separator();
 		DrawSelectorResettingColor("Hauts", g_look.topStyle, g_look.topColor, 1, static_cast<int>(kFemaleTopStyles.size()));
 		DrawSelector("Couleur du haut", g_look.topColor, 1, kFemaleTopStyles[g_look.topStyle - 1].maxValue);
-		ImGui::Separator();
 		DrawSelectorResettingColor("Bas", g_look.bottomStyle, g_look.bottomColor, 1, static_cast<int>(kFemaleBottomStyles.size()));
 		DrawSelector("Couleur du bas", g_look.bottomColor, 1, kFemaleBottomStyles[g_look.bottomStyle - 1].maxValue);
-		ImGui::Separator();
 		DrawSelectorResettingColor("Chaussures", g_look.shoesStyle, g_look.shoesColor, 1, static_cast<int>(kFemaleShoesStyles.size()));
 		DrawSelector("Couleur des chaussures", g_look.shoesColor, 1, kFemaleShoesStyles[g_look.shoesStyle - 1].maxValue);
-		ImGui::Separator();
 		DrawSelector("Tatouage bras gauche", g_look.tattooArmLeft, 0, kMaleTattooArmCount);
 		DrawSelector("Tatouage bras droit", g_look.tattooArmRight, 0, kMaleTattooArmCount);
 		DrawSelector("Tatouage jambe gauche", g_look.tattooLegLeft, 0, kMaleTattooLegCount);
@@ -1028,33 +1159,25 @@ void ClothesCustomization::RenderPanel()
 		DrawSelector("Couleur de peau", g_look.skinTone, 1, 6);
 		ClampPoliceFemaleSelection();
 		DrawSelector("Texture du visage", g_look.face, 1, kFemaleFaceCountByTone[g_look.skinTone]);
-		ImGui::Separator();
 		DrawSelectorResettingColor("Style de maquillage", g_look.makeupStyle, g_look.makeupColor, 0, kFemaleMakeupStyleCount);
 		if (g_look.makeupStyle > 0) {
 			DrawSelector("Couleur du maquillage", g_look.makeupColor, 1, kFemaleMakeupColorCount);
 		}
-		ImGui::Separator();
 		DrawSelectorResettingColor("Style de sourcils", g_look.eyebrowStyle, g_look.eyebrowColor, 0, kMaleEyebrowStyleCount);
 		if (g_look.eyebrowStyle > 0) {
 			DrawSelector("Couleur des sourcils", g_look.eyebrowColor, 1, kMaleEyebrowColorCount);
 		}
-		ImGui::Separator();
 		DrawSelectorResettingColor("Style de cheveux", g_look.hairStyle, g_look.hairColor, 1, static_cast<int>(kPoliceFemaleHairStyles.size()));
 		DrawSelector("Couleur des cheveux", g_look.hairColor, 1, kPoliceFemaleHairStyles[g_look.hairStyle - 1].maxValue);
-		ImGui::Separator();
 		DrawSelectorResettingColor("Hauts", g_look.topStyle, g_look.topColor, 1, static_cast<int>(kPoliceFemaleTopStyles.size()));
 		DrawSelector("Couleur du haut", g_look.topColor, 1, kPoliceFemaleTopStyles[g_look.topStyle - 1].maxValue);
-		ImGui::Separator();
 		DrawSelectorResettingColor("Bas", g_look.bottomStyle, g_look.bottomColor, 1, static_cast<int>(kPoliceFemaleBottomStyles.size()));
 		DrawSelector("Couleur du bas", g_look.bottomColor, 1, kPoliceFemaleBottomStyles[g_look.bottomStyle - 1].maxValue);
-		ImGui::Separator();
 		DrawSelectorResettingColor("Chaussures", g_look.shoesStyle, g_look.shoesColor, 1, static_cast<int>(kPoliceFemaleShoesStyles.size()));
 		DrawSelector("Couleur des chaussures", g_look.shoesColor, 1, kPoliceFemaleShoesStyles[g_look.shoesStyle - 1].maxValue);
-		ImGui::Separator();
 		DrawSelector("Arme à la ceinture", g_look.policeBelt, 0, 1);
 		DrawSelector("Gilet", g_look.policeVest, 0, 1);
 		DrawSelector("Béret", g_look.policeHat, 0, 1);
-		ImGui::Separator();
 		DrawSelector("Tatouage bras gauche", g_look.tattooArmLeft, 0, kMaleTattooArmCount);
 		DrawSelector("Tatouage bras droit", g_look.tattooArmRight, 0, kMaleTattooArmCount);
 	}
@@ -1062,33 +1185,25 @@ void ClothesCustomization::RenderPanel()
 		DrawSelector("Couleur de peau", g_look.skinTone, 1, 6);
 		ClampPoliceMaleSelection();
 		DrawSelector("Forme du visage", g_look.face, 1, std::min(kFaceCountByTone[g_look.skinTone], kDffFaceSlots));
-		ImGui::Separator();
 		DrawSelectorResettingColor("Style de sourcils", g_look.eyebrowStyle, g_look.eyebrowColor, 0, kMaleEyebrowStyleCount);
 		if (g_look.eyebrowStyle > 0) {
 			DrawSelector("Couleur des sourcils", g_look.eyebrowColor, 1, kMaleEyebrowColorCount);
 		}
-		ImGui::Separator();
 		DrawSelectorResettingColor("Style de barbe", g_look.beardStyle, g_look.beardColor, 0, kMaleBeardStyleCount);
 		if (g_look.beardStyle > 0) {
 			DrawSelector("Couleur de la barbe", g_look.beardColor, 1, kMaleBeardColorCount);
 		}
-		ImGui::Separator();
 		DrawSelectorResettingColor("Style de cheveux", g_look.hairStyle, g_look.hairColor, 1, static_cast<int>(kPoliceMaleHairStyles.size()));
 		DrawSelector("Couleur des cheveux", g_look.hairColor, 1, kPoliceMaleHairStyles[g_look.hairStyle - 1].maxValue);
-		ImGui::Separator();
 		DrawSelectorResettingColor("Hauts", g_look.topStyle, g_look.topColor, 1, static_cast<int>(kPoliceMaleTopStyles.size()));
 		DrawSelector("Couleur du haut", g_look.topColor, 1, kPoliceMaleTopStyles[g_look.topStyle - 1].maxValue);
-		ImGui::Separator();
 		DrawSelectorResettingColor("Bas", g_look.bottomStyle, g_look.bottomColor, 1, static_cast<int>(kPoliceMaleBottomStyles.size()));
 		DrawSelector("Couleur du bas", g_look.bottomColor, 1, kPoliceMaleBottomStyles[g_look.bottomStyle - 1].maxValue);
-		ImGui::Separator();
 		DrawSelectorResettingColor("Chaussures", g_look.shoesStyle, g_look.shoesColor, 1, static_cast<int>(kPoliceMaleShoesStyles.size()));
 		DrawSelector("Couleur des chaussures", g_look.shoesColor, 1, kPoliceMaleShoesStyles[g_look.shoesStyle - 1].maxValue);
-		ImGui::Separator();
 		DrawSelector("Arme à la ceinture", g_look.policeBelt, 0, 1);
 		DrawSelector("Gilet", g_look.policeVest, 0, 1);
 		DrawSelector("Béret", g_look.policeHat, 0, 1);
-		ImGui::Separator();
 		DrawSelector("Tatouage bras gauche", g_look.tattooArmLeft, 0, kMaleTattooArmCount);
 		DrawSelector("Tatouage bras droit", g_look.tattooArmRight, 0, kMaleTattooArmCount);
 		DrawSelector("Tatouage jambe gauche", g_look.tattooLegLeft, 0, kMaleTattooLegCount);
@@ -1100,35 +1215,28 @@ void ClothesCustomization::RenderPanel()
 		DrawSelector("Couleur de peau", g_look.skinTone, 1, 6);
 		ClampSelection();
 		DrawSelector("Forme du visage", g_look.face, 1, std::min(kFaceCountByTone[g_look.skinTone], kDffFaceSlots));
-		ImGui::Separator();
 		DrawSelectorResettingColor("Style de sourcils", g_look.eyebrowStyle, g_look.eyebrowColor, 0, kMaleEyebrowStyleCount);
 		if (g_look.eyebrowStyle > 0) {
 			DrawSelector("Couleur des sourcils", g_look.eyebrowColor, 1, kMaleEyebrowColorCount);
 		}
-		ImGui::Separator();
 		DrawSelectorResettingColor("Style de barbe", g_look.beardStyle, g_look.beardColor, 0, kMaleBeardStyleCount);
 		if (g_look.beardStyle > 0) {
 			DrawSelector("Couleur de la barbe", g_look.beardColor, 1, kMaleBeardColorCount);
 		}
-		ImGui::Separator();
 		DrawSelectorResettingColor("Style de cheveux", g_look.hairStyle, g_look.hairColor, 1, static_cast<int>(kHairStyles.size()));
 		DrawSelector("Couleur des cheveux", g_look.hairColor, 1, kHairStyles[g_look.hairStyle - 1].maxValue);
-		ImGui::Separator();
 		// 0 = sem camisa (personagem começa só de cueca)
 		DrawSelectorResettingColor("Hauts", g_look.topStyle, g_look.topColor, 0, static_cast<int>(kTopStyles.size()));
 		if (g_look.topStyle > 0) {
 			DrawSelector("Couleur du haut", g_look.topColor, 1, kTopStyles[g_look.topStyle - 1].maxValue);
 		}
-		ImGui::Separator();
 		DrawSelectorResettingColor("Bas", g_look.bottomStyle, g_look.bottomColor, 1, static_cast<int>(kBottomStyles.size()));
 		DrawSelector("Couleur du bas", g_look.bottomColor, 1, kBottomStyles[g_look.bottomStyle - 1].maxValue);
-		ImGui::Separator();
 		// 0 = descalço
 		DrawSelectorResettingColor("Chaussures", g_look.shoesStyle, g_look.shoesColor, 0, static_cast<int>(kShoesStyles.size()));
 		if (g_look.shoesStyle > 0) {
 			DrawSelector("Couleur des chaussures", g_look.shoesColor, 1, kShoesStyles[g_look.shoesStyle - 1].maxValue);
 		}
-		ImGui::Separator();
 		DrawSelector("Tatouage bras gauche", g_look.tattooArmLeft, 0, kMaleTattooArmCount);
 		DrawSelector("Tatouage bras droit", g_look.tattooArmRight, 0, kMaleTattooArmCount);
 		DrawSelector("Tatouage jambe gauche", g_look.tattooLegLeft, 0, kMaleTattooLegCount);

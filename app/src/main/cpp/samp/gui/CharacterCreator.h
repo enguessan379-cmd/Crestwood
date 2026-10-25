@@ -45,6 +45,11 @@ public:
     // (thread du jeu) pour ne pas toucher au ped depuis le thread Android.
     static void RequestOpenTest();
 
+    // Dialogues serveur "@clothes" (Java -> JNI) : 9550 appliquer l'apparence
+    // sauvegardee, 9551 ouvrir l'editeur, 9552 fermer. Peut etre appele depuis
+    // n'importe quel thread : tout est traite dans Render() (thread du jeu).
+    static void OnServerDialog(int dialogId, const std::string& json);
+
     static bool IsVisible();
 
     // Desenha a janela do estado atual (chamado dentro do drawList do ImGui).

@@ -12,7 +12,7 @@ if (loginBackgroundMusic) {
     loginBackgroundMusic.volume = 0.42;
     loginBackgroundMusic.loop = true;
 
-    function startLoginBackgroundMusic() {
+    function startConnexionBackgroundMusic() {
         if (!loginBackgroundMusic.paused) {
             return;
         }
@@ -28,7 +28,7 @@ if (loginBackgroundMusic) {
         }
     }
 
-    startLoginBackgroundMusic();
+    startConnexionBackgroundMusic();
 
     [
         "pointerdown",
@@ -49,7 +49,7 @@ if (loginBackgroundMusic) {
                     return;
                 }
 
-                startLoginBackgroundMusic();
+                startConnexionBackgroundMusic();
             },
             {
                 capture: true,
@@ -267,11 +267,11 @@ function notify(message, type = "info", options = {}) {
 
     const defaults = {
         success: {
-            title: "Sucesso",
+            title: "Succès",
             duration: 4500
         },
         error: {
-            title: "Erro",
+            title: "Erreur",
             duration: 4500
         },
         info: {
@@ -361,7 +361,7 @@ function emitToGame(eventName, payload) {
     });
 
     if (eventName === "auth:login") {
-        window.__revoltPendingLogin = {
+        window.__revoltPendingConnexion = {
             username: payload.username || "",
             password: payload.password || "",
             remember: Boolean(payload.remember)
@@ -429,10 +429,10 @@ loginForm.addEventListener("submit", (event) => {
 
     const username = document.getElementById("loginUsername").value.trim();
     const password = document.getElementById("loginPassword").value;
-    const remember = document.getElementById("rememberLogin").checked;
+    const remember = document.getElementById("rememberConnexion").checked;
 
     if (!username || !password) {
-        notify("Preencha nickname e senha.", "error");
+        notify("Veuillez saisir votre pseudo et votre mot de passe.", "error");
         return;
     }
 
@@ -442,7 +442,7 @@ loginForm.addEventListener("submit", (event) => {
     }
 
     if (password.length < 1 || password.length > 100 || !/^[\x21-\x7E]+$/.test(password) || /[\\/]/.test(password)) {
-        notify("Senha inválida. Use até 100 caracteres e não utilize espaços.", "error");
+        notify("Mot de passe inválida. Use até 100 caracteres e não utilize espaços.", "error");
         return;
     }
 
@@ -460,7 +460,7 @@ registerForm.addEventListener("submit", (event) => {
     const acceptedTerms = document.getElementById("acceptTerms").checked;
 
     if (!username || !email || !password || !confirmPassword) {
-        notify("Preencha todos os campos do registro.", "error");
+        notify("Veuillez remplir tous les champs du formulaire d’inscription.", "error");
         return;
     }
 
@@ -475,22 +475,22 @@ registerForm.addEventListener("submit", (event) => {
     }
 
     if (password !== confirmPassword) {
-        notify("As senhas não coincidem.", "error");
+        notify("Les mots de passe ne correspondent pas.", "error");
         return;
     }
 
     if (password.length < 4 || password.length > 100 || !/^[\x21-\x7E]+$/.test(password) || /[\\/]/.test(password)) {
-        notify("A senha deve ter entre 4 e 100 caracteres e não pode conter espaços.", "error");
+        notify("Le mot de passe doit contenir entre 4 et 100 caractères et ne doit pas comporter d’espaces.", "error");
         return;
     }
 
     if (!acceptedTerms) {
-        notify("Você precisa aceitar as regras do servidor.", "error");
+        notify("Você precisa aceitar as regras du serveur.", "error");
         return;
     }
 
     emitToGame("auth:register", { username, email, password, confirmPassword });
-    notify("Solicitação de registro enviada.", "info");
+    notify("Demande d’inscription envoyée.", "info");
 });
 
 requestCodeButton.addEventListener("click", () => {
@@ -507,7 +507,7 @@ requestCodeButton.addEventListener("click", () => {
     }
 
     emitToGame("auth:requestRecoveryCode", { username });
-    notify("Solicitação de código enviada. Aguarde a confirmação do servidor.", "info");
+    notify("Solicitação de código enviada. Aguarde a confirmação du serveur.", "info");
 });
 
 recoverForm.addEventListener("submit", (event) => {
@@ -518,7 +518,7 @@ recoverForm.addEventListener("submit", (event) => {
     const newPassword = document.getElementById("recoverNewPassword").value;
 
     if (!username || !code || !newPassword) {
-        notify("Preencha nickname, código e nova senha.", "error");
+        notify("Veuillez saisir votre pseudo, le code et le nouveau mot de passe.", "error");
         return;
     }
 
@@ -533,12 +533,12 @@ recoverForm.addEventListener("submit", (event) => {
     }
 
     if (newPassword.length < 4 || newPassword.length > 100 || !/^[\x21-\x7E]+$/.test(newPassword) || /[\\/]/.test(newPassword)) {
-        notify("A nova senha deve ter entre 4 e 100 caracteres e não pode conter espaços.", "error");
+        notify("Le nouveau mot de passe doit contenir entre 4 et 100 caractères et ne doit pas comporter d’espaces.", "error");
         return;
     }
 
     emitToGame("auth:recover", { username, code, newPassword });
-    notify("Solicitação de alteração de senha enviada.", "info");
+    notify("Demande de modification du mot de passe envoyée.", "info");
 });
 
 document.querySelectorAll(".social-button").forEach((button) => {
@@ -557,9 +557,9 @@ document.querySelectorAll(".social-button").forEach((button) => {
  * Funções que o Java / CEF pode chamar de volta.
  *
  * Exemplos:
- * window.RevoltAuth.notify("Login efetuado.", "success");
+ * window.RevoltAuth.notify("Connexion efetuado.", "success");
  * window.RevoltAuth.openScreen("register");
- * window.RevoltAuth.setRememberedLogin("BrunoX", "senha");
+ * window.RevoltAuth.setRememberedConnexion("BrunoX", "senha");
  */
 
 window.RevoltAuth = {
@@ -575,14 +575,14 @@ window.RevoltAuth = {
         }
     },
 
-    setRememberedLogin(username, password) {
+    setRememberedConnexion(username, password) {
         document.getElementById("loginUsername").value =
             username || "";
 
         document.getElementById("loginPassword").value =
             password || "";
 
-        document.getElementById("rememberLogin").checked =
+        document.getElementById("rememberConnexion").checked =
             Boolean(username || password);
     },
 
@@ -760,7 +760,7 @@ if (musicToggle && loginBackgroundMusic) {
             paused ? "Tocar música" : "Pausar música"
         );
 
-        status.textContent = paused ? "pausada" : "tocando";
+        status.textContent = paused ? "pausada" : "En lecture";
     }
 
     function updateTimeUI() {
@@ -1024,24 +1024,24 @@ if (musicToggle && loginBackgroundMusic) {
     const STORAGE_USER = "revolt_auth_username";
     const STORAGE_PASS = "revolt_auth_password";
 
-    function loadRememberedLogin() {
+    function loadRememberedConnexion() {
         try {
             const username = localStorage.getItem(STORAGE_USER) || "";
             const password = localStorage.getItem(STORAGE_PASS) || "";
             if (username || password) {
-                window.RevoltAuth.setRememberedLogin(username, password);
+                window.RevoltAuth.setRememberedConnexion(username, password);
             }
         } catch (error) {}
     }
 
-    function saveRememberedLogin(username, password) {
+    function saveRememberedConnexion(username, password) {
         try {
             localStorage.setItem(STORAGE_USER, username || "");
             localStorage.setItem(STORAGE_PASS, password || "");
         } catch (error) {}
     }
 
-    function clearRememberedLogin() {
+    function clearRememberedConnexion() {
         try {
             localStorage.removeItem(STORAGE_USER);
             localStorage.removeItem(STORAGE_PASS);
@@ -1069,7 +1069,7 @@ if (musicToggle && loginBackgroundMusic) {
 
         const type = typeMap[String(response.type || "info").toLowerCase()] || "info";
         const title = response.title || undefined;
-        const message = response.message || "Resposta recebida do servidor.";
+        const message = response.message || "Resposta recebida du serveur.";
 
         notify(message, type, { title });
 
@@ -1077,14 +1077,14 @@ if (musicToggle && loginBackgroundMusic) {
             window.RevoltAuth.openScreen(response.screen);
         }
 
-        const pending = window.__revoltPendingLogin;
+        const pending = window.__revoltPendingConnexion;
         if (type === "success" && response.close && pending) {
             if (pending.remember) {
-                saveRememberedLogin(pending.username, pending.password);
+                saveRememberedConnexion(pending.username, pending.password);
             } else {
-                clearRememberedLogin();
+                clearRememberedConnexion();
             }
-            window.__revoltPendingLogin = null;
+            window.__revoltPendingConnexion = null;
         }
 
         if (type === "success" && response.screen === "login") {
@@ -1097,9 +1097,9 @@ if (musicToggle && loginBackgroundMusic) {
 
     window.DXAuth = {
         handleResponse: handleServerResponse,
-        showLogin() {
+        showConnexion() {
             if (document.getElementById("screen-login")) showScreen("login");
-            loadRememberedLogin();
+            loadRememberedConnexion();
         },
         startMusic(force = false) {
             if (!loginBackgroundMusic) return;
@@ -1114,13 +1114,13 @@ if (musicToggle && loginBackgroundMusic) {
         forceCloseFromGame() {
             if (loginBackgroundMusic) loginBackgroundMusic.pause();
         },
-        setRememberedLogin(username, password) {
-            window.RevoltAuth.setRememberedLogin(username, password);
+        setRememberedConnexion(username, password) {
+            window.RevoltAuth.setRememberedConnexion(username, password);
         },
-        clearRememberedLogin
+        clearRememberedConnexion
     };
 
-    loadRememberedLogin();
+    loadRememberedConnexion();
 })();
 
 
@@ -1141,13 +1141,13 @@ if (musicToggle && loginBackgroundMusic) {
         const name = String(data.name || "").trim();
 
         // Données mémorisées (si la case "Lembrar" a été cochée)
-        window.DXAuth.showLogin();
+        window.DXAuth.showConnexion();
 
         if (name) {
             const remembered = document.getElementById("loginUsername").value;
             if (remembered && remembered.toLowerCase() !== name.toLowerCase()) {
                 document.getElementById("loginPassword").value = "";
-                document.getElementById("rememberLogin").checked = false;
+                document.getElementById("rememberConnexion").checked = false;
             }
             ["loginUsername", "registerUsername", "recoverUsername"].forEach((id) => {
                 const input = document.getElementById(id);

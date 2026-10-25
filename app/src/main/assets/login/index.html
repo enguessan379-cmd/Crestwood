@@ -4,15 +4,15 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="theme-color" content="#0d1117">
-    <title>Revolt City - Autenticação</title>
+    <title>Crestwood RP - Connexion</title>
 
     <link rel="stylesheet" href="style.css">
 </head>
 
 <body>
     <main class="auth-page">
-        <div class="corner-brand" aria-label="Nova Rio">
-            <img src="assets/images/logo.png" alt="Nova Rio">
+        <div class="corner-brand" aria-label="Crestwood RP">
+            <img src="assets/images/logo.png" alt="Crestwood RP">
         </div>
         <div class="background-layer"></div>
         <div class="background-shade"></div>
@@ -25,15 +25,15 @@
         <section class="auth-center">
 <nav class="auth-tabs" aria-label="Autenticação">
                 <span class="tab-slider" aria-hidden="true"></span>
-                <button class="auth-tab active" data-screen="login">Login</button>
-                <button class="auth-tab" data-screen="register">Registro</button>
-                <button class="auth-tab" data-screen="recover">Recuperar</button>
+                <button class="auth-tab active" data-screen="login">Connexion</button>
+                <button class="auth-tab" data-screen="register">Inscription</button>
+                <button class="auth-tab" data-screen="recover">Récupération</button>
             </nav>
 
             <section class="auth-screen active" id="screen-login">
                 <header class="screen-header">
-                    <h1>Login</h1>
-                    <p>Entre com seus dados para acessar sua conta com segurança.</p>
+                    <h1>Connexion</h1>
+                    <p>Connectez-vous avec vos identifiants pour accéder à votre compte en toute sécurité.</p>
                 </header>
 
                 <form id="loginForm" autocomplete="off">
@@ -43,7 +43,7 @@
                             id="loginUsername"
                             name="username"
                             type="text"
-                            placeholder="Usuário"
+                            placeholder="Nom d’utilisateur"
                             autocomplete="username"
                         >
                     </div>
@@ -54,25 +54,25 @@
                             id="loginPassword"
                             name="password"
                             type="password"
-                            placeholder="Senha"
+                            placeholder="Mot de passe"
                             autocomplete="current-password"
                         >
                         <button
                             class="password-toggle"
                             type="button"
                             data-password-target="loginPassword"
-                            aria-label="Mostrar senha"
+                            aria-label="Afficher le mot de passe"
                         ></button>
                     </div>
 
                     <label class="remember-row">
-                        <input id="rememberLogin" type="checkbox">
+                        <input id="rememberConnexion" type="checkbox">
                         <span class="custom-check"></span>
-                        <span>Lembrar meus dados.</span>
+                        <span>Se souvenir de mes identifiants.</span>
                     </label>
 
                     <button class="primary-button" type="submit">
-                        <span>Conectar-se</span>
+                        <span>Se connecter</span>
                         <span class="button-arrow">›</span>
                     </button>
                 </form>
@@ -80,41 +80,41 @@
 
             <section class="auth-screen" id="screen-register">
                 <header class="screen-header">
-                    <h1>Registro</h1>
-                    <p>Crie sua conta para começar sua história na cidade.</p>
+                    <h1>Inscription</h1>
+                    <p>Créez votre compte pour commencer votre histoire en ville.</p>
                 </header>
 
                 <form id="registerForm" autocomplete="off">
                     <div class="form-grid">
                         <div class="field">
                             <span class="field-icon user-icon"></span>
-                            <input id="registerUsername" type="text" placeholder="Usuário">
+                            <input id="registerUsername" type="text" placeholder="Nom d’utilisateur">
                         </div>
 
                         <div class="field">
                             <span class="field-icon email-icon"></span>
-                            <input id="registerEmail" type="email" placeholder="E-mail">
+                            <input id="registerEmail" type="email" placeholder="Adresse e-mail">
                         </div>
 
                         <div class="field">
                             <span class="field-icon lock-icon"></span>
-                            <input id="registerPassword" type="password" placeholder="Senha">
+                            <input id="registerPassword" type="password" placeholder="Mot de passe">
                             <button
                                 class="password-toggle"
                                 type="button"
                                 data-password-target="registerPassword"
-                                aria-label="Mostrar senha"
+                                aria-label="Afficher le mot de passe"
                             ></button>
                         </div>
 
                         <div class="field">
                             <span class="field-icon lock-icon"></span>
-                            <input id="registerConfirmPassword" type="password" placeholder="Confirmar senha">
+                            <input id="registerConfirmPassword" type="password" placeholder="Confirmer le mot de passe">
                             <button
                                 class="password-toggle"
                                 type="button"
                                 data-password-target="registerConfirmPassword"
-                                aria-label="Mostrar senha"
+                                aria-label="Afficher le mot de passe"
                             ></button>
                         </div>
                     </div>
@@ -122,11 +122,11 @@
                     <label class="remember-row terms-row">
                         <input id="acceptTerms" type="checkbox">
                         <span class="custom-check"></span>
-                        <span>Li e concordo com as regras do servidor.</span>
+                        <span>J’ai lu et j’accepte le règlement du serveur.</span>
                     </label>
 
                     <button class="primary-button" type="submit">
-                        <span>Criar conta</span>
+                        <span>Créer un compte</span>
                         <span class="button-arrow">›</span>
                     </button>
                 </form>
@@ -134,20 +134,20 @@
 
             <section class="auth-screen" id="screen-recover">
                 <header class="screen-header">
-                    <h1>Recuperar</h1>
-                    <p>Recupere o acesso à sua conta com segurança.</p>
+                    <h1>Récupération</h1>
+                    <p>Récupérez l’accès à votre compte en toute sécurité.</p>
                 </header>
 
                 <form id="recoverForm" autocomplete="off">
                     <div class="field">
                         <span class="field-icon user-icon"></span>
-                        <input id="recoverUsername" type="text" placeholder="Usuário">
+                        <input id="recoverUsername" type="text" placeholder="Nom d’utilisateur">
                     </div>
 
                     <div class="recover-code-row">
                         <div class="field">
                             <span class="field-icon code-icon"></span>
-                            <input id="recoverCode" type="text" inputmode="numeric" placeholder="Código">
+                            <input id="recoverCode" type="text" inputmode="numeric" placeholder="Code">
                         </div>
 
                         <button id="requestCodeButton" class="secondary-button" type="button">
@@ -162,12 +162,12 @@
                             class="password-toggle"
                             type="button"
                             data-password-target="recoverNewPassword"
-                            aria-label="Mostrar senha"
+                            aria-label="Afficher le mot de passe"
                         ></button>
                     </div>
 
                     <button class="primary-button" type="submit">
-                        <span>Alterar senha</span>
+                        <span>Modifier le mot de passe</span>
                         <span class="button-arrow">›</span>
                     </button>
                 </form>
@@ -180,7 +180,7 @@
                     <span class="news-dot"></span>
                     <h2>Novidades</h2>
                 </div>
-                <p>Fique por dentro das novidades<br>do servidor.</p>
+                <p>Restez informé des nouveautés<br>du serveur.</p>
             </header>
 
             <article class="news-card">
@@ -188,7 +188,7 @@
                 <h3>NOVA EXPERIÊNCIA REVOLT</h3>
                 <p>
                     Uma nova interface de autenticação, mais organizada,
-                    moderna e preparada para o sistema do servidor.
+                    moderna e preparada para o sistema du serveur.
                 </p>
             </article>
 
@@ -269,7 +269,7 @@
                     aria-label="Volume da música"
                 />
 
-                <span class="revolt-music-status" id="musicStatus">tocando</span>
+                <span class="revolt-music-status" id="musicStatus">En lecture</span>
             </div>
         </div>
     </section>

@@ -9,6 +9,8 @@
 #include <cstring>
 #include <mutex>
 #include <string>
+#include <utility>
+#include <vector>
 
 #include "../main.h"
 #include "../game/game.h"
@@ -67,7 +69,14 @@ namespace {
 	// sans aucun échange avec le serveur (donc sans Pawn). Rien n'est envoyé ni
 	// sauvegardé : « FERMER » referme simplement le panneau.
 	std::atomic<bool> g_testOpenRequested{false};
-	bool g_testMode = false;
+	bool g_testMode = false; // = « éditeur de vêtements » ouvert (le nom historique est conservé)
+
+	// Éditeur : sauvegarde de l'apparence à l'ouverture (pour ANNULER) et
+	// demandes venant du serveur (traitées par Render, thread du jeu).
+	ClothesLook g_editBackup;
+	uint16_t g_editBackupModel = 0;
+	std::atomic<bool> g_openEditorAfterLook{false};
+	std::atomic<bool> g_serverCloseRequested{false};
 
 	// Se o boneco fugir do ponto de criação (o servidor congelou, mas em casos
 	// de reconexão/streaming a área demora a carregar), devolve ele pro lugar
@@ -286,9 +295,9 @@ namespace {
 		return out.empty() ? def : out;
 	}
 
-	void ApplyLookFromJson(const std::string& json)
+	ClothesLook ParseLookJson(const std::string& json)
 	{
-		ClothesLook& look = ClothesCustomization::Look();
+		ClothesLook look;
 		look.skinTone     = static_cast<uint8_t>(JsonInt(json, "skinTone", 1));
 		look.face         = static_cast<uint8_t>(JsonInt(json, "face", 1));
 		look.hairStyle    = static_cast<uint8_t>(JsonInt(json, "hairStyle", 1));
@@ -314,15 +323,52 @@ namespace {
 		look.policeBelt = static_cast<uint8_t>(JsonInt(json, "policeBelt", 0));
 		look.policeVest = static_cast<uint8_t>(JsonInt(json, "policeVest", 0));
 		look.policeHat  = static_cast<uint8_t>(JsonInt(json, "policeHat", 0));
+		return look;
+	}
+
+	void ApplyLookFromJson(const std::string& json)
+	{
+		ClothesCustomization::Look() = ParseLookJson(json);
 		ClothesCustomization::ApplyCurrent();
+	}
+
+	// Apparences des AUTRES joueurs (dialogues 9553 / 9554), traitees par Render().
+	std::mutex g_remoteMutex;
+	std::vector<std::pair<int, std::string>> g_remoteQueue;
+
+	void ProcessRemoteLooks()
+	{
+		std::vector<std::pair<int, std::string>> batch;
+		{
+			std::lock_guard<std::mutex> lock(g_remoteMutex);
+			batch.swap(g_remoteQueue);
+		}
+		for (const auto& entry : batch) {
+			const int id = JsonInt(entry.second, "id", -1);
+			if (id < 0 || id >= MAX_PLAYERS) continue;
+			if (entry.first == 9554) {
+				ClothesCustomization::ClearRemote(static_cast<uint16_t>(id));
+			}
+			else {
+				ClothesCustomization::ApplyRemote(static_cast<uint16_t>(id), ParseLookJson(entry.second),
+					static_cast<uint16_t>(JsonInt(entry.second, "skin", 0)));
+			}
+		}
 	}
 
 	// Troca o modelo do ped local para o do gênero escolhido (preview ao vivo).
 	// 163 = masculino (bmyboun), 9 = feminino (bfori) — os skins suportados
 	// pelo sistema de clothes.
-	void PreviewGender(int gender)
+	void PreviewGender(int gender, bool dressed = false)
 	{
 		ClothesCustomization::Reset(gender);
+		if (dressed) {
+			// Éditeur : on ne repart pas en sous-vêtements, on habille le personnage.
+			ClothesLook& l = ClothesCustomization::Look();
+			if (l.topStyle == 0) l.topStyle = 1;
+			if (l.bottomStyle == 0 || l.bottomStyle == 3) l.bottomStyle = 1;
+			if (l.shoesStyle == 0) l.shoesStyle = 1;
+		}
 		CPlayerPed* ped = pGame ? pGame->FindPlayerPed() : nullptr;
 		if (ped && ped->m_pPed && ped->m_pPed->IsAdded() && ped->m_pPed->m_pRwObject && !ped->IsInVehicle()) {
 			// Retire les textures posees sur l'ancien modele AVANT de le remplacer
@@ -337,7 +383,27 @@ namespace {
 		ClothesCustomization::ApplyCurrent();
 	}
 
-	// MODE TEST : ouvre directement le panneau de vêtements, sans serveur.
+	// Modèle 3D actuel du ped local (0 si indisponible).
+	uint16_t LocalModelId()
+	{
+		CPlayerPed* ped = pGame ? pGame->FindPlayerPed() : nullptr;
+		if (!ped || !ped->m_pPed) return 0;
+		return static_cast<uint16_t>(ped->m_pPed->m_nModelIndex);
+	}
+
+	// Remet l'ancien modèle (annulation d'un changement homme/femme).
+	void RestoreModel(uint16_t model)
+	{
+		CPlayerPed* ped = pGame ? pGame->FindPlayerPed() : nullptr;
+		if (!ped || !ped->m_pPed || !ped->m_pPed->IsAdded() || ped->IsInVehicle()) return;
+		if (model == 0 || ped->m_pPed->m_nModelIndex == model) return;
+		BrlTextureShader::ResetLocalPlayer();
+		ped->SetModelIndex(model);
+	}
+
+	// ÉDITEUR DE VÊTEMENTS : ouvre le panneau avec l'apparence ACTUELLE du
+	// personnage (celle chargée depuis le serveur). Aucun Reset : c'est ce qui
+	// remettait le personnage à zéro à chaque ouverture.
 	// Exécuté uniquement depuis Render() (thread du jeu).
 	void OpenTestNow()
 	{
@@ -347,10 +413,56 @@ namespace {
 		g_editTarget = EditTarget::None;
 		g_pedHidden = false;
 		SetPedVisible(true);
-		// (ClearStuckFall retire : inutile en mode test, le joueur est deja debout,
-		//  et vider les taches du ped local peut faire planter CPlayerInfo::Process)
-		PreviewGender(g_gender);
+
+		uint16_t model = LocalModelId();
+		const bool supported = (model == 9 || model == 163 || model == 246 || model == 280);
+		if (!supported) {
+			// Modèle non géré (ex. skin par défaut) : on passe en homme habillé.
+			g_gender = 0;
+			PreviewGender(0, true);
+			model = LocalModelId();
+		}
+		else {
+			g_gender = (model == 9) ? 1 : 0;
+			ClothesCustomization::ApplyCurrent(); // ré-applique l'apparence en cours
+		}
+
+		g_editBackup = ClothesCustomization::Look();
+		g_editBackupModel = model;
 		g_state = State::Creating;
+	}
+
+	// ANNULER : revient à l'apparence d'avant l'ouverture.
+	void RevertEdit()
+	{
+		RestoreModel(g_editBackupModel);
+		ClothesCustomization::Look() = g_editBackup;
+		ClothesCustomization::ApplyCurrent();
+	}
+
+	// ENREGISTRER : envoie l'apparence au serveur (sauvegarde en base).
+	// Format : /clothact save <skin> <25 valeurs> (voir Cloth_DoSave côté serveur).
+	bool SendEditorSave()
+	{
+		if (!pNetGame) return false;
+		const ClothesLook& l = ClothesCustomization::Look();
+		const uint8_t v[25] = {
+			l.skinTone, l.face, l.hairStyle, l.hairColor,
+			l.eyebrowStyle, l.eyebrowColor, l.beardStyle, l.beardColor,
+			l.makeupStyle, l.makeupColor, l.topStyle, l.topColor,
+			l.bottomStyle, l.bottomColor, l.shoesStyle, l.shoesColor,
+			l.tattooArmLeft, l.tattooArmRight, l.tattooLegLeft, l.tattooLegRight,
+			l.tattooBack, l.tattooFront, l.policeBelt, l.policeVest, l.policeHat
+		};
+		char cmd[200];
+		int n = std::snprintf(cmd, sizeof(cmd), "/clothact save %u", static_cast<unsigned>(LocalModelId()));
+		for (int i = 0; i < 25 && n > 0 && n < static_cast<int>(sizeof(cmd)) - 5; ++i) {
+			n += std::snprintf(cmd + n, sizeof(cmd) - n, " %u", static_cast<unsigned>(v[i]));
+		}
+		pNetGame->SendChatCommand(cmd);
+		g_editBackup = l;
+		g_editBackupModel = LocalModelId();
+		return true;
 	}
 
 	// Abre o teclado normal do launcher (teclado Android do sistema) para
@@ -589,11 +701,12 @@ namespace {
 			ImGui::SetCursorPos(ImVec2(28.0f, 20.0f));
 			ImGui::TextColored(ImVec4(0.0f, 0.90f, 0.52f, 1.0f), "CRESTWOOD RP");
 			ImGui::SameLine(display.x - 290.0f);
-			ImGui::TextColored(ImVec4(0.46f, 0.50f, 0.48f, 1.0f), "CRÉATION DU PERSONNAGE");
+			ImGui::TextColored(ImVec4(0.46f, 0.50f, 0.48f, 1.0f), g_testMode ? "TENUE DU PERSONNAGE" : "CRÉATION DU PERSONNAGE");
 			ImGui::SetCursorPos(ImVec2(28.0f, 56.0f));
 			const char* tabs[] = { "DONNÉES", "APPARENCE", "FINALISER" };
 			for (int i = 0; i < 3; ++i) {
-				if (i > 0) ImGui::SameLine(0.0f, 25.0f);
+				if (g_testMode && i != 1) continue; // éditeur de vêtements : seul « APPARENCE » est affiché
+				if (i > 0 && !g_testMode) ImGui::SameLine(0.0f, 25.0f);
 				const bool selected = std::strcmp(tabs[i], active) == 0;
 				ImGui::PushStyleColor(ImGuiCol_Text, selected ? ImVec4(0.0f, 0.92f, 0.52f, 1.0f) : ImVec4(0.40f, 0.44f, 0.42f, 1.0f));
 				ImGui::Text("%s", tabs[i]);
@@ -686,24 +799,25 @@ namespace {
 			const float panelW = std::min(620.0f, display.x * 0.52f);
 			ImGui::SetCursorPos(ImVec2(34.0f, 112.0f));
 			ImGui::BeginChild("modern_appearance_panel", ImVec2(panelW, display.y - 180.0f), false);
-			ImGui::TextColored(ImVec4(0.0f, 0.85f, 0.45f, 1.0f), g_testMode ? "MODE TEST - VÊTEMENTS" : "DEUXIÈME ÉTAPE");
+			ImGui::TextColored(ImVec4(0.0f, 0.85f, 0.45f, 1.0f), g_testMode ? "VÊTEMENTS" : "DEUXIÈME ÉTAPE");
 			ImGui::Spacing();
 			ImGui::TextColored(ImVec4(0.96f, 0.98f, 0.97f, 1.0f), "Personnalisez votre personnage");
-			ImGui::TextColored(ImVec4(0.45f, 0.50f, 0.48f, 1.0f), g_testMode ? "Aperçu local : rien n'est envoyé au serveur ni enregistré." : "Choisissez l'apparence qui vous représente.");
+			ImGui::TextColored(ImVec4(0.45f, 0.50f, 0.48f, 1.0f), g_testMode ? "Les changements sont visibles en direct. Appuyez sur ENREGISTRER pour les garder." : "Choisissez l'apparence qui vous représente.");
 			ImGui::Spacing();
-			if (g_testMode) {
-				// En mode test, on peut changer de genre pour essayer les deux systèmes.
+			const uint16_t editModel = LocalModelId();
+			if (g_testMode && (editModel == 9 || editModel == 163)) {
+				// Changement homme / femme (les skins de police ne sont pas concernés).
 				const float halfW = (panelW - 18.0f) * 0.48f;
 				ImGui::PushStyleColor(ImGuiCol_Button, g_gender == 0 ? ImVec4(0.0f, 0.72f, 0.38f, 1.0f) : ImVec4(0.015f, 0.025f, 0.023f, 1.0f));
-				if (ImGui::Button("HOMME", ImVec2(halfW, 38.0f))) { g_gender = 0; PreviewGender(0); }
+				if (ImGui::Button("HOMME", ImVec2(halfW, 38.0f))) { if (g_gender != 0) { g_gender = 0; PreviewGender(0, true); } }
 				ImGui::PopStyleColor();
 				ImGui::SameLine();
 				ImGui::PushStyleColor(ImGuiCol_Button, g_gender == 1 ? ImVec4(0.0f, 0.72f, 0.38f, 1.0f) : ImVec4(0.015f, 0.025f, 0.023f, 1.0f));
-				if (ImGui::Button("FEMME", ImVec2(halfW, 38.0f))) { g_gender = 1; PreviewGender(1); }
+				if (ImGui::Button("FEMME", ImVec2(halfW, 38.0f))) { if (g_gender != 1) { g_gender = 1; PreviewGender(1, true); } }
 				ImGui::PopStyleColor();
 				ImGui::Spacing();
 			}
-			ImGui::BeginChild("create_scroll", ImVec2(0.0f, 0.0f), false, ImGuiWindowFlags_AlwaysVerticalScrollbar);
+			ImGui::BeginChild("create_scroll", ImVec2(0.0f, 0.0f), false, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
 			ClothesCustomization::RenderPanel();
 			ImGui::EndChild();
 			ImGui::EndChild();
@@ -711,8 +825,20 @@ namespace {
 			ImGui::SetCursorPos(ImVec2(34.0f, display.y - 70.0f));
 			ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.0f, 0.82f, 0.43f, 1.0f));
 			if (g_testMode) {
-				// Pas d'envoi au serveur : on referme simplement le panneau.
-				if (ImGui::Button("FERMER (TEST)", ImVec2(panelW, 48.0f))) { CharacterCreator::CloseAll(); }
+				// ENREGISTRER = envoi au serveur (base de données) puis fermeture ;
+				// ANNULER = retour à l'apparence d'avant l'ouverture.
+				const float saveW = panelW * 0.62f;
+				if (ImGui::Button("ENREGISTRER", ImVec2(saveW, 48.0f))) {
+					SendEditorSave();
+					CharacterCreator::CloseAll();
+				}
+				ImGui::PopStyleColor();
+				ImGui::SameLine(0.0f, 10.0f);
+				ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.16f, 0.19f, 0.18f, 1.0f));
+				if (ImGui::Button("ANNULER", ImVec2(panelW - saveW - 10.0f, 48.0f))) {
+					RevertEdit();
+					CharacterCreator::CloseAll();
+				}
 			}
 			else if (ImGui::Button("FINALISER LE PERSONNAGE   ->", ImVec2(panelW, 48.0f))) { g_state = State::Waiting; CharacterCreator::SendSaveCharacter(); }
 			ImGui::PopStyleColor();
@@ -855,6 +981,28 @@ void CharacterCreator::RequestOpenTest()
 	g_testOpenRequested.store(true);
 }
 
+void CharacterCreator::OnServerDialog(int dialogId, const std::string& json)
+{
+	if (dialogId == 9553 || dialogId == 9554) {
+		std::lock_guard<std::mutex> lock(g_remoteMutex);
+		if (g_remoteQueue.size() < 4000) g_remoteQueue.emplace_back(dialogId, json);
+		return;
+	}
+	if (dialogId == 9552) {
+		g_serverCloseRequested.store(true);
+		return;
+	}
+	// 9550 (appliquer) ou 9551 (appliquer puis ouvrir l'editeur) : thread reseau/Java,
+	// on memorise seulement ; Render() applique sur le thread du jeu.
+	{
+		std::lock_guard<std::mutex> lock(g_pendingLookMutex);
+		g_pendingLookJson = json;
+	}
+	g_pendingLookTick = GetTickCount();
+	if (dialogId == 9551) g_openEditorAfterLook.store(true);
+	g_pendingLook = true;
+}
+
 bool CharacterCreator::IsVisible()
 {
 	return g_state != State::Hidden;
@@ -862,10 +1010,13 @@ bool CharacterCreator::IsVisible()
 
 void CharacterCreator::Render()
 {
+	ProcessRemoteLooks(); // apparences des autres joueurs (thread du jeu)
+
 	// Demande du bouton de test du HUD : traitée ici, sur le thread du jeu.
 	// Un second appui sur le bouton referme le panneau.
 	if (g_testOpenRequested.exchange(false)) {
 		if (g_testMode && g_state != State::Hidden) {
+			RevertEdit(); // second appui sur le bouton = annuler les changements non enregistres
 			CloseAll();
 		}
 		else if (g_state == State::Hidden) {
@@ -873,8 +1024,19 @@ void CharacterCreator::Render()
 		}
 	}
 
+	// Fermeture demandee par le serveur (dialogue 9552).
+	if (g_serverCloseRequested.exchange(false) && g_testMode && g_state != State::Hidden) {
+		RevertEdit();
+		CloseAll();
+	}
+
 	// Apparence envoyee par le serveur : appliquee ici (thread du jeu), seulement
 	// quand le ped est stable et que son skin est gere par le systeme de vetements.
+	// Si l'editeur est deja ouvert, on n'ecrase jamais les modifications en cours.
+	if (g_pendingLook.load() && g_testMode && g_state != State::Hidden) {
+		g_pendingLook = false;
+		g_openEditorAfterLook = false;
+	}
 	if (g_pendingLook.load()) {
 		const uint32_t nowLook = GetTickCount();
 		if (LocalPedStable() && ClothesCustomization::IsSupportedLocalSkin() && nowLook - g_pendingLookTick > 400) {
@@ -885,9 +1047,13 @@ void CharacterCreator::Render()
 				json = g_pendingLookJson;
 			}
 			ApplyLookFromJson(json);
+			if (g_openEditorAfterLook.exchange(false) && g_state == State::Hidden) {
+				OpenTestNow();
+			}
 		}
 		else if (nowLook - g_pendingLookTick > 15000) {
 			g_pendingLook = false; // abandon : le ped n'est jamais devenu stable
+			g_openEditorAfterLook = false;
 		}
 	}
 

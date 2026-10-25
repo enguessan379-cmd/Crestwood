@@ -3986,84 +3986,108 @@ body.phone-camera-mode .id-camera-frame span { display: none; }
 .pc-nav button{display:grid;place-items:center;width:6vh;height:4.4vh;padding:0;border:0;border-radius:2vh;background:transparent;color:#e8e8e8}
 .pc-nav svg{width:2.8vh;height:2.8vh}
 
-/* ---- Interaction tactile : icone de main "appuyer pour interagir" ---- */
+/* ---- Interaction tactile : bouton "appuyer pour interagir" (pastille verte Crestwood) ---- */
 .interact-tap-button {
   position: absolute;
   right: max(128px, calc(env(safe-area-inset-right) + 128px));
   top: 49vh;
   z-index: 7;
-  width: 74px;
-  height: 74px;
-  padding: 0;
-  display: grid;
-  place-items: center;
+  height: 38px;
+  min-width: 38px;
+  padding: 0 12px 0 4px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
   border-radius: 999px;
-  border: 2px solid rgba(58, 167, 255, 0.92);
-  background: rgba(7, 16, 28, 0.62);
-  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.34), 0 0 18px rgba(46, 168, 255, 0.45), inset 0 0 0 1px rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(0, 224, 128, 0.55);
+  background: linear-gradient(135deg, rgba(10, 22, 17, 0.86), rgba(4, 10, 8, 0.78));
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.05) inset, 0 0 10px rgba(0, 220, 120, 0.22);
+  color: #f2fff8;
   pointer-events: auto;
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
   user-select: none;
-  animation: interactTapIn 180ms ease-out both;
+  animation: interactTapIn 200ms cubic-bezier(.2, .9, .3, 1.2) both;
 }
 
 .interact-tap-button[hidden] {
   display: none;
 }
 
-.interact-tap-button img {
-  width: 46px;
-  height: 46px;
-  object-fit: contain;
-  pointer-events: none;
-  filter: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.5));
-  animation: interactTapHand 1.3s ease-in-out infinite;
-}
-
+/* halo qui pulse autour de la pastille */
 .interact-tap-ring {
   position: absolute;
-  inset: -2px;
+  inset: 0;
   border-radius: 999px;
-  border: 2px solid rgba(58, 167, 255, 0.7);
   pointer-events: none;
-  animation: interactTapPulse 1.6s ease-out infinite;
+  animation: interactTapPulse 1.8s ease-out infinite;
+}
+
+/* rond vert contenant l'icone */
+.interact-tap-icon {
+  position: relative;
+  flex: 0 0 auto;
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: linear-gradient(145deg, #00e080, #00a85e);
+  box-shadow: 0 2px 8px rgba(0, 200, 110, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+
+.interact-tap-icon svg {
+  display: none;
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: #04140c;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+
+/* icone selon la cible envoyee par le serveur (data-target) ; main par defaut */
+.interact-tap-button:not([data-target="bank"]):not([data-target="vehicle_lock"]):not([data-target="vehicle_unlock"]) svg[data-icon="hand"],
+.interact-tap-button[data-target="bank"] svg[data-icon="bank"],
+.interact-tap-button[data-target="vehicle_lock"] svg[data-icon="lock"],
+.interact-tap-button[data-target="vehicle_unlock"] svg[data-icon="unlock"] {
+  display: block;
+  animation: interactTapHand 1.4s ease-in-out infinite;
 }
 
 .interact-tap-label {
-  position: absolute;
-  top: calc(100% + 6px);
-  left: 50%;
-  translate: -50% 0;
-  max-width: 150px;
-  padding: 3px 10px;
-  border-radius: 999px;
-  background: rgba(7, 16, 28, 0.72);
-  border: 1px solid rgba(58, 167, 255, 0.45);
-  color: #fff;
-  font: 800 12px/1.2 Inter, "Segoe UI", system-ui, sans-serif;
-  letter-spacing: 0.02em;
+  position: static;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: #f2fff8;
+  font: 800 11px/1.1 Inter, "Segoe UI", system-ui, sans-serif;
+  letter-spacing: 0.03em;
   white-space: nowrap;
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
   pointer-events: none;
 }
 
 .interact-tap-button:active {
-  transform: scale(0.92);
-  background: rgba(30, 74, 138, 0.78);
+  transform: scale(0.94);
+  background: linear-gradient(135deg, rgba(0, 120, 70, 0.9), rgba(4, 40, 26, 0.9));
 }
 
 @keyframes interactTapIn {
-  from { opacity: 0; transform: scale(0.7); }
-  to { opacity: 1; transform: scale(1); }
+  from { opacity: 0; transform: translateX(14px) scale(0.85); }
+  to { opacity: 1; transform: translateX(0) scale(1); }
 }
 
 @keyframes interactTapHand {
   0%, 100% { transform: translateY(0) scale(1); }
-  50% { transform: translateY(3px) scale(0.93); }
+  50% { transform: translateY(2px) scale(0.92); }
 }
 
 @keyframes interactTapPulse {
-  0% { transform: scale(1); opacity: 0.75; }
-  100% { transform: scale(1.5); opacity: 0; }
+  0% { box-shadow: 0 0 0 0 rgba(0, 224, 128, 0.5); }
+  100% { box-shadow: 0 0 0 9px rgba(0, 224, 128, 0); }
 }

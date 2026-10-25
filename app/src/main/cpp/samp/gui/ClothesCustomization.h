@@ -64,6 +64,11 @@ public:
     // Remove todas as texturas custom do jogador local.
     static void ClearLocal();
 
+    // Joueurs distants : applique / retire l'apparence d'un autre joueur (thread du jeu).
+    // modelId = skin du joueur (9, 163, 246 ou 280).
+    static void ApplyRemote(uint16_t playerId, const ClothesLook& look, uint16_t modelId);
+    static void ClearRemote(uint16_t playerId);
+
     // Renderiza o painel ImGui com TODAS as opções (usado na criação).
     static void RenderPanel();
 
