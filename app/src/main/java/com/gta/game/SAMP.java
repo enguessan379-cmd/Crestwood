@@ -73,6 +73,16 @@ public class SAMP extends GTASA implements HeightProvider.HeightListener {
     private volatile boolean adminReady;
     private volatile String pendingAdminJson;
     private Runnable adminWatchdog;
+    // Vestiaire de faction HTML (assets/locker/index.html), pilote par les dialogues "@locker" (ids 9560-9562)
+    private boolean lockerOpen;
+    private volatile boolean lockerReady;
+    private volatile String pendingLockerJson;
+    private Runnable lockerWatchdog;
+    // Actions de police HTML (assets/police/index.html), pilote par les dialogues "@police" (ids 9570-9572)
+    private boolean policeOpen;
+    private volatile boolean policeReady;
+    private volatile String pendingPoliceJson;
+    private Runnable policeWatchdog;
     private volatile boolean authReady;
     private volatile String pendingAuthJson;
     private final Handler authHandler = new Handler(Looper.getMainLooper());
@@ -179,6 +189,24 @@ public class SAMP extends GTASA implements HeightProvider.HeightListener {
             final boolean admJson = content != null && content.trim().startsWith("{");
             if (capAdm.startsWith("@admin") || admJson) {
                 handleAdminDialog(dialogId, content);
+                return;
+            }
+        }
+        // Actions de police : ids 9570 (ouvrir), 9571 (mise a jour), 9572 (fermer), titre "@police", contenu JSON.
+        if (dialogId >= 9570 && dialogId <= 9572) {
+            final String capPolice = caption.replace("\u0000", "").replaceAll("\\{[0-9A-Fa-f]{6}\\}", "").trim();
+            final boolean policeJson = content != null && content.trim().startsWith("{");
+            if (capPolice.startsWith("@police") || policeJson) {
+                handlePoliceDialog(dialogId, content);
+                return;
+            }
+        }
+        // Vestiaire de faction : ids 9560 (ouvrir), 9561 (mise a jour), 9562 (fermer), titre "@locker", contenu JSON.
+        if (dialogId >= 9560 && dialogId <= 9562) {
+            final String capLocker = caption.replace("\u0000", "").replaceAll("\\{[0-9A-Fa-f]{6}\\}", "").trim();
+            final boolean lockerJson = content != null && content.trim().startsWith("{");
+            if (capLocker.startsWith("@locker") || lockerJson) {
+                handleLockerDialog(dialogId, content);
                 return;
             }
         }
@@ -410,6 +438,16 @@ public class SAMP extends GTASA implements HeightProvider.HeightListener {
                     pendingAdminJson = null;
                     view.evaluateJavascript("window.AdminApp && AdminApp.openFromNative(" + JSONObject.quote(admJson) + ")", null);
                 }
+                String policeJson = pendingPoliceJson;
+                if (policeJson != null && url != null && url.endsWith("police/index.html")) {
+                    pendingPoliceJson = null;
+                    view.evaluateJavascript("window.PoliceApp && PoliceApp.openFromNative(" + JSONObject.quote(policeJson) + ")", null);
+                }
+                String lockerJson = pendingLockerJson;
+                if (lockerJson != null && url != null && url.endsWith("locker/index.html")) {
+                    pendingLockerJson = null;
+                    view.evaluateJavascript("window.LockerApp && LockerApp.openFromNative(" + JSONObject.quote(lockerJson) + ")", null);
+                }
                 String authJson = pendingAuthJson;
                 if (authJson != null && url != null && url.endsWith("login/index.html")) {
                     pendingAuthJson = null;
@@ -439,6 +477,8 @@ public class SAMP extends GTASA implements HeightProvider.HeightListener {
         hudWebView.addJavascriptInterface(new SampAuthBridge(), "SampAuth");
         hudWebView.addJavascriptInterface(new SampInvBridge(), "SampInv");
         hudWebView.addJavascriptInterface(new SampAdminBridge(), "SampAdmin");
+        hudWebView.addJavascriptInterface(new SampLockerBridge(), "SampLocker");
+        hudWebView.addJavascriptInterface(new SampPoliceBridge(), "SampPolice");
         hudWebView.addJavascriptInterface(new SampHudBridge(), "SampHud");
         hudWebView.addJavascriptInterface(new SampBankBridge(), "SampBank");
         hudWebView.setVisibility(View.VISIBLE);
@@ -765,6 +805,195 @@ public class SAMP extends GTASA implements HeightProvider.HeightListener {
         }
     }
 
+    // ---- Actions de police (page assets/police/index.html) ----
+    // Le bouton "Police" du HUD (icone bouclier) apparait quand un policier est a cote d'un joueur ; un appui
+    // envoie /interagir, le serveur ouvre alors cette page (dialogue 9570) avec la cible la plus proche.
+    private void handlePoliceDialog(final int dialogId, final String rawJson) {
+        String tmp = rawJson == null ? "{}" : rawJson;
+        int js = tmp.indexOf('{');
+        int je = tmp.lastIndexOf('}');
+        final String json = (js >= 0 && je > js) ? tmp.substring(js, je + 1) : "{}";
+        runOnUiThread(() -> {
+            if (hudWebView == null || isFinishing()) return;
+            if (dialogId == 9572) {            // fermeture demandee par le serveur (cible perdue, menotte...)
+                closePolicePage(false);
+            } else if (dialogId == 9570) {     // ouverture
+                openPolicePage(json);
+            } else if (policeOpen) {           // 9571 : mise a jour (etat de la cible, vue, message)
+                hudWebView.evaluateJavascript("window.PoliceApp && PoliceApp.onUpdateFromNative(" + JSONObject.quote(json) + ")", null);
+            }
+        });
+    }
+
+    private void openPolicePage(String json) {
+        if (hudWebView == null || authOpen || adminOpen || lockerOpen) return;
+        if (policeOpen && policeReady) {
+            hudWebView.evaluateJavascript("window.PoliceApp && PoliceApp.onUpdateFromNative(" + JSONObject.quote(json) + ")", null);
+            return;
+        }
+        Log.i(TAG, "[police] ouverture du menu d'actions");
+        policeOpen = true;
+        policeReady = false;
+        configOpen = true;
+        invOpen = false;
+        bankOpen = false;
+        pharmacyOpen = false;
+        pendingPoliceJson = json;
+        hudWebView.setWheelOpen(false);
+        hudWebView.setPhonePage(false);
+        hudWebView.setFullscreenPage(true);
+        hudWebView.setVisibility(View.VISIBLE);
+        hudWebView.loadUrl("file:///android_asset/police/index.html");
+        if (policeWatchdog != null) authHandler.removeCallbacks(policeWatchdog);
+        policeWatchdog = () -> {
+            if (policeOpen && !policeReady) {
+                Log.e(TAG, "[police] la page ne s'est pas affichee a temps -> fermeture de secours");
+                closePolicePage(true);
+            }
+        };
+        authHandler.postDelayed(policeWatchdog, 5000);
+    }
+
+    private void closePolicePage(final boolean notifyServer) {
+        runOnUiThread(() -> {
+            if (hudWebView == null) return;
+            boolean wasOpen = policeOpen;
+            if (policeWatchdog != null) { authHandler.removeCallbacks(policeWatchdog); policeWatchdog = null; }
+            policeOpen = false;
+            policeReady = false;
+            configOpen = false;
+            pendingPoliceJson = null;
+            hudWebView.setFullscreenPage(false);
+            hudWebView.setPhonePage(false);
+            hudWebView.setVisibility(View.VISIBLE);
+            hudWebView.loadUrl("file:///android_asset/hud/index.html");
+            if (notifyServer && wasOpen) sendChatInput("/policeact close");
+        });
+    }
+
+    private final class SampPoliceBridge {
+        // JS -> serveur : /policeact <action> [arguments numeriques]. Le serveur re-verifie faction, grade,
+        // distance et etat de la cible a chaque action : seule une liste blanche d'actions est transmise.
+        @JavascriptInterface public void action(String type, String json) {
+            try {
+                String t = type == null ? "" : type.replaceAll("[^a-z]", "");
+                switch (t) {
+                    case "refresh": case "id": case "papers": case "search":
+                    case "cuff": case "uncuff": case "drag": case "undrag":
+                    case "licwd": case "licret": case "charge": case "fine": case "arrest":
+                        break;
+                    default:
+                        return;
+                }
+                JSONObject o = new JSONObject(json == null || json.isEmpty() ? "{}" : json);
+                String arg = o.optString("arg", "").replaceAll("[^0-9 ]", "").trim();
+                if (arg.length() > 20) arg = arg.substring(0, 20);
+                sendHudCommand("/policeact " + t + (arg.isEmpty() ? "" : " " + arg));
+            } catch (Exception e) {
+                Log.e(TAG, "police action", e);
+            }
+        }
+
+        @JavascriptInterface public void close() {
+            closePolicePage(true);
+        }
+
+        @JavascriptInterface public void ready() {
+            policeReady = true;
+            runOnUiThread(() -> { if (policeWatchdog != null) { authHandler.removeCallbacks(policeWatchdog); policeWatchdog = null; } });
+            Log.i(TAG, "[police] page affichee");
+        }
+    }
+
+    // ---- Vestiaire de faction (page assets/locker/index.html) ----
+    private void handleLockerDialog(final int dialogId, final String rawJson) {
+        String tmp = rawJson == null ? "{}" : rawJson;
+        int js = tmp.indexOf('{');
+        int je = tmp.lastIndexOf('}');
+        final String json = (js >= 0 && je > js) ? tmp.substring(js, je + 1) : "{}";
+        runOnUiThread(() -> {
+            if (hudWebView == null || isFinishing()) return;
+            if (dialogId == 9562) {            // fermeture demandee par le serveur
+                closeLockerPage(false);
+            } else if (dialogId == 9560) {     // ouverture (icone de main "Vestiaire" ou /vestiaire)
+                openLockerPage(json);
+            } else if (lockerOpen) {           // 9561 : mise a jour (tenue, message)
+                hudWebView.evaluateJavascript("window.LockerApp && LockerApp.onUpdateFromNative(" + JSONObject.quote(json) + ")", null);
+            }
+        });
+    }
+
+    private void openLockerPage(String json) {
+        if (hudWebView == null || authOpen || adminOpen) return;
+        if (lockerOpen && lockerReady) {
+            hudWebView.evaluateJavascript("window.LockerApp && LockerApp.onUpdateFromNative(" + JSONObject.quote(json) + ")", null);
+            return;
+        }
+        Log.i(TAG, "[locker] ouverture du vestiaire");
+        lockerOpen = true;
+        lockerReady = false;
+        configOpen = true;
+        invOpen = false;
+        bankOpen = false;
+        pharmacyOpen = false;
+        pendingLockerJson = json;
+        hudWebView.setWheelOpen(false);
+        hudWebView.setPhonePage(false);
+        hudWebView.setFullscreenPage(true);
+        hudWebView.setVisibility(View.VISIBLE);
+        hudWebView.loadUrl("file:///android_asset/locker/index.html");
+        if (lockerWatchdog != null) authHandler.removeCallbacks(lockerWatchdog);
+        lockerWatchdog = () -> {
+            if (lockerOpen && !lockerReady) {
+                Log.e(TAG, "[locker] la page ne s'est pas affichee a temps -> fermeture de secours");
+                closeLockerPage(true);
+            }
+        };
+        authHandler.postDelayed(lockerWatchdog, 5000);
+    }
+
+    private void closeLockerPage(final boolean notifyServer) {
+        runOnUiThread(() -> {
+            if (hudWebView == null) return;
+            boolean wasOpen = lockerOpen;
+            if (lockerWatchdog != null) { authHandler.removeCallbacks(lockerWatchdog); lockerWatchdog = null; }
+            lockerOpen = false;
+            lockerReady = false;
+            configOpen = false;
+            pendingLockerJson = null;
+            hudWebView.setFullscreenPage(false);
+            hudWebView.setPhonePage(false);
+            hudWebView.setVisibility(View.VISIBLE);
+            hudWebView.loadUrl("file:///android_asset/hud/index.html");
+            if (notifyServer && wasOpen) sendChatInput("/lockeract close");
+        });
+    }
+
+    private final class SampLockerBridge {
+        // JS -> serveur : /lockeract <wear|civil|refresh> [femme ceinture gilet casquette]. Le serveur re-verifie faction et distance.
+        @JavascriptInterface public void action(String type, String json) {
+            try {
+                String t = type == null ? "" : type.replaceAll("[^a-z]", "");
+                if (!t.equals("wear") && !t.equals("civil") && !t.equals("refresh")) return;
+                JSONObject o = new JSONObject(json == null || json.isEmpty() ? "{}" : json);
+                String arg = o.optString("arg", "").replaceAll("[^01 ]", "").trim();
+                if (arg.length() > 12) arg = arg.substring(0, 12);
+                sendHudCommand("/lockeract " + t + (arg.isEmpty() ? "" : " " + arg));
+            } catch (Exception e) {
+                Log.e(TAG, "locker action", e);
+            }
+        }
+
+        @JavascriptInterface public void close() {
+            closeLockerPage(true);
+        }
+
+        @JavascriptInterface public void ready() {
+            lockerReady = true;
+            Log.i(TAG, "[locker] page affichee");
+        }
+    }
+
     // ---- Connexion (page assets/login/index.html) ----
     private void handleAuthDialog(final int dialogId, final String rawJson) {
         String tmp = rawJson == null ? "{}" : rawJson;
@@ -1006,6 +1235,8 @@ public class SAMP extends GTASA implements HeightProvider.HeightListener {
             if (authOpen) return;
             invOpen = false;
             adminOpen = false;
+            lockerOpen = false;
+            policeOpen = false;
             configOpen = false;
             pharmacyOpen = false;
             bankOpen = false;
@@ -1025,6 +1256,14 @@ public class SAMP extends GTASA implements HeightProvider.HeightListener {
         }
         if (adminOpen) {
             closeAdminPage(true);
+            return;
+        }
+        if (policeOpen) {
+            closePolicePage(true);
+            return;
+        }
+        if (lockerOpen) {
+            closeLockerPage(true);
             return;
         }
         if (invOpen) {

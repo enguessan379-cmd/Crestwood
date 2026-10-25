@@ -68,7 +68,8 @@
   const INTERACT_LABELS = {
     bank: "Banque",
     vehicle_lock: "Verrouiller",
-    vehicle_unlock: "Déverrouiller"
+    vehicle_unlock: "Déverrouiller",
+    police: "Police"
   };
   const radioFrequencyText = document.querySelector("[data-radio-frequency]");
   const radioFrequencyLayer = document.querySelector(".radio-frequency-layer");

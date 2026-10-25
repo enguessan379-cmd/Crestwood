@@ -290,7 +290,9 @@ public class MainActivity extends AppCompatActivity {
             writeServerSettings(nickname);
             startButton.setEnabled(false);
             startButton.setText("...");
-            Intent gameIntent = new Intent(this, SAMP.class);
+            // 64 bits : moteur 2.11 (com.gta.game.SAMP) ; 32 bits : moteur 2.10 base kuzian (com.gta.game32.SAMP)
+            Class<?> gameClass = android.os.Process.is64Bit() ? SAMP.class : com.gta.game32.SAMP.class;
+            Intent gameIntent = new Intent(this, gameClass);
             gameIntent.putExtra("nickname", nickname);
             gameIntent.putExtra("server_host", SERVER_HOST);
             gameIntent.putExtra("server_port", SERVER_PORT);

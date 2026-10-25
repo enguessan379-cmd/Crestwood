@@ -103,6 +103,16 @@
             android:windowSoftInputMode="adjustPan"
             android:exported="true" />
 
+        <!-- Client 32 bits (armeabi-v7a) : moteur 2.10, base kuzian -->
+        <activity
+            android:name="com.gta.game32.SAMP"
+            android:screenOrientation="landscape"
+            android:theme="@style/Theme.AppCompat.NoActionBar"
+            android:configChanges="keyboard|keyboardHidden|orientation|screenSize|uiMode"
+            android:launchMode="singleTask"
+            android:windowSoftInputMode="adjustPan"
+            android:exported="false" />
+
     </application>
 
 </manifest>

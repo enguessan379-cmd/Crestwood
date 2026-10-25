@@ -7,7 +7,14 @@
   "use strict";
   const bridge = window.SampAdmin || null;
   const ROLES = ["Joueur", "Admin", "Rcon", "Développeur"];
-  const state = { lvl: 0, role: "Joueur", me: -1, count: 0, players: [], sel: null, tab: "players", filter: "" };
+  const FACTIONS = ["Civil", "Police"];
+  const POLICE_RANKS = ["Cadet", "Officier", "Sergent", "Lieutenant", "Capitaine", "Commandant"];
+  const state = { lvl: 0, role: "Joueur", me: -1, count: 0, players: [], lockers: [], sel: null, tab: "players", filter: "" };
+  function facLabel(p) {
+    if (!p || !p.f) return "";
+    const rank = POLICE_RANKS[Math.max(0, Math.min(POLICE_RANKS.length, Number(p.r) || 1) - 1)];
+    return (FACTIONS[p.f] || "Faction") + (p.f === 1 ? " · " + rank : "");
+  }
 
   const $ = (id) => document.getElementById(id);
   function el(tag, cls, text) {
@@ -44,7 +51,11 @@
     { k: "givemoney", label: "Donner de l'argent", sub: "Développeur",        lvl: 3,
       ask: { title: "Donner de l'argent", text: "Montant en liquide (négatif pour retirer) :", value: "1000", number: true } },
     { k: "setadmin",  label: "Définir le rôle",   sub: "Développeur",         lvl: 3, other: true,
-      ask: { title: "Rôle staff", text: "Choisis le nouveau rôle :", choices: ROLES } }
+      ask: { title: "Rôle staff", text: "Choisis le nouveau rôle :", choices: ROLES } },
+    { k: "setfaction", label: "Définir la faction", sub: "Civil / Police",      lvl: 1,
+      ask: { title: "Faction du joueur", text: "Seul un membre du staff peut nommer un policier :", choices: FACTIONS } },
+    { k: "setrank",    label: "Grade de police",   sub: "Cadet à Commandant",  lvl: 1,
+      ask: { title: "Grade de police", text: "Choisis le grade :", choices: POLICE_RANKS, base: 1 } }
   ];
 
   /* ------------------------------------------------------------ fenetre de saisie */
@@ -132,7 +143,7 @@
       b.appendChild(el("div", "adm-av", initials(p.n)));
       const main = el("div", "adm-row-main");
       main.appendChild(el("div", "adm-row-name", p.n + (p.id === state.me ? " (toi)" : "")));
-      main.appendChild(el("div", "adm-row-sub", "ID " + p.id + " · " + p.p + " ms"));
+      main.appendChild(el("div", "adm-row-sub", "ID " + p.id + " · " + p.p + " ms" + (p.f ? " · " + facLabel(p) : "")));
       b.appendChild(main);
       if (p.l > 0) b.appendChild(el("span", "adm-tag r" + Math.min(3, p.l), ROLES[Math.min(3, p.l)]));
       b.addEventListener("click", () => { state.sel = p.id; renderList(); renderDetail(); });
@@ -152,7 +163,7 @@
     row.appendChild(el("div", "adm-av", initials(p.n)));
     const info = el("div");
     info.appendChild(el("div", "adm-who-name", p.n));
-    info.appendChild(el("div", "adm-who-sub", "ID " + p.id + " · " + p.p + " ms · " + ROLES[Math.min(3, p.l || 0)]));
+    info.appendChild(el("div", "adm-who-sub", "ID " + p.id + " · " + p.p + " ms · " + ROLES[Math.min(3, p.l || 0)] + (p.f ? " · " + facLabel(p) : "")));
     row.appendChild(info);
     who.appendChild(row);
     const bars = el("div", "adm-bars");
@@ -188,6 +199,7 @@
     if (!a.ask) { send(a.k, p.id, ""); return; }
     openModal(a.ask, { fn: (value) => {
       if (a.ask.number && !/^-?\d+$/.test(value)) { toast("Montant invalide.", false); return; }
+      if (a.ask.choices && a.ask.base) value = String(Number(value) + a.ask.base);
       send(a.k, p.id, value);
     } });
   }
@@ -260,10 +272,67 @@
     }));
   }
 
+  /* ---- Onglet Factions : policiers en ligne + vestiaires ---- */
+  function renderFactions() {
+    const box = $("admFactions");
+    box.replaceChildren();
+
+    box.appendChild(serverCard("Vestiaires de police", 1, (c) => {
+      c.appendChild(el("p", "adm-hint", "Place-toi à l'endroit voulu (à pied) puis crée le vestiaire : il apparaît avec une icône et un texte 3D. Seuls les policiers peuvent l'utiliser."));
+      const add = el("button", "adm-btn primary", "Créer un vestiaire ici");
+      add.type = "button";
+      add.style.marginTop = "6px";
+      add.addEventListener("click", () => send("lockeradd", 0, "1"));
+      c.appendChild(add);
+      const list = el("div", "adm-lockers");
+      if (!state.lockers.length) list.appendChild(el("div", "adm-empty", "Aucun vestiaire pour le moment."));
+      state.lockers.forEach((l) => {
+        const row = el("div", "adm-locker");
+        const info = el("div", "adm-locker-info");
+        info.appendChild(el("b", "", "Vestiaire " + (FACTIONS[l.f] || "") + " #" + l.i));
+        info.appendChild(el("small", "", "X " + l.x + " · Y " + l.y + " · Z " + l.z));
+        row.appendChild(info);
+        const go = el("button", "adm-btn", "Y aller");
+        go.type = "button";
+        go.addEventListener("click", () => send("lockergoto", l.i, ""));
+        const del = el("button", "adm-btn danger", "Supprimer");
+        del.type = "button";
+        del.addEventListener("click", () => {
+          openModal({ title: "Supprimer le vestiaire #" + l.i + " ?", text: "Il disparaît pour tous les joueurs." }, { fn: () => send("lockerdel", l.i, "") });
+        });
+        row.appendChild(go);
+        row.appendChild(del);
+        list.appendChild(row);
+      });
+      c.appendChild(list);
+    }));
+
+    box.appendChild(serverCard("Policiers en ligne", 1, (c) => {
+      const cops = state.players.filter((p) => p.f === 1);
+      c.appendChild(el("p", "adm-hint", "Pour nommer un policier : onglet Joueurs, choisis le joueur puis « Définir la faction »."));
+      const list = el("div", "adm-lockers");
+      if (!cops.length) list.appendChild(el("div", "adm-empty", "Aucun policier connecté."));
+      cops.forEach((p) => {
+        const row = el("div", "adm-locker");
+        const info = el("div", "adm-locker-info");
+        info.appendChild(el("b", "", p.n));
+        info.appendChild(el("small", "", "ID " + p.id + " · " + facLabel(p)));
+        row.appendChild(info);
+        const retire = el("button", "adm-btn danger", "Retirer");
+        retire.type = "button";
+        retire.addEventListener("click", () => send("setfaction", p.id, "0"));
+        row.appendChild(retire);
+        list.appendChild(row);
+      });
+      c.appendChild(list);
+    }));
+  }
+
   function setTab(name) {
     state.tab = name;
     Array.prototype.forEach.call(document.querySelectorAll(".adm-tab"), (b) => b.classList.toggle("active", b.dataset.tab === name));
     $("tabPlayers").classList.toggle("hidden", name !== "players");
+    $("tabFactions").classList.toggle("hidden", name !== "factions");
     $("tabServer").classList.toggle("hidden", name !== "server");
   }
 
@@ -273,11 +342,13 @@
     state.me = data.me == null ? -1 : Number(data.me);
     state.count = Number(data.count) || 0;
     state.players = Array.isArray(data.players) ? data.players : [];
+    state.lockers = Array.isArray(data.lockers) ? data.lockers : [];
     if (state.sel != null && !state.players.some((p) => p.id === state.sel)) state.sel = null;
     if (fromOpen && state.sel == null && state.me >= 0) state.sel = state.me;
     renderHead();
     renderList();
     renderDetail();
+    renderFactions();
     renderServer();
   }
 
@@ -303,11 +374,12 @@
     window.AdminApp.openFromNative(JSON.stringify({
       lvl: 3, role: "Developpeur", me: 0, count: 4,
       players: [
-        { id: 0, n: "Anzo_Smith", h: 100, a: 100, p: 34, l: 3 },
-        { id: 1, n: "Sir_Sugo", h: 76, a: 0, p: 58, l: 0 },
-        { id: 2, n: "Carl_Johnson", h: 100, a: 40, p: 41, l: 1 },
-        { id: 3, n: "Marie_Dupont", h: 52, a: 0, p: 90, l: 2 }
-      ]
+        { id: 0, n: "Anzo_Smith", h: 100, a: 100, p: 34, l: 3, f: 0, r: 1 },
+        { id: 1, n: "Sir_Sugo", h: 76, a: 0, p: 58, l: 0, f: 1, r: 2 },
+        { id: 2, n: "Carl_Johnson", h: 100, a: 40, p: 41, l: 1, f: 0, r: 1 },
+        { id: 3, n: "Marie_Dupont", h: 52, a: 0, p: 90, l: 2, f: 1, r: 4 }
+      ],
+      lockers: [{ i: 1, f: 1, x: 1555, y: -1675, z: 16 }, { i: 2, f: 1, x: 1481, y: -1771, z: 18 }]
     }));
   }
   try { if (bridge && typeof bridge.ready === "function") bridge.ready(); } catch (_) {}

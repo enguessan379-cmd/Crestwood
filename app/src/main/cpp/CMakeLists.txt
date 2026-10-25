@@ -6,6 +6,12 @@ include_directories(
 
 find_package(shadowhook REQUIRED CONFIG)
 add_subdirectory(opus)
-add_subdirectory(samp)
+# arm64-v8a : client Crestwood (moteur 2.11, libGame.so)
+# armeabi-v7a : client 32 bits base kuzian (moteur 2.10, libGTASA.so + classes Java Nv/Wardrum), voir samp32/
+if(${ANDROID_ABI} STREQUAL "armeabi-v7a")
+    add_subdirectory(samp32)
+else()
+    add_subdirectory(samp)
+endif()
 
 target_compile_options(opus PRIVATE -O3)

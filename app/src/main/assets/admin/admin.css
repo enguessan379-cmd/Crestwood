@@ -110,3 +110,12 @@ input{font:inherit;color:var(--text)}
 .adm-choices{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .adm-choices .adm-btn.on{background:var(--royal);border-color:var(--blue)}
 .adm-modal-actions{display:flex;justify-content:flex-end;gap:8px}
+
+/* ---- Onglet Factions ---- */
+.adm-hint{margin:0 0 4px;font-size:clamp(10px,2.5vh,12px);color:var(--muted);line-height:1.4}
+.adm-lockers{display:flex;flex-direction:column;gap:6px;margin-top:10px}
+.adm-locker{display:flex;align-items:center;gap:8px;padding:1vh 10px;border-radius:10px;background:rgba(255,255,255,.035);border:1px solid var(--line)}
+.adm-locker-info{flex:1;min-width:0}
+.adm-locker-info b{display:block;font-size:clamp(11px,2.9vh,13px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.adm-locker-info small{display:block;font-size:clamp(9px,2.3vh,11px);color:var(--muted);margin-top:1px}
+.adm-locker .adm-btn{padding:.9vh 10px;flex:none}

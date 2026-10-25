@@ -20,6 +20,7 @@
             <span class="adm-role" id="admRole">—</span>
             <nav class="adm-tabs" aria-label="Sections">
                 <button class="adm-tab active" type="button" data-tab="players">Joueurs</button>
+                <button class="adm-tab" type="button" data-tab="factions">Factions</button>
                 <button class="adm-tab" type="button" data-tab="server">Serveur</button>
             </nav>
             <button class="adm-refresh" id="admRefresh" type="button" aria-label="Actualiser">&#8635;</button>
@@ -32,6 +33,10 @@
                 <div class="adm-list" id="admList"></div>
             </aside>
             <section class="adm-detail" id="admDetail"></section>
+        </div>
+
+        <div class="adm-body adm-server hidden" id="tabFactions">
+            <div class="adm-cards" id="admFactions"></div>
         </div>
 
         <div class="adm-body adm-server hidden" id="tabServer">
