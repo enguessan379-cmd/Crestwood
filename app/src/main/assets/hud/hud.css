@@ -3985,3 +3985,85 @@ body.phone-camera-mode .id-camera-frame span { display: none; }
 .pc-nav{display:flex;justify-content:space-evenly;align-items:center;padding:.4vh 0 1.2vh}
 .pc-nav button{display:grid;place-items:center;width:6vh;height:4.4vh;padding:0;border:0;border-radius:2vh;background:transparent;color:#e8e8e8}
 .pc-nav svg{width:2.8vh;height:2.8vh}
+
+/* ---- Interaction tactile : icone de main "appuyer pour interagir" ---- */
+.interact-tap-button {
+  position: absolute;
+  right: max(128px, calc(env(safe-area-inset-right) + 128px));
+  top: 49vh;
+  z-index: 7;
+  width: 74px;
+  height: 74px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  border: 2px solid rgba(58, 167, 255, 0.92);
+  background: rgba(7, 16, 28, 0.62);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.34), 0 0 18px rgba(46, 168, 255, 0.45), inset 0 0 0 1px rgba(255, 255, 255, 0.14);
+  pointer-events: auto;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  user-select: none;
+  animation: interactTapIn 180ms ease-out both;
+}
+
+.interact-tap-button[hidden] {
+  display: none;
+}
+
+.interact-tap-button img {
+  width: 46px;
+  height: 46px;
+  object-fit: contain;
+  pointer-events: none;
+  filter: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.5));
+  animation: interactTapHand 1.3s ease-in-out infinite;
+}
+
+.interact-tap-ring {
+  position: absolute;
+  inset: -2px;
+  border-radius: 999px;
+  border: 2px solid rgba(58, 167, 255, 0.7);
+  pointer-events: none;
+  animation: interactTapPulse 1.6s ease-out infinite;
+}
+
+.interact-tap-label {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  translate: -50% 0;
+  max-width: 150px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: rgba(7, 16, 28, 0.72);
+  border: 1px solid rgba(58, 167, 255, 0.45);
+  color: #fff;
+  font: 800 12px/1.2 Inter, "Segoe UI", system-ui, sans-serif;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+  pointer-events: none;
+}
+
+.interact-tap-button:active {
+  transform: scale(0.92);
+  background: rgba(30, 74, 138, 0.78);
+}
+
+@keyframes interactTapIn {
+  from { opacity: 0; transform: scale(0.7); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes interactTapHand {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(3px) scale(0.93); }
+}
+
+@keyframes interactTapPulse {
+  0% { transform: scale(1); opacity: 0.75; }
+  100% { transform: scale(1.5); opacity: 0; }
+}

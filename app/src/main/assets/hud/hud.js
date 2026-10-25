@@ -62,6 +62,14 @@
   const vehicleLockButton = document.querySelector(".vehicle-lock-button");
   const vehicleLockIcon = vehicleLockButton?.querySelector("img");
   const animationsButton = document.querySelector(".animations-toggle-button");
+  const interactButton = document.querySelector("#interactTap");
+  const interactLabel = document.querySelector("#interactTapLabel");
+  // Libelles (avec accents) des cibles connues ; sinon on affiche le libelle envoye par le serveur.
+  const INTERACT_LABELS = {
+    bank: "Banque",
+    vehicle_lock: "Verrouiller",
+    vehicle_unlock: "Déverrouiller"
+  };
   const radioFrequencyText = document.querySelector("[data-radio-frequency]");
   const radioFrequencyLayer = document.querySelector(".radio-frequency-layer");
   const radioFrequencyInput = document.querySelector("[data-radio-input]");
@@ -532,6 +540,7 @@
     add("engine", engineButton);
     add("vehicleLock", vehicleLockButton);
     add("animations", animationsButton);
+    add("interact", interactButton);
     add("quick", document.querySelector(".quick-actions"));
     add("weapon", document.querySelector(".weapon-panel"));
     add("steps", firstStepsPanel);
@@ -652,6 +661,37 @@
       return;
     }
     sendMessage(`/radioact ${action}${value ? ` ${value}` : ""}`);
+  }
+
+  // Icone de main : le serveur (dialogue "@interact") dit si un point d'interaction est a portee.
+  function setInteract(payload) {
+    if (!interactButton) return;
+    let data = payload;
+    if (typeof data === "string") {
+      try { data = JSON.parse(data); } catch (_) { data = null; }
+    }
+    const show = !!(data && Number(data.show) === 1);
+    if (show) {
+      const id = String(data.id || "");
+      const label = INTERACT_LABELS[id] || String(data.label || "Interagir");
+      if (interactLabel) interactLabel.textContent = label;
+      interactButton.setAttribute("aria-label", label);
+      interactButton.dataset.target = id;
+    }
+    const wasHidden = interactButton.hidden;
+    interactButton.hidden = !show;
+    if (wasHidden !== interactButton.hidden) syncTouchBounds();
+    else if (show) window.setTimeout(syncTouchBounds, 0);
+  }
+
+  function sendInteract() {
+    if (state.hudEditing || !interactButton || interactButton.hidden) return;
+    if (navigator.vibrate) { try { navigator.vibrate(18); } catch (_) { /* ignore */ } }
+    if (bridge?.interactAction) {
+      bridge.interactAction();
+      return;
+    }
+    sendMessage("/interagir");
   }
 
   function sendEngineAction(action = "toggle") {
@@ -2131,6 +2171,14 @@
     if (!key) return;
     updateRadioFrequencyInput(key);
   });
+  interactButton?.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    sendInteract();
+  });
+  interactButton?.addEventListener("pointerdown", (event) => {
+    event.preventDefault();
+  });
   engineButton?.addEventListener("click", (event) => {
     event.preventDefault();
     sendEngineAction("toggle");
@@ -2500,6 +2548,7 @@
       updateHudInfo(mapped);
     },
     setVisible(visible) { if (root) root.style.display = visible === false ? "none" : ""; },
+    setInteract,
     setWheelOpen() {},
     setVehicleMode() {},
     reset() {}

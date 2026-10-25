@@ -148,6 +148,9 @@ void UI::drawList()
 
     if (pPlayerTags) pPlayerTags->Render(renderer());
 
+    // bulles de discussion au-dessus des joueurs
+    if (pNetGame && pNetGame->GetPlayerBubblePool()) pNetGame->GetPlayerBubblePool()->Render(renderer());
+
     draw(renderer());
 
     CharacterCreator::Render();

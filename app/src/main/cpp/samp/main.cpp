@@ -226,7 +226,7 @@ void DoInitStuff()
 		pAudioStream->Initialize();
 
 		pUI->splashscreen()->setVisible(false);
-			pUI->chat()->setVisible(true);
+		pUI->chat()->setVisible(false); // chat SA-MP classique desactive (le HUD gere la saisie, l'envoi passe toujours par sendChatInput)
 		pUI->buttonpanel()->setVisible(false);
 		pUI->voicebutton()->setVisible(false);
 		pUI->spawn()->setVisible(true);

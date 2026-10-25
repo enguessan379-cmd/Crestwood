@@ -105,6 +105,17 @@ void Chat::keyboardEvent(const std::string& input)
     if (input.length() > 0 && pNetGame)
     {
         if (input[0] == '/') pNetGame->SendChatCommand(input.c_str());
-        else pNetGame->SendChatMessage(input.c_str());
+        else
+        {
+            pNetGame->SendChatMessage(input.c_str());
+
+            // bulle au-dessus de sa propre tete (texte deja en UTF-8)
+            CPlayerPool* pPlayerPool = pNetGame->GetPlayerPool();
+            if (pPlayerPool && pPlayerPool->GetLocalPlayer() && pNetGame->GetPlayerBubblePool())
+            {
+                pNetGame->GetPlayerBubblePool()->NewChat(pPlayerPool->GetLocalPlayerID(), input.c_str(),
+                                                         pPlayerPool->GetLocalPlayer()->GetPlayerColorAsRGBA(), true);
+            }
+        }
     }
 }

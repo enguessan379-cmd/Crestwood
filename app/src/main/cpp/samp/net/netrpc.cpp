@@ -304,6 +304,9 @@ void Chat(RPCParameters *rpcParams)
 		CRemotePlayer *pRemotePlayer = pPlayerPool->GetAt(playerId);
 		if (pRemotePlayer) {
 			pRemotePlayer->Say(szMessage);
+			// bulle de discussion au-dessus du joueur qui ecrit
+			if (pNetGame->GetPlayerBubblePool() && szMessage[0] != '\0')
+				pNetGame->GetPlayerBubblePool()->NewChat(playerId, szMessage, pRemotePlayer->GetPlayerColor(), false);
 		}
 	}
 }
@@ -1419,7 +1422,6 @@ void ChatBubble(RPCParameters* rpcParams)
 
 	bsData.Read(playerId);
 
-	if (playerId == pNetGame->GetPlayerPool()->GetLocalPlayerID()) return;
 	if (playerId >= MAX_PLAYERS) return;
 
 	bsData.Read(color);

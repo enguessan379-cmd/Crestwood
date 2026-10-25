@@ -25,6 +25,10 @@ import android.webkit.JavascriptInterface;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.webkit.WebChromeClient;
+import android.webkit.ConsoleMessage;
+import android.webkit.WebResourceRequest;
+import android.webkit.WebResourceError;
 import android.widget.Toast;
 import android.view.ViewGroup;
 import com.rockstargames.oswrapper.GameThread;
@@ -58,6 +62,9 @@ public class SAMP extends GTASA implements HeightProvider.HeightListener {
     private boolean pharmacyOpen;
     private boolean bankOpen;
     private volatile String pendingBankJson;
+    private volatile boolean bankReady;
+    private final Handler bankHandler = new Handler(Looper.getMainLooper());
+    private Runnable bankWatchdog;
     private boolean cameraOpen;
     private volatile int hudHunger = 100;
     private volatile int hudThirst = 100;
@@ -118,16 +125,39 @@ public class SAMP extends GTASA implements HeightProvider.HeightListener {
         System.exit(0);
     }
 
+    /** Dernier etat d'interaction recu du serveur : rejoue quand la page du HUD est rechargee (retour de la banque, du telephone...). */
+    private volatile String lastInteractJson = null;
+
     public void showDialog(int dialogId, int dialogTypeId, byte[] bArr, byte[] bArr2, byte[] bArr3, byte[] bArr4) {
         final String caption = new String(bArr);
         final String content = new String(bArr2);
         final String leftBtnText = new String(bArr3);
         final String rightBtnText = new String(bArr4);
+        // Interaction tactile : le serveur signale qu'un point d'interaction est proche (id 9510, titre
+        // "@interact", contenu JSON {"show":1,"id":"bank","label":"Banque"} ou {"show":0}).
+        // Rien n'est affiche en dialogue : l'icone de main du HUD apparait ou disparait.
+        if (dialogId == 9510) {
+            final String capInteract = caption.replace("\u0000", "").replaceAll("\\{[0-9A-Fa-f]{6}\\}", "").trim();
+            if (capInteract.startsWith("@interact")) {
+                final String interactJson = content == null ? "{}" : content.replace("\u0000", "").trim();
+                lastInteractJson = interactJson;
+                hudJs("window.HudBridge && HudBridge.setInteract && HudBridge.setInteract(" + JSONObject.quote(interactJson) + ")");
+                return;
+            }
+        }
         // Banque : le serveur envoie l'etat en JSON dans un dialogue special (ids 9500-9502,
         // titre "@bank"). On ne l'affiche pas : il va a la page assets/bank/index.html.
-        if (dialogId >= 9500 && dialogId <= 9502 && "@bank".equals(caption)) {
-            handleBankDialog(dialogId, content);
-            return;
+        if (dialogId >= 9500 && dialogId <= 9502) {
+            // titre nettoye (codes couleur, caracteres nuls, espaces) + secours : contenu JSON
+            final String capClean = caption.replace("\u0000", "").replaceAll("\\{[0-9A-Fa-f]{6}\\}", "").trim();
+            final boolean looksJson = content != null && content.trim().startsWith("{");
+            if (capClean.startsWith("@bank") || looksJson) {
+                Log.i(TAG, "[bank] dialogue " + dialogId + " intercepte, titre='" + capClean + "', "
+                        + (content == null ? 0 : content.length()) + " car.");
+                handleBankDialog(dialogId, content);
+                return;
+            }
+            Log.w(TAG, "[bank] dialogue " + dialogId + " NON intercepte, titre='" + caption + "'");
         }
         // Le dialogue de connexion du serveur (login/inscription) s'affiche DERRIERE l'ecran de chargement :
         // sans cette ligne le joueur ne pouvait jamais le voir, donc jamais arriver au spawn.
@@ -290,8 +320,19 @@ public class SAMP extends GTASA implements HeightProvider.HeightListener {
         if (hudWebView == null) return;
         hudWebView.setBackgroundColor(Color.TRANSPARENT);
         hudWebView.setLayerType(View.LAYER_TYPE_HARDWARE, null);
+        hudWebView.setWebChromeClient(new WebChromeClient() {
+            @Override public boolean onConsoleMessage(ConsoleMessage m) {
+                Log.i("HUD-JS", m.message() + " (" + m.sourceId() + ":" + m.lineNumber() + ")");
+                return true;
+            }
+        });
         hudWebView.setWebViewClient(new WebViewClient() {
+            @Override public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
+                Log.e(TAG, "[webview] erreur " + (request != null ? request.getUrl() : "?")
+                        + " : " + (error != null ? error.getDescription() : "?"));
+            }
             @Override public void onPageFinished(WebView view, String url) {
+                Log.i(TAG, "[webview] page chargee : " + url);
                 String json = pendingBankJson;
                 if (json != null && url != null && url.endsWith("bank/index.html")) {
                     pendingBankJson = null;
@@ -457,9 +498,16 @@ public class SAMP extends GTASA implements HeightProvider.HeightListener {
     }
 
     // ---- Banque (page assets/bank/index.html) ----
-    private void handleBankDialog(final int dialogId, final String json) {
+    private void handleBankDialog(final int dialogId, final String rawJson) {
+        String tmp = rawJson == null ? "{}" : rawJson;
+        int js = tmp.indexOf('{');
+        int je = tmp.lastIndexOf('}');
+        final String json = (js >= 0 && je > js) ? tmp.substring(js, je + 1) : "{}";
         runOnUiThread(() -> {
-            if (hudWebView == null || isFinishing()) return;
+            if (hudWebView == null || isFinishing()) {
+                Log.e(TAG, "[bank] WebView indisponible, ouverture impossible");
+                return;
+            }
             if (dialogId == 9502) {            // fermeture demandee par le serveur
                 closeBankPage(false);
             } else if (dialogId == 9500) {     // ouverture
@@ -472,7 +520,9 @@ public class SAMP extends GTASA implements HeightProvider.HeightListener {
 
     private void openBankPage(String json) {
         if (hudWebView == null) return;
+        Log.i(TAG, "[bank] ouverture de la page banque");
         bankOpen = true;
+        bankReady = false;
         configOpen = true;
         pharmacyOpen = false;
         pendingBankJson = json;
@@ -481,13 +531,34 @@ public class SAMP extends GTASA implements HeightProvider.HeightListener {
         hudWebView.setFullscreenPage(true);
         hudWebView.setVisibility(View.VISIBLE);
         hudWebView.loadUrl("file:///android_asset/bank/index.html");
+
+        // Garde-fou : si la page n'a pas confirme son affichage en 5 s, on la ferme et on previent le
+        // serveur (/bankact close) pour que le joueur ne reste JAMAIS fige (TogglePlayerControllable).
+        cancelBankWatchdog();
+        bankWatchdog = () -> {
+            if (bankOpen && !bankReady) {
+                Log.e(TAG, "[bank] la page ne s'est pas affichee a temps -> fermeture de secours");
+                Toast.makeText(SAMP.this, "Banque indisponible, reessaie.", Toast.LENGTH_SHORT).show();
+                closeBankPage(true);
+            }
+        };
+        bankHandler.postDelayed(bankWatchdog, 5000);
+    }
+
+    private void cancelBankWatchdog() {
+        if (bankWatchdog != null) {
+            bankHandler.removeCallbacks(bankWatchdog);
+            bankWatchdog = null;
+        }
     }
 
     private void closeBankPage(final boolean notifyServer) {
         runOnUiThread(() -> {
             if (hudWebView == null) return;
             boolean wasOpen = bankOpen;
+            cancelBankWatchdog();
             bankOpen = false;
+            bankReady = false;
             configOpen = false;
             pendingBankJson = null;
             hudWebView.setFullscreenPage(false);
@@ -516,6 +587,13 @@ public class SAMP extends GTASA implements HeightProvider.HeightListener {
 
         @JavascriptInterface public void close() {
             closeBankPage(true);
+        }
+
+        // Appele par bank.js quand la page est bien affichee (annule le garde-fou)
+        @JavascriptInterface public void ready() {
+            bankReady = true;
+            runOnUiThread(() -> cancelBankWatchdog());
+            Log.i(TAG, "[bank] page affichee");
         }
     }
 
@@ -802,6 +880,7 @@ public class SAMP extends GTASA implements HeightProvider.HeightListener {
      * ADAPTE CES VALEURS aux commandes réelles de ton gamemode PAWN ("" = ne rien envoyer).
      */
     private static final String CMD_ENGINE = "/moteur";
+    private static final String CMD_INTERACT = "/interagir";
     private static final String CMD_VEHICLE_LOCK = "/lock";
     private static final String CMD_ANIMATIONS = "/anim";
     private static final String CMD_INVENTORY = "/inventaire";
@@ -832,6 +911,10 @@ public class SAMP extends GTASA implements HeightProvider.HeightListener {
                 info.put("ready", 1);
             } catch (Exception ignored) { }
             hudJs("window.HudApp && HudApp.openFromNative(" + info + ")");
+            final String pendingInteract = lastInteractJson;
+            if (pendingInteract != null) {
+                hudJs("window.HudBridge && HudBridge.setInteract && HudBridge.setInteract(" + JSONObject.quote(pendingInteract) + ")");
+            }
         }
 
         @JavascriptInterface public void setTouchBounds(String raw) {
@@ -890,6 +973,8 @@ public class SAMP extends GTASA implements HeightProvider.HeightListener {
         }
 
         @JavascriptInterface public void engineAction(String action) { sendHudCommand(CMD_ENGINE); }
+        /** Tap sur l'icone de main : le serveur choisit lui-meme la cible la plus proche (banque, vehicule...). */
+        @JavascriptInterface public void interactAction() { sendHudCommand(CMD_INTERACT); }
         @JavascriptInterface public void vehicleLockAction() { sendHudCommand(CMD_VEHICLE_LOCK); }
         @JavascriptInterface public void openAnimations() { sendHudCommand(CMD_ANIMATIONS); }
 

@@ -102,6 +102,8 @@ window.BankApp = {
         } else {
             openLogin();
         }
+        // Confirme au nativo que a pagina esta visivel (cancela a protecao anti-travamento)
+        try { if (bridge && typeof bridge.ready === "function") bridge.ready(); } catch (_) {}
         if (payload.msg) showToast(payload.msg, payload.ok ? "success" : "error");
     },
 
