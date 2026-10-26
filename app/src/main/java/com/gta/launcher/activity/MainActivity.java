@@ -316,7 +316,10 @@ public class MainActivity extends AppCompatActivity {
             writer.write("name=" + nickname.replace("\n", "").replace("\r", "") + "\n");
             writer.write("host=" + SERVER_HOST + "\n");
             writer.write("port=" + SERVER_PORT + "\n");
-            writer.write("password=\nversion=0.3.7\n\n[debug]\ndebug=false\nonline=true\n\n[gui]\nVoiceChatEnable=false\n");
+            // [gui] : la position du chat SA-MP ne sert qu'au client 32 bits (le 64 bits utilise le chat du HUD HTML) ;
+            // on le decale a droite de la minimap HTML et sous le logo pour ne rien recouvrir.
+            writer.write("password=\nversion=0.3.7\n\n[debug]\ndebug=false\nonline=true\n\n[gui]\nVoiceChatEnable=false\n"
+                    + "ChatPosX=440\nChatPosY=120\nChatSizeX=760\nChatSizeY=210\nChatMaxMessages=6\n");
         }
     }
 

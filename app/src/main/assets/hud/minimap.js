@@ -11,10 +11,17 @@
  * Les tuiles viennent de radar/tiles/radar0..143.png : grille 12 x 12, 500 unités par tuile,
  * monde de -3000 à +3000, ligne 0 = nord, colonne 0 = ouest.
  *
- * API supplémentaire (pour brancher plus tard les blips/GPS venant du serveur) :
+ * GPS façon GTA V : dès qu'une destination existe (mission du serveur ou point placé sur la carte),
+ * l'itinéraire est calculé sur le vrai réseau routier (gps/gps-route.js) et tracé en violet.
+ * Il se raccourcit au fur et à mesure et se recalcule si l'on quitte la route.
+ *
+ * API :
  *   MinimapBridge.setBlips([{ id, x, y, icon }])   icon = numéro de radar/blips/blip_<icon>.png
  *   MinimapBridge.setWaypoint(x, y, auto) / clearWaypoint()   auto = efface a l'arrivee (point choisi sur la carte)
  *   MinimapBridge.setZoom(unitesVisibles)           (null = zoom automatique)
+ *
+ * Optimisation : le dessin s'arrête tout seul quand rien ne bouge (aucune image calculée pour rien),
+ * et il est limité à ~40 images par seconde.
  */
 (function () {
   "use strict";
@@ -27,11 +34,17 @@
   const FOOT_SPAN = 260;      // unités visibles sur la largeur du cadre, à pied
   const VEHICLE_SPAN = 260;   // base en véhicule, + vitesse
   const SPEED_SPAN_GAIN = 1.6;
+  const MIN_FRAME_MS = 24;    // ~40 images / s maximum
+  const ROUTE_COLOR = "#b44dff";        // violet GTA V
+  const ROUTE_EDGE = "rgba(28, 6, 44, 0.9)";
+  const OFF_ROUTE = 32;       // unités hors du tracé avant recalcul
+  const RECALC_MS = 1500;     // délai mini entre deux recalculs
+  const ARRIVED = 30;         // distance d'arrivée (point placé sur la carte)
 
   const frame = document.querySelector(".minimap-frame");
   const canvas = frame && frame.querySelector(".minimap-canvas");
   if (!frame || !canvas) return;
-  const ctx = canvas.getContext("2d");
+  const ctx = canvas.getContext("2d", { alpha: false }) || canvas.getContext("2d");
 
   const tiles = new Map();   // index -> { img, ready, used }
   const icons = new Map();   // chemin -> { img, ready }
@@ -40,18 +53,30 @@
   let manualSpan = null;
   let frameCounter = 0;
   let lastTime = 0;
+  let lastDraw = 0;
   let running = false;
+  let dirty = true;
+
+  // Itinéraire
+  let route = null;          // { pts, cum, len }
+  let routeIdx = 0;
+  let routeLeft = 0;
+  let routeProj = null;      // point projeté du joueur sur le tracé
+  let routeAt = 0;
+  let routePending = false;
 
   const target = { x: 0, y: 0, fx: 0, fy: 1, hx: 0, hy: 1, span: FOOT_SPAN };
   const cur = { x: 0, y: 0, fx: 0, fy: 1, hx: 0, hy: 1, span: FOOT_SPAN };
   let hasData = false;
+
+  function markDirty() { dirty = true; start(); }
 
   function loadImage(path, store) {
     let entry = store.get(path);
     if (!entry) {
       const img = new Image();
       entry = { img, ready: false, used: 0 };
-      img.onload = () => { entry.ready = true; };
+      img.onload = () => { entry.ready = true; markDirty(); };
       img.onerror = () => { entry.failed = true; };
       img.src = path;
       store.set(path, entry);
@@ -74,6 +99,7 @@
     }
   }
 
+  let cachedDpr = 1;
   function resizeCanvas() {
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     const w = Math.max(1, Math.round(frame.clientWidth * dpr));
@@ -82,6 +108,7 @@
       canvas.width = w;
       canvas.height = h;
     }
+    cachedDpr = dpr;
     return dpr;
   }
 
@@ -89,6 +116,60 @@
     const len = Math.hypot(vx, vy);
     if (len < 1e-4) return [fallbackX, fallbackY];
     return [vx / len, vy / len];
+  }
+
+  /* ------------------------------------------------------------------ itinéraire */
+  function gps() { return window.CrestGPS || null; }
+
+  function requestRoute(force) {
+    if (!waypoint || !hasData) return;
+    const now = performance.now();
+    if (!force && now - routeAt < RECALC_MS) return;
+    if (routePending) return;
+    const G = gps();
+    if (!G) return;
+    routePending = true;
+    routeAt = now;
+    G.load((ok) => {
+      // calcul hors de l'appel du pont natif (ne bloque pas la mise à jour du HUD)
+      window.setTimeout(() => {
+        routePending = false;
+        if (!waypoint) return;
+        let r = ok ? G.route(target.x, target.y, waypoint.x, waypoint.y) : null;
+        if (!r) {
+          // pas de route trouvée (intérieur, île...) : ligne droite
+          const pts = new Float32Array([target.x, target.y, waypoint.x, waypoint.y]);
+          const len = Math.hypot(waypoint.x - target.x, waypoint.y - target.y);
+          r = { pts, cum: new Float32Array([0, len]), len, straight: true };
+        }
+        route = r;
+        routeIdx = 0;
+        routeAt = performance.now();
+        trackRoute();
+        markDirty();
+      }, 0);
+    });
+  }
+
+  function clearRoute() {
+    route = null;
+    routeIdx = 0;
+    routeLeft = 0;
+    routeProj = null;
+    markDirty();
+  }
+
+  function trackRoute() {
+    if (!waypoint) return;
+    if (!route) { requestRoute(true); return; }
+    const G = gps();
+    if (!G) return;
+    const p = G.progress(route, routeIdx, target.x, target.y);
+    routeIdx = p.idx;
+    routeProj = p;
+    routeLeft = p.left + (p.off > 8 ? p.off : 0);
+    if (!route.straight && p.off > OFF_ROUTE) requestRoute(false);
+    else if (route.straight && Math.hypot(route.pts[0] - target.x, route.pts[1] - target.y) > 80) requestRoute(false);
   }
 
   function update(state) {
@@ -118,15 +199,30 @@
       hasData = true;
       frame.dataset.ready = "1";
     } else if (Math.hypot(target.x - cur.x, target.y - cur.y) > 120) {
-      // Téléportation : on saute directement à la nouvelle position.
+      // Téléportation : on saute directement à la nouvelle position (et on refait l'itinéraire).
       cur.x = target.x;
       cur.y = target.y;
+      if (waypoint) requestRoute(true);
     }
-    start();
+
+    if (waypoint) {
+      // Point placé sur la carte : effacé à l'arrivée (les points du serveur sont gérés par le serveur)
+      if (waypoint.auto && Math.hypot(waypoint.x - target.x, waypoint.y - target.y) < ARRIVED) {
+        waypoint = null;
+        clearRoute();
+        try { window.AndroidHUD && window.AndroidHUD.onHudAction && window.AndroidHUD.onHudAction("gps:arrived", "{}"); } catch (_) { /* aperçu */ }
+      } else {
+        trackRoute();
+      }
+    }
+    markDirty();
   }
 
   function step(dt) {
     const k = 1 - Math.exp(-dt * 12);
+    const before = Math.abs(target.x - cur.x) + Math.abs(target.y - cur.y)
+      + Math.abs(target.fx - cur.fx) + Math.abs(target.fy - cur.fy)
+      + Math.abs(target.hx - cur.hx) + Math.abs(target.hy - cur.hy);
     cur.x += (target.x - cur.x) * k;
     cur.y += (target.y - cur.y) * k;
     const f = normalize(cur.fx + (target.fx - cur.fx) * k, cur.fy + (target.fy - cur.fy) * k, target.fx, target.fy);
@@ -136,12 +232,15 @@
     cur.hx = h[0];
     cur.hy = h[1];
     const goalSpan = manualSpan || target.span;
-    cur.span += (goalSpan - cur.span) * (1 - Math.exp(-dt * 3));
+    const spanGap = goalSpan - cur.span;
+    cur.span += spanGap * (1 - Math.exp(-dt * 3));
+    // encore en mouvement ?
+    return before > 0.02 || Math.abs(spanGap) > 0.5;
   }
 
   function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 
-  function drawTiles(w, h, s) {
+  function setWorldTransform(w, h, s) {
     const fx = cur.fx;
     const fy = cur.fy;
     const rx = fy;
@@ -150,7 +249,10 @@
     ctx.setTransform(s * rx, -s * fx, -s * ry, s * fy,
       w / 2 - s * (rx * cur.x + ry * cur.y),
       h / 2 + s * (fx * cur.x + fy * cur.y));
+  }
 
+  function drawTiles(w, h, s) {
+    setWorldTransform(w, h, s);
     const radius = cur.span * 0.75;   // un peu plus que la demi-diagonale
     const pad = radius * 0.35;        // préchargement des tuiles voisines
     const col0 = clamp(Math.floor((cur.x - radius - pad + WORLD_HALF) / TILE_WORLD), 0, GRID - 1);
@@ -175,8 +277,39 @@
     }
   }
 
-  // Position écran (pixels canvas) d'un point du monde ; renvoie aussi s'il est hors cadre.
-  function project(wx, wy, w, h, s) {
+  // Tracé violet (repère du monde) : du joueur jusqu'à la destination, partie déjà parcourue retirée.
+  function drawRoute(s, dpr) {
+    if (!route || !waypoint) return;
+    const pts = route.pts;
+    const n = pts.length / 2;
+    if (n < 2) return;
+    const px = 1 / s;   // 1 pixel du canvas en unités du monde
+    const reach = cur.span * 0.9;
+    ctx.beginPath();
+    // repère des tuiles : (X, V) avec V = -Y
+    ctx.moveTo(cur.x, -cur.y);
+    if (routeProj && !route.straight) ctx.lineTo(routeProj.px, -routeProj.py);
+    let last = Math.min(n - 1, routeIdx + 1);
+    for (let i = last; i < n; i += 1) {
+      ctx.lineTo(pts[i * 2], -pts[i * 2 + 1]);
+      last = i;
+      // on arrête le tracé un peu après la sortie du cadre (inutile de dessiner toute la ville)
+      if (Math.abs(pts[i * 2] - cur.x) > reach * 2.5 || Math.abs(pts[i * 2 + 1] - cur.y) > reach * 2.5) break;
+    }
+    ctx.lineJoin = "round";
+    ctx.lineCap = "round";
+    ctx.strokeStyle = ROUTE_EDGE;
+    ctx.lineWidth = 8.5 * dpr * px;
+    ctx.stroke();
+    ctx.strokeStyle = route.straight ? "rgba(180, 77, 255, 0.8)" : ROUTE_COLOR;
+    ctx.lineWidth = 5 * dpr * px;
+    if (route.straight) ctx.setLineDash([10 * dpr * px, 7 * dpr * px]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  // Position écran (pixels canvas) d'un point du monde, relative au centre.
+  function project(wx, wy, s) {
     const dx = wx - cur.x;
     const dy = wy - cur.y;
     const sx = (dx * cur.fy + dy * -cur.fx) * s;
@@ -190,21 +323,39 @@
     return true;
   }
 
+  // Repère de destination violet (style GTA V), même en bord de cadre.
+  function drawWaypointMarker(x, y, dpr, edge) {
+    const r = (edge ? 5.5 : 6.5) * dpr;
+    ctx.beginPath();
+    ctx.arc(x, y, r + 2 * dpr, 0, Math.PI * 2);
+    ctx.fillStyle = "rgba(20, 4, 32, 0.9)";
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fillStyle = ROUTE_COLOR;
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(x, y, r * 0.38, 0, Math.PI * 2);
+    ctx.fillStyle = "#ffffff";
+    ctx.fill();
+  }
+
   function drawMarkers(w, h, s, dpr) {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     const half = w / 2;
-    const margin = 9 * dpr;
+    // Cadre rond : les repères hors champ sont posés sur le cercle.
+    const limit = half - 9 * dpr;
 
     const place = (wx, wy) => {
-      const p = project(wx, wy, w, h, s);
-      const lim = half - margin;
-      const m = Math.max(Math.abs(p.x), Math.abs(p.y));
-      if (m > lim) {
-        p.x *= lim / m;
-        p.y *= lim / m;
-        p.edge = true;
+      const p = project(wx, wy, s);
+      const m = Math.hypot(p.x, p.y);
+      let edge = false;
+      if (m > limit) {
+        p.x *= limit / m;
+        p.y *= limit / m;
+        edge = true;
       }
-      return { x: half + p.x, y: h / 2 + p.y, edge: !!p.edge };
+      return { x: half + p.x, y: h / 2 + p.y, edge };
     };
 
     for (const blip of blips) {
@@ -215,14 +366,9 @@
     }
     ctx.globalAlpha = 1;
 
-    // Point GPS choisi sur la carte : efface a l'arrivee (les points du serveur sont geres par le serveur)
-    if (waypoint && waypoint.auto && hasData && Math.hypot(waypoint.x - target.x, waypoint.y - target.y) < 30) {
-      waypoint = null;
-      try { window.AndroidHUD && window.AndroidHUD.onHudAction && window.AndroidHUD.onHudAction("gps:arrived", "{}"); } catch (_) { /* aperçu */ }
-    }
     if (waypoint) {
       const pos = place(waypoint.x, waypoint.y);
-      drawIcon(loadImage("radar/cross.png", icons), pos.x, pos.y, 18 * dpr);
+      drawWaypointMarker(pos.x, pos.y, dpr, pos.edge);
     }
 
     // Flèche du joueur : angle du cap par rapport au haut de l'écran (= direction de la caméra).
@@ -248,18 +394,45 @@
     }
     ctx.restore();
 
-    // Repère du nord, sur le bord du cadre.
-    const nx = -cur.fx;
-    const ny = -cur.fy;
-    const t = (half - 8 * dpr) / Math.max(Math.abs(nx), Math.abs(ny), 1e-4);
+    // Repère du nord, sur le bord du cercle.
+    const t = half - 8 * dpr;
+    const nx = -cur.fx * t;
+    const ny = -cur.fy * t;
     ctx.font = "700 " + Math.round(9 * dpr) + "px sans-serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.lineWidth = 3 * dpr;
     ctx.strokeStyle = "rgba(0,0,0,0.75)";
     ctx.fillStyle = "#ffffff";
-    ctx.strokeText("N", half + nx * t, h / 2 + ny * t);
-    ctx.fillText("N", half + nx * t, h / 2 + ny * t);
+    ctx.strokeText("N", half + nx, h / 2 + ny);
+    ctx.fillText("N", half + nx, h / 2 + ny);
+
+    // Distance restante jusqu'à la destination (en bas du cadre).
+    if (waypoint && route && window.CrestGPS) {
+      const label = window.CrestGPS.formatDistance(routeLeft);
+      if (label) {
+        ctx.font = "800 " + Math.round(9.5 * dpr) + "px sans-serif";
+        const tw = ctx.measureText(label).width + 12 * dpr;
+        const th = 15 * dpr;
+        const bx = half - tw / 2;
+        const by = h - th - 7 * dpr;
+        ctx.fillStyle = "rgba(20, 4, 32, 0.82)";
+        roundRect(bx, by, tw, th, th / 2);
+        ctx.fill();
+        ctx.fillStyle = "#e7c8ff";
+        ctx.fillText(label, half, by + th / 2 + 0.5);
+      }
+    }
+  }
+
+  function roundRect(x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
   }
 
   function render() {
@@ -273,6 +446,7 @@
     ctx.fillStyle = SEA_COLOR;
     ctx.fillRect(0, 0, w, h);
     drawTiles(w, h, s);
+    drawRoute(s, dpr);
     drawMarkers(w, h, s, dpr);
     frameCounter += 1;
     if (frameCounter % 120 === 0) evictTiles();
@@ -280,23 +454,33 @@
 
   function loop(time) {
     if (!running) return;
+    if (document.hidden) { running = false; return; }
+    if (time - lastDraw < MIN_FRAME_MS) { window.requestAnimationFrame(loop); return; }
     const dt = Math.min(0.1, Math.max(0.001, (time - lastTime) / 1000 || 0.016));
     lastTime = time;
-    if (!document.hidden) {
-      step(dt);
+    lastDraw = time;
+    const moving = step(dt);
+    if (moving || dirty) {
+      dirty = false;
       render();
+    }
+    if (!moving && !dirty) {
+      // plus rien ne bouge : on s'arrête jusqu'au prochain paquet du jeu
+      running = false;
+      return;
     }
     window.requestAnimationFrame(loop);
   }
 
   function start() {
-    if (running) return;
+    if (running || !hasData) return;
     running = true;
     lastTime = performance.now();
     window.requestAnimationFrame(loop);
   }
 
-  window.addEventListener("resize", () => { if (hasData) render(); });
+  window.addEventListener("resize", markDirty);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) markDirty(); });
 
   window.Minimap = { update };
 
@@ -308,13 +492,22 @@
       blips = Array.isArray(list)
         ? list.filter((b) => b && isFinite(b.x) && isFinite(b.y)).map((b) => ({ id: b.id, x: +b.x, y: +b.y, icon: Number(b.icon) || 0 }))
         : [];
+      markDirty();
     },
     setWaypoint(x, y, auto) {
-      waypoint = isFinite(x) && isFinite(y) ? { x: +x, y: +y, auto: !!auto } : null;
+      if (!isFinite(x) || !isFinite(y)) { this.clearWaypoint(); return; }
+      const same = waypoint && Math.abs(waypoint.x - x) < 0.5 && Math.abs(waypoint.y - y) < 0.5;
+      waypoint = { x: +x, y: +y, auto: !!auto };
+      if (!same) { route = null; routeIdx = 0; routeProj = null; }
+      requestRoute(true);
+      markDirty();
     },
-    clearWaypoint() { waypoint = null; },
+    clearWaypoint() { waypoint = null; clearRoute(); },
     setZoom(span) {
       manualSpan = span && isFinite(span) ? clamp(+span, 80, 1200) : null;
-    }
+      markDirty();
+    },
+    /* Distance restante (unités) ou -1 sans GPS : utile pour d'autres éléments du HUD. */
+    distanceLeft() { return waypoint && route ? routeLeft : -1; }
   };
 })();

@@ -127,3 +127,41 @@ input{font:inherit;color:var(--text)}
 .adm-chat-line small{color:#93a4c8;margin-right:6px;font-variant-numeric:tabular-nums}
 .adm-chat-line b{color:#ffb454;margin-right:6px}
 .adm-chat-line b::after{content:" :"}
+
+/* ---- Onglet Reports (support joueurs) ---- */
+.adm-tab{position:relative}
+.adm-tab-badge{display:inline-block;min-width:16px;height:16px;margin-left:5px;padding:0 4px;border-radius:999px;font-size:10px;line-height:16px;
+    text-align:center;background:#ff4d5e;color:#fff;font-weight:800;vertical-align:1px}
+.adm-rep-filter{display:flex;gap:6px;flex-wrap:wrap}
+.adm-rep-filter .adm-chip{margin:0}
+.adm-chip.on{background:var(--royal);border-color:var(--blue)}
+.adm-rep-row .adm-av{background:linear-gradient(135deg,#7b2cd6,#4b148f)}
+.adm-rep-row.wait .adm-av{background:linear-gradient(135deg,#d38a12,#8a5208)}
+.adm-rep-unread{min-width:18px;height:18px;padding:0 5px;border-radius:999px;background:#ff4d5e;color:#fff;font-size:10px;font-weight:800;
+    display:grid;place-items:center;flex:none}
+.adm-rep-state{font-size:9px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;padding:2px 6px;border-radius:999px;flex:none;
+    border:1px solid rgba(255,204,26,.6);color:#ffcc1a}
+.adm-rep-state.on{border-color:rgba(180,77,255,.6);color:#d9a8ff}
+.adm-rep-detail{gap:8px}
+.adm-rep-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.adm-rep-head .adm-who{flex:1;min-width:160px}
+.adm-rep-actions{display:flex;gap:6px;flex-wrap:wrap}
+.adm-rep-actions .adm-btn{padding:.9vh 10px}
+.adm-rep-thread{flex:1;min-height:120px;display:flex;flex-direction:column;gap:8px;padding:1.2vh 12px}
+.adm-rep-msgs{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:7px;-webkit-overflow-scrolling:touch}
+.adm-rep-m{max-width:84%;display:flex;flex-direction:column;gap:2px}
+.adm-rep-m .who{font-size:clamp(9px,2.2vh,10.5px);color:var(--muted);font-weight:700}
+.adm-rep-m .who time{font-weight:500;margin-left:6px;opacity:.8}
+.adm-rep-m p{margin:0;padding:.9vh 11px;border-radius:12px;font-size:clamp(11.5px,2.9vh,13.5px);line-height:1.35;
+    user-select:text;-webkit-user-select:text;overflow-wrap:anywhere;background:rgba(255,255,255,.06);border:1px solid var(--line);border-bottom-left-radius:4px}
+.adm-rep-m.staff{align-self:flex-end;align-items:flex-end}
+.adm-rep-m.staff p{background:rgba(180,77,255,.16);border-color:rgba(180,77,255,.45);border-bottom-left-radius:12px;border-bottom-right-radius:4px}
+.adm-rep-m.staff .who{color:#d9a8ff}
+.adm-rep-m.sys{align-self:center;align-items:center;max-width:94%}
+.adm-rep-m.sys p{background:transparent;border:0;color:var(--muted);font-size:clamp(10px,2.4vh,11.5px);text-align:center;padding:2px 6px}
+.adm-rep-quick{display:flex;gap:6px;flex-wrap:wrap}
+.adm-rep-quick .adm-chip{margin:0}
+.adm-rep-quick{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;padding-bottom:1px}
+.adm-rep-quick::-webkit-scrollbar{display:none}
+.adm-rep-quick .adm-chip{flex:none;white-space:nowrap}
+.adm-toast{top:clamp(52px,15vh,70px);bottom:auto}

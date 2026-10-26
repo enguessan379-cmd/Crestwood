@@ -43,6 +43,11 @@ public:
 	void ShowEditObject();
 	void HideEditObject();
 
+	// [Crestwood] etat du joueur pour le HUD HTML (meme signature que le client 64 bits)
+	void UpdateHudState(float health, float armour, float thirst, float hunger, float energy,
+		bool dead, bool running, bool exhausted, bool inVehicle, float speed, float vehHealth, bool handbrake,
+		float posX, float posY, float camFx, float camFy, float heading);
+
     jobject activity;
     jmethodID s_setPauseState;
     jmethodID s_showLoadingScreen;
@@ -57,4 +62,5 @@ public:
 	jmethodID s_exitGame;
 	jmethodID s_showEditObject;
 	jmethodID s_hideEditObject;
+	jmethodID s_updateHudState;
 };

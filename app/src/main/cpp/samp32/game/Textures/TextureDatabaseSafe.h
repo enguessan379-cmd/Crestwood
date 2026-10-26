@@ -18,6 +18,10 @@
 // Correctif :
 //  1) LoadThumbs : si le format demande n'a pas son .dat ou si son .tmb est invalide, on essaie
 //     les autres formats presents (etc, dxt, pvr, unc) et on bascule loadedFormat dessus ;
+//  1b) LoadDataOffsets : si le .toc / .dat du format choisi ne donne aucun offset (fichier .toc absent,
+//     tronque, ou .dat abime - vu sur Android 11, GPU PowerVR -> format pvr), on recharge la base dans
+//     un autre format complet (etc, dxt, pvr, unc) : vignettes + offsets + fichier de streaming.
+//     Sans ca : SortEntries plantait (0x8d8), puis MobileMenu::Load (textures "menu" absentes, 0x64).
 //  2) SortEntries : si malgre tout les offsets n'ont pas ete charges, la base est desactivee
 //     (0 entree) au lieu de planter. Les textures manquantes sont deja gerees par le client
 //     ("WARNING! No tex = ...").
@@ -60,12 +64,13 @@ namespace TextureDatabaseSafe
     }
 
     inline bool (*LoadThumbs_orig)(TextureDatabase*, TextureDatabaseFormat, bool) = nullptr;
+    inline bool (*LoadDataOffsets_orig)(TextureDatabase*, TextureDatabaseFormat, TDBArray<uint32>*, void**, bool) = nullptr;
     inline void (*SortEntries_orig)(TextureDatabaseRuntime*, bool) = nullptr;
 
     inline bool TryFormat(TextureDatabase* thiz, int f, bool setEntries)
     {
         const char* db = thiz->name ? thiz->name : "";
-        if (!HasPart(db, f, "dat")) return false;
+        if (!HasPart(db, f, "dat") || !HasPart(db, f, "tmb")) return false;
         return LoadThumbs_orig(thiz, (TextureDatabaseFormat)f, setEntries);
     }
 
@@ -97,6 +102,43 @@ namespace TextureDatabaseSafe
         return hasDat ? false : LoadThumbs_orig(thiz, fmt, setEntries);
     }
 
+    inline bool OffsetsOk(const TDBArray<uint32>* offs)
+    {
+        return offs && offs->dataPtr != nullptr && offs->numEntries > 0;
+    }
+
+    inline bool LoadDataOffsets_hook(TextureDatabase* thiz, TextureDatabaseFormat fmt, TDBArray<uint32>* offs, void** file, bool write)
+    {
+        bool r = LoadDataOffsets_orig(thiz, fmt, offs, file, write);
+        if (write || !thiz || !thiz->name || !offs || OffsetsOk(offs) || (int)fmt < 0 || (int)fmt > 5 || !LoadThumbs_orig)
+            return r;
+
+        const char* db = thiz->name;
+        TDBSAFE_LOG("[TexDB] '%s' : offsets du format %s non charges (dat=%d tmb=%d toc=%d) - essai des autres formats",
+            db, FormatExt(fmt), (int)HasPart(db, fmt, "dat"), (int)HasPart(db, fmt, "tmb"), (int)HasPart(db, fmt, "toc"));
+
+        static const int fallbacks[] = { DF_ETC, DF_DXT, DF_PVR, DF_UNC };
+        for (int f : fallbacks) {
+            if (f == (int)fmt) continue;
+            if (!HasPart(db, f, "dat") || !HasPart(db, f, "tmb")) continue;
+            // fichier de streaming ouvert pour le format rate : on le ferme avant de changer de format
+            if (file && *file) {
+                CHook::CallFunction<int>("_Z12OS_FileClosePv", *file);
+                *file = nullptr;
+            }
+            offs->numEntries = 0;
+            if (!LoadThumbs_orig(thiz, (TextureDatabaseFormat)f, true)) continue;
+            LoadDataOffsets_orig(thiz, (TextureDatabaseFormat)f, offs, file, write);
+            if (OffsetsOk(offs)) {
+                thiz->loadedFormat = (TextureDatabaseFormat)f;
+                TDBSAFE_LOG("[TexDB] '%s' : base rechargee au format %s a la place de %s", db, FormatExt(f), FormatExt(fmt));
+                return true;
+            }
+        }
+        TDBSAFE_LOG("[TexDB] '%s' : aucun format complet (.dat + .tmb + .toc) dans texdb/%s/ - REINSTALLE LES DONNEES", db, db);
+        return r;
+    }
+
     inline void SortEntries_hook(TextureDatabaseRuntime* thiz, bool flag)
     {
         if (thiz && !flag && thiz->entries.numEntries > 0 && thiz->fullDataOffsets.dataPtr == nullptr) {
@@ -114,8 +156,10 @@ namespace TextureDatabaseSafe
         static bool s_done = false;
         if (s_done) return;
         s_done = true;
-        if (withFormatFallback)
+        if (withFormatFallback) {
             CHook::InlineHook("_ZN15TextureDatabase10LoadThumbsE21TextureDatabaseFormatb", &LoadThumbs_hook, &LoadThumbs_orig);
+            CHook::InlineHook("_ZN15TextureDatabase15LoadDataOffsetsE21TextureDatabaseFormatR8TDBArrayIjERPvb", &LoadDataOffsets_hook, &LoadDataOffsets_orig);
+        }
         CHook::InlineHook("_ZN22TextureDatabaseRuntime11SortEntriesEb", &SortEntries_hook, &SortEntries_orig);
     }
 }

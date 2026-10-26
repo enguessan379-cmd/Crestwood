@@ -160,7 +160,9 @@ void Render2dStuff()
 
     //((void (*)()) (g_libGTASA + (VER_x32 ? 0x00437B0C + 1 : 0x51CFF0)))(); // CHud::DrawRadar
     //CHook::CallFunction<void>("_ZN4CHud14DrawScriptTextEh", true);
-    CHook::CallFunction<void>("_ZN4CHud4DrawEv");
+    // [Crestwood] avec le HUD HTML (com.gta.game32.SAMP), le HUD de GTA (radar, vie, argent, arme) n'est plus dessine
+    extern bool g_bHtmlHud;
+    if (!g_bHtmlHud) CHook::CallFunction<void>("_ZN4CHud4DrawEv");
     //	GPS::Draw();
     //
     ((void(*)(bool) )(g_libGTASA + (VER_x32 ? 0x002B0BD8 + 1 : 0x36FB00)) )(false); // CTouchInterface::DrawAll

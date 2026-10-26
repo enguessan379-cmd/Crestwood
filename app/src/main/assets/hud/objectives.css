@@ -1,0 +1,117 @@
+/* Objectifs de mission (haut droite) : titre + etapes reliees par une ligne jaune, comme sur les
+   serveurs RP mobiles. Pilote par objectives.js (serveur -> "@obj", dialogue 9650). */
+.hud-root .obj-tracker {
+  position: absolute;
+  top: calc(max(18px, env(safe-area-inset-top)) + 92px);
+  right: max(14px, env(safe-area-inset-right));
+  z-index: 6;
+  max-width: min(330px, 42vw);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  pointer-events: none;
+  font-family: "Bebas Neue", "Oswald", "Arial Narrow", Inter, Roboto, sans-serif;
+  text-transform: uppercase;
+  opacity: 0;
+  transform: translateX(14px);
+  transition: opacity .25s ease, transform .25s ease;
+}
+.hud-root .obj-tracker.on { opacity: 1; transform: none; }
+.hud-root .obj-tracker[hidden] { display: none; }
+
+.hud-root .obj-head {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  padding: 4px 14px 4px 22px;
+  background: linear-gradient(90deg, transparent, rgba(0, 0, 0, .62) 22%, rgba(0, 0, 0, .74));
+  border-right: 3px solid #ffcc1a;
+}
+.hud-root .obj-head strong {
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: .06em;
+  color: #fff;
+  text-shadow: 0 1px 2px #000;
+  white-space: nowrap;
+}
+.hud-root .obj-head small {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  color: rgba(255, 220, 120, .9);
+  text-shadow: 0 1px 2px #000;
+}
+.hud-root .obj-head small:empty { display: none; }
+
+.hud-root .obj-list {
+  position: relative;
+  margin: 0;
+  padding: 2px 0 2px 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 5px;
+}
+/* ligne verticale jaune qui relie les etapes */
+.hud-root .obj-list::after {
+  content: "";
+  position: absolute;
+  right: 6px;
+  top: 9px;
+  bottom: 9px;
+  width: 2px;
+  border-radius: 2px;
+  background: linear-gradient(#ffcc1a, rgba(255, 204, 26, .45));
+}
+.hud-root .obj-list li {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding-right: 0;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: .05em;
+  line-height: 1.15;
+  color: rgba(255, 255, 255, .62);
+  text-shadow: 0 1px 2px #000, 0 0 6px rgba(0, 0, 0, .8);
+  white-space: nowrap;
+  transition: color .2s ease;
+}
+.hud-root .obj-list li span { max-width: min(290px, 37vw); overflow: hidden; text-overflow: ellipsis; }
+.hud-root .obj-list li i {
+  position: relative;
+  z-index: 1;
+  flex: 0 0 auto;
+  width: 9px;
+  height: 9px;
+  margin: 0 2px;
+  transform: rotate(45deg);
+  border: 2px solid #ffcc1a;
+  background: rgba(10, 10, 10, .85);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, .55);
+}
+.hud-root .obj-list li.cur { color: #fff; }
+.hud-root .obj-list li.cur i { background: #ffcc1a; box-shadow: 0 0 8px rgba(255, 204, 26, .9), 0 0 0 1px rgba(0, 0, 0, .55); }
+.hud-root .obj-list li.done { color: rgba(140, 255, 170, .78); }
+.hud-root .obj-list li.done span { text-decoration: line-through; text-decoration-thickness: 1px; }
+.hud-root .obj-list li.done i { border-color: #3ddc84; background: #3ddc84; }
+.hud-root .obj-list li.pop { animation: objPop .6s ease; }
+@keyframes objPop {
+  0% { transform: translateX(0); }
+  30% { transform: translateX(-6px); color: #fff; }
+  100% { transform: translateX(0); }
+}
+
+/* Pendant une mission, le panneau "Premiers pas" (meme coin) s'efface. */
+.hud-root.obj-on .first-steps-panel { display: none !important; }
+
+@media (max-height: 380px) {
+  .hud-root .obj-tracker { top: calc(max(10px, env(safe-area-inset-top)) + 84px); }
+  .hud-root .obj-head strong { font-size: 13.5px; }
+  .hud-root .obj-list li { font-size: 10.5px; }
+}

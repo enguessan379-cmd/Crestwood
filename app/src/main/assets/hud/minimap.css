@@ -3,3 +3,6 @@
 .hud-root .minimap-frame[data-ready="1"] .minimap-canvas{opacity:1}
 .hud-root .minimap-frame::before{content:none!important;display:none!important}
 .hud-root .minimap-frame i,.hud-root .minimap-frame::after{display:none!important}
+/* La minimap se touche pour ouvrir la grande carte. */
+.hud-root .minimap-frame{pointer-events:auto!important;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.hud-root .minimap-frame:active{filter:brightness(1.12)}

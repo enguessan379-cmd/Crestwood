@@ -23,6 +23,7 @@
                 <button class="adm-tab" type="button" data-tab="factions">Factions</button>
                 <button class="adm-tab" type="button" data-tab="server">Serveur</button>
                 <button class="adm-tab" type="button" data-tab="staff">Staff</button>
+                <button class="adm-tab" type="button" data-tab="reports">Reports<b class="adm-tab-badge hidden" id="admRepBadge">0</b></button>
             </nav>
             <button class="adm-refresh" id="admRefresh" type="button" aria-label="Actualiser">&#8635;</button>
             <button class="adm-close" id="admClose" type="button" aria-label="Fermer">&#10005;</button>
@@ -46,6 +47,18 @@
 
         <div class="adm-body adm-server hidden" id="tabStaff">
             <div class="adm-cards" id="admStaff"></div>
+        </div>
+
+        <div class="adm-body hidden" id="tabReports">
+            <aside class="adm-list-wrap">
+                <div class="adm-rep-filter" id="admRepFilter">
+                    <button class="adm-chip on" type="button" data-rf="all">Tous</button>
+                    <button class="adm-chip" type="button" data-rf="wait">En attente</button>
+                    <button class="adm-chip" type="button" data-rf="mine">Les miens</button>
+                </div>
+                <div class="adm-list" id="admRepList"></div>
+            </aside>
+            <section class="adm-detail adm-rep-detail" id="admRepDetail"></section>
         </div>
 
         <div class="adm-toast hidden" id="admToast" role="status"></div>

@@ -551,6 +551,7 @@
     add("quick", document.querySelector(".quick-actions"));
     add("weapon", document.querySelector(".weapon-panel"));
     add("steps", firstStepsPanel);
+    add("minimap", document.querySelector(".minimap-frame"));
     if (state.chatOpen) add("chat", chatComposer);
     if (phoneCameraMode) {
       add("pcTop", document.querySelector("#pcTop"));
@@ -2361,6 +2362,14 @@
       searchInput.focus({ preventScroll: true });
       try { searchInput.setSelectionRange(cursor, cursor); } catch (_) {}
     }
+  });
+
+  // Toucher la minimap ouvre la grande carte (la meme que celle du menu rotatif).
+  const minimapFrame = document.querySelector(".minimap-frame");
+  minimapFrame?.addEventListener("click", (event) => {
+    if (state.hudEditing) return;
+    event.preventDefault();
+    bridge?.menuAction?.("map");
   });
 
   document.querySelectorAll(".wheel-slot").forEach((slot) => {

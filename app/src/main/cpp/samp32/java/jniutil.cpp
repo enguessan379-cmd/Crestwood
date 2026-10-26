@@ -33,6 +33,10 @@ CJavaWrapper::CJavaWrapper(JNIEnv *env, jobject activity)
     s_showEditObject = env->GetMethodID(clas, "showEditObject", "()V");
     s_hideEditObject = env->GetMethodID(clas, "hideEditObject", "()V");
 
+    // [Crestwood] HUD HTML (absent d'une ancienne activite : on efface l'exception NoSuchMethodError)
+    s_updateHudState = env->GetMethodID(clas, "updateHudState", "(FFFFFZZZZFFZFFFFF)V");
+    if (env->ExceptionCheck()) { env->ExceptionClear(); s_updateHudState = nullptr; }
+
     env->DeleteLocalRef(clas);
 }
 
@@ -190,4 +194,18 @@ void CJavaWrapper::HideEditObject() {
     }
 
     env->CallVoidMethod(this->activity, this->s_hideEditObject);
+}
+
+void CJavaWrapper::UpdateHudState(float health, float armour, float thirst, float hunger, float energy,
+	bool dead, bool running, bool exhausted, bool inVehicle, float speed, float vehHealth, bool handbrake,
+	float posX, float posY, float camFx, float camFy, float heading)
+{
+	if (!javaVM || !activity || !s_updateHudState) return;
+	JNIEnv* env = nullptr;
+	javaVM->GetEnv((void**)&env, JNI_VERSION_1_6);
+	if (!env) return;
+	env->CallVoidMethod(activity, s_updateHudState, health, armour, thirst, hunger, energy,
+		(jboolean)dead, (jboolean)running, (jboolean)exhausted, (jboolean)inVehicle, speed, vehHealth, (jboolean)handbrake,
+		posX, posY, camFx, camFy, heading);
+	EXCEPTION_CHECK(env);
 }

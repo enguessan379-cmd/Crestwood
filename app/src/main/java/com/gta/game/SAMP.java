@@ -100,6 +100,13 @@ public class SAMP extends GTASA implements HeightProvider.HeightListener {
     private volatile boolean uiReady;
     private volatile String pendingUiJson;
     private Runnable uiWatchdog;
+    // Support / reports HTML (assets/report/index.html) : "@report" 9640-9642 (joueur), "@reports" 9643 (panneau admin)
+    private boolean reportOpen;
+    private volatile boolean reportReady;
+    private volatile String pendingReportJson;
+    private Runnable reportWatchdog;
+    // Objectifs de mission (panneau du HUD) : "@obj" 9650, rejoue quand le HUD est recharge
+    private volatile String lastObjJson = null;
     private volatile String lastBlipsJson = null;
     private volatile String lastGpsJson = null;      // {"x":..,"y":..,"auto":0|1} ou null
     private volatile float lastPosX = 0f, lastPosY = 0f;
@@ -226,6 +233,16 @@ public class SAMP extends GTASA implements HeightProvider.HeightListener {
             final boolean uiJson = content != null && content.trim().startsWith("{");
             if (capUi.startsWith("@ui") || uiJson) {
                 handleUiDialog(dialogId, content);
+                return;
+            }
+        }
+        // Support : 9640 (ouvrir), 9641 (mise a jour), 9642 (fermer) "@report" ; 9643 "@reports" (panneau admin) ;
+        // 9644 "@note" (notification du HUD) ; 9650 "@obj" (objectifs de mission). Contenu JSON, rien n'est affiche en dialogue.
+        if ((dialogId >= 9640 && dialogId <= 9644) || dialogId == 9650) {
+            final String capRep = caption.replace("\u0000", "").replaceAll("\\{[0-9A-Fa-f]{6}\\}", "").trim();
+            final boolean repJson = content != null && content.trim().startsWith("{");
+            if (capRep.startsWith("@report") || capRep.startsWith("@note") || capRep.startsWith("@obj") || repJson) {
+                handleSupportDialog(dialogId, content);
                 return;
             }
         }
@@ -546,6 +563,15 @@ public class SAMP extends GTASA implements HeightProvider.HeightListener {
                 if (url != null && (url.endsWith("hud/index.html") || url.endsWith("map/index.html"))) {
                     replayMapState();
                 }
+                String repJson = pendingReportJson;
+                if (repJson != null && url != null && url.endsWith("report/index.html")) {
+                    pendingReportJson = null;
+                    view.evaluateJavascript("window.ReportApp && ReportApp.openFromNative(" + JSONObject.quote(repJson) + ")", null);
+                }
+                final String objJson = lastObjJson;
+                if (objJson != null && url != null && url.endsWith("hud/index.html")) {
+                    view.evaluateJavascript("window.ObjTracker && ObjTracker.set(" + JSONObject.quote(objJson) + ")", null);
+                }
                 String lockerJson = pendingLockerJson;
                 if (lockerJson != null && url != null && url.endsWith("locker/index.html")) {
                     pendingLockerJson = null;
@@ -585,6 +611,7 @@ public class SAMP extends GTASA implements HeightProvider.HeightListener {
         hudWebView.addJavascriptInterface(new SampShopBridge(), "SampShop");
         hudWebView.addJavascriptInterface(new SampJobBridge(), "SampJob");
         hudWebView.addJavascriptInterface(new SampUiBridge(), "SampUi");
+        hudWebView.addJavascriptInterface(new SampReportBridge(), "SampReport");
         hudWebView.addJavascriptInterface(new SampHudBridge(), "SampHud");
         hudWebView.addJavascriptInterface(new SampBankBridge(), "SampBank");
         hudWebView.addJavascriptInterface(new SampClothesBridge(), "AndroidClothes");
@@ -1066,6 +1093,163 @@ public class SAMP extends GTASA implements HeightProvider.HeightListener {
         runOnUiThread(() -> {
             if (hudWebView != null && !isFinishing()) hudWebView.evaluateJavascript(script, null);
         });
+    }
+
+    // ---- Support / reports (page assets/report/index.html + onglet Reports du panneau admin) ----
+    private void handleSupportDialog(final int dialogId, final String rawJson) {
+        final String json = extractJson(rawJson);
+        if (dialogId == 9650) {                        // objectifs de mission
+            boolean show = json.contains("\"show\":1");
+            lastObjJson = show ? json : null;
+            hudJs("window.ObjTracker && ObjTracker.set(" + JSONObject.quote(json) + ")");
+            return;
+        }
+        if (dialogId == 9644) {                        // notification en bas de l'ecran
+            hudJs("window.HudApp && HudApp.receiveGameNotification && HudApp.receiveGameNotification(" + JSONObject.quote(json) + ")");
+            hudJs("window.ReportApp && ReportApp.onNote && ReportApp.onNote(" + JSONObject.quote(json) + ")");
+            return;
+        }
+        if (dialogId == 9643) {                        // panneau admin : liste des reports + conversation
+            runOnUiThread(() -> {
+                if (adminOpen && hudWebView != null && !isFinishing()) {
+                    hudWebView.evaluateJavascript("window.AdminApp && AdminApp.onReports && AdminApp.onReports(" + JSONObject.quote(json) + ")", null);
+                }
+            });
+            return;
+        }
+        runOnUiThread(() -> {
+            if (hudWebView == null || isFinishing()) return;
+            if (dialogId == 9642) {
+                closeReportPage(false);
+            } else if (dialogId == 9640) {
+                openReportPage(json);
+            } else if (reportOpen) {
+                hudWebView.evaluateJavascript("window.ReportApp && ReportApp.onUpdateFromNative(" + JSONObject.quote(json) + ")", null);
+            }
+        });
+    }
+
+    private void openReportPage(String json) {
+        if (hudWebView == null || authOpen) return;
+        if (reportOpen && reportReady) {
+            hudWebView.evaluateJavascript("window.ReportApp && ReportApp.openFromNative(" + JSONObject.quote(json) + ")", null);
+            return;
+        }
+        if (reportOpen) {                              // page en cours de chargement : on garde le dernier etat
+            pendingReportJson = json;
+            return;
+        }
+        Log.i(TAG, "[report] ouverture du support");
+        reportOpen = true;
+        reportReady = false;
+        adminOpen = false;
+        uiOpen = false;
+        shopOpen = false;
+        jobOpen = false;
+        lockerOpen = false;
+        policeOpen = false;
+        configOpen = true;
+        invOpen = false;
+        bankOpen = false;
+        pharmacyOpen = false;
+        pendingReportJson = json;
+        hudWebView.setWheelOpen(false);
+        hudWebView.setPhonePage(false);
+        hudWebView.setFullscreenPage(true);
+        hudWebView.setVisibility(View.VISIBLE);
+        hudWebView.loadUrl("file:///android_asset/report/index.html");
+        if (reportWatchdog != null) authHandler.removeCallbacks(reportWatchdog);
+        reportWatchdog = () -> {
+            if (reportOpen && !reportReady) {
+                Log.e(TAG, "[report] la page ne s'est pas affichee a temps -> fermeture de secours");
+                closeReportPage(true);
+            }
+        };
+        authHandler.postDelayed(reportWatchdog, 5000);
+    }
+
+    private void closeReportPage(final boolean notifyServer) {
+        runOnUiThread(() -> {
+            if (hudWebView == null) return;
+            boolean wasOpen = reportOpen;
+            if (reportWatchdog != null) { authHandler.removeCallbacks(reportWatchdog); reportWatchdog = null; }
+            reportOpen = false;
+            reportReady = false;
+            configOpen = false;
+            pendingReportJson = null;
+            hudWebView.hideKeyboard();
+            hudWebView.setFullscreenPage(false);
+            hudWebView.setPhonePage(false);
+            hudWebView.setVisibility(View.VISIBLE);
+            hudWebView.loadUrl("file:///android_asset/hud/index.html");
+            if (notifyServer && wasOpen) sendChatInput("/repact hide");
+        });
+    }
+
+    /** Texte libre d'un message de support : une ligne, sans guillemet / antislash / %, 100 caracteres max. */
+    private static String cleanSupportText(String value) {
+        if (value == null) return "";
+        String v = value.replaceAll("[\\p{Cntrl}\"\\\\%]", " ").replaceAll("\\s+", " ").trim();
+        return v.length() > 100 ? v.substring(0, 100).trim() : v;
+    }
+
+    private final class SampReportBridge {
+        // JS -> serveur : /repact new <categorie> <id> <texte> | msg <texte> | cancel | open
+        @JavascriptInterface public void action(String type, String json) {
+            try {
+                String t = type == null ? "" : type.replaceAll("[^a-z]", "");
+                JSONObject o = new JSONObject(json == null || json.isEmpty() ? "{}" : json);
+                switch (t) {
+                    case "new": {
+                        long cat = Math.max(0L, Math.min(4L, o.optLong("cat", 4)));
+                        long target = Math.max(-1L, Math.min(999L, o.optLong("target", -1)));
+                        String text = cleanSupportText(o.optString("text", ""));
+                        if (text.isEmpty()) return;
+                        sendHudCommand("/repact new " + cat + " " + target + " " + text);
+                        break;
+                    }
+                    case "msg": {
+                        String text = cleanSupportText(o.optString("text", ""));
+                        if (!text.isEmpty()) sendHudCommand("/repact msg " + text);
+                        break;
+                    }
+                    case "cancel":
+                    case "open":
+                        sendHudCommand("/repact " + t);
+                        break;
+                    default:
+                        break;
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "report action", e);
+            }
+        }
+
+        @JavascriptInterface public void close() {
+            closeReportPage(true);
+        }
+
+        @JavascriptInterface public void showKeyboard() {
+            runOnUiThread(() -> { if (hudWebView != null) hudWebView.showKeyboard(); });
+        }
+
+        @JavascriptInterface public void hideKeyboard() {
+            runOnUiThread(() -> { if (hudWebView != null) hudWebView.hideKeyboard(); });
+        }
+
+        @JavascriptInterface public void ready() {
+            reportReady = true;
+            runOnUiThread(() -> {
+                if (reportWatchdog != null) { authHandler.removeCallbacks(reportWatchdog); reportWatchdog = null; }
+                // etat arrive pendant le chargement de la page
+                String pending = pendingReportJson;
+                pendingReportJson = null;
+                if (pending != null && reportOpen && hudWebView != null) {
+                    hudWebView.evaluateJavascript("window.ReportApp && ReportApp.openFromNative(" + JSONObject.quote(pending) + ")", null);
+                }
+            });
+            Log.i(TAG, "[report] page affichee");
+        }
     }
 
     // ---- Boutique 24/7 (page assets/shop/index.html) ----
@@ -1815,6 +1999,7 @@ public class SAMP extends GTASA implements HeightProvider.HeightListener {
             shopOpen = false;
             jobOpen = false;
             uiOpen = false;
+            reportOpen = false;
             configOpen = false;
             pharmacyOpen = false;
             bankOpen = false;
@@ -1838,6 +2023,10 @@ public class SAMP extends GTASA implements HeightProvider.HeightListener {
         }
         if (adminOpen) {
             closeAdminPage(true);
+            return;
+        }
+        if (reportOpen) {
+            closeReportPage(true);
             return;
         }
         if (policeOpen) {
@@ -2194,6 +2383,8 @@ public class SAMP extends GTASA implements HeightProvider.HeightListener {
                 authBootstrapDone = true;
                 runOnUiThread(() -> requestAuthOpenLater(2500));
             }
+            final String objNow = lastObjJson;
+            if (objNow != null) hudJs("window.ObjTracker && ObjTracker.set(" + JSONObject.quote(objNow) + ")");
             final String pendingInteract = lastInteractJson;
             if (pendingInteract != null) {
                 hudJs("window.HudBridge && HudBridge.setInteract && HudBridge.setInteract(" + JSONObject.quote(pendingInteract) + ")");
@@ -2242,6 +2433,8 @@ public class SAMP extends GTASA implements HeightProvider.HeightListener {
                 case "inventory": sendHudCommand(CMD_INVENTORY); break;
                 case "map": openInteractionPage("map/index.html"); break;
                 case "audio": sendHudCommand(CMD_AUDIO); break;
+                // casque du menu rotatif : support / report (la page s'ouvre tout de suite, le serveur la remplit)
+                case "report": runOnUiThread(() -> { openReportPage("{\"loading\":1}"); sendHudCommand("/repact open"); }); break;
                 case "store": sendHudCommand(CMD_STORE); break;
                 case "records": openInteractionPage("blazer/index.html"); break;
                 case "clothes": runOnUiThread(() -> openClothesTest()); break; // bouton de test : ouvre les vêtements sans serveur

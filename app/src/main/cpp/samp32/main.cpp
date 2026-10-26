@@ -22,6 +22,13 @@
 
 #include "crashlytics.h"
 
+#include <mutex>
+#include <string>
+#include <vector>
+#include <chrono>
+#include <cmath>
+
+
 /*
 Peerapol Unarak
 */
@@ -205,6 +212,82 @@ void handler3(int signum, siginfo_t *info, void* contextPtr)
 	return;
 }
 
+// ---------------------------------------------------------------------------------------------
+// [Crestwood] Pont avec le HUD HTML du client 32 bits (com.gta.game32.SAMP) :
+//  - commandes / messages envoyes par les pages HTML (file d'attente videe dans MainLoop, thread du jeu)
+//  - ouverture du chat SA-MP natif depuis le bouton "chat" du HUD
+//  - g_bHtmlHud : le HUD HTML remplace celui de GTA (radar, vie, argent) -> CHud::Draw n'est plus appele
+// ---------------------------------------------------------------------------------------------
+bool g_bHtmlHud = false;
+static std::mutex g_hudCmdMutex;
+static std::vector<std::string> g_hudCmdQueue;
+static bool g_hudOpenChat = false;
+
+static void FlushHudCommands()
+{
+	std::vector<std::string> cmds;
+	bool openChat = false;
+	{
+		std::lock_guard<std::mutex> lock(g_hudCmdMutex);
+		cmds.swap(g_hudCmdQueue);
+		openChat = g_hudOpenChat;
+		g_hudOpenChat = false;
+	}
+	if (openChat && pUI && pUI->keyboard() && pUI->chat()) pUI->keyboard()->show(pUI->chat());
+	if (!pNetGame) return;
+	for (const std::string& c : cmds) {
+		if (c.empty()) continue;
+		if (c[0] == '/') pNetGame->SendChatCommand(c.c_str());
+		else pNetGame->SendChatMessage(c.c_str());
+	}
+}
+
+// Etat du joueur pour le HUD HTML (vie, gilet, vehicule, position + camera pour la minimap/GPS), 10 fois par seconde.
+static void PushHudState()
+{
+	if (!pJavaWrapper || !pGame) return;
+	static auto lastHudUpdate = std::chrono::steady_clock::now();
+	const auto nowHud = std::chrono::steady_clock::now();
+	const float hudDelta = std::chrono::duration<float>(nowHud - lastHudUpdate).count();
+	if (hudDelta < 0.10f) return;
+	lastHudUpdate = nowHud;
+
+	CPlayerPed* localPed = pGame->FindPlayerPed();
+	if (!localPed || !localPed->m_pPed) return;
+	const bool dead = localPed->IsDead();
+	const bool running = !dead && (localPed->m_pPed->m_nMoveState == PEDMOVE_RUN || localPed->m_pPed->m_nMoveState == PEDMOVE_SPRINT);
+	CVehicleGTA* vehicle = localPed->IsInVehicle() ? localPed->GetGtaVehicle() : nullptr;
+	const bool inVehicle = vehicle != nullptr;
+	float vehicleSpeed = 0.0f;
+	float vehicleHealth = 100.0f;
+	bool handbrake = false;
+	if (vehicle) {
+		const CVector velocity = vehicle->m_vecMoveSpeed;
+		vehicleSpeed = std::sqrt(velocity.x * velocity.x + velocity.y * velocity.y + velocity.z * velocity.z) * 180.0f;
+		if (vehicleSpeed < 0.0f) vehicleSpeed = 0.0f;
+		if (vehicleSpeed > 240.0f) vehicleSpeed = 240.0f;
+		vehicleHealth = vehicle->physicalFlags.bDestroyed ? 0.0f : 100.0f;
+		handbrake = (vehicle->m_nVehicleUpperFlags & (1u << 5)) != 0;
+	}
+	static float energy = 100.0f;
+	static bool wasDead = false;
+	if (dead) energy = 0.0f;
+	else if (wasDead) energy = 100.0f;
+	else if (running) energy -= 24.0f * hudDelta;
+	else energy += 18.0f * hudDelta;
+	if (energy < 0.0f) energy = 0.0f;
+	if (energy > 100.0f) energy = 100.0f;
+	const bool exhausted = energy <= 0.1f;
+	wasDead = dead;
+
+	CCamera& hudCamera = *reinterpret_cast<CCamera*>(g_libGTASA + (VER_x32 ? 0x00951FA8 : 0xBBA8D0));
+	const CVector hudPos = vehicle ? vehicle->GetPosition() : localPed->m_pPed->GetPosition();
+	const CVector hudCamFwd = hudCamera.GetForwardVector();
+	const float hudHeading = vehicle ? vehicle->GetHeading() : localPed->m_pPed->GetHeading();
+	pJavaWrapper->UpdateHudState(localPed->GetHealth(), localPed->GetArmour(), 100.0f, 100.0f, energy, dead, running, exhausted,
+		inVehicle, vehicleSpeed, vehicleHealth, handbrake, hudPos.x, hudPos.y, hudCamFwd.x, hudCamFwd.y, hudHeading);
+}
+
 void DoInitStuff()
 {
 	if (bGameInited == false)
@@ -254,7 +337,9 @@ void DoInitStuff()
 	{
 		//ReadSettingFile();
 
-		pNetGame = new CNetGame("94.23.168.153", 2305, pSettings->Get().szNickName, pSettings->Get().szPassword);
+		// [Crestwood] serveur lu dans SAMP/settings.ini (ecrit par le launcher) au lieu d'une IP en dur
+		FLog("Pre-CNetGame: host='%s' port=%d nick='%s'", pSettings->Get().szHost, pSettings->Get().iPort, pSettings->Get().szNickName);
+		pNetGame = new CNetGame(pSettings->Get().szHost, pSettings->Get().iPort, pSettings->Get().szNickName, pSettings->Get().szPassword);
 		bNetworkInited = true;
 
         FLog("DoInitStuff end");
@@ -273,6 +358,39 @@ extern "C" {
 		{
 			pUI->keyboard()->sendForGB(pEnv, thiz, str);
 		}
+	}
+	// [Crestwood] HUD HTML -> serveur : commande ou message (octets Windows-1252)
+	JNIEXPORT void JNICALL Java_com_gta_game32_SAMP_sendChatBytes(JNIEnv *pEnv, jobject thiz, jbyteArray str)
+	{
+		if (!pEnv || !str) return;
+		jsize length = pEnv->GetArrayLength(str);
+		if (length <= 0 || length > 255) return;
+		jbyte* data = pEnv->GetByteArrayElements(str, nullptr);
+		if (!data) return;
+		std::string text((const char*)data, (size_t)length);
+		pEnv->ReleaseByteArrayElements(str, data, JNI_ABORT);
+		std::lock_guard<std::mutex> lock(g_hudCmdMutex);
+		if (g_hudCmdQueue.size() < 64) g_hudCmdQueue.push_back(text);
+	}
+	JNIEXPORT void JNICALL Java_com_gta_game32_SAMP_openChatNative(JNIEnv *pEnv, jobject thiz)
+	{
+		std::lock_guard<std::mutex> lock(g_hudCmdMutex);
+		g_hudOpenChat = true;
+	}
+	JNIEXPORT void JNICALL Java_com_gta_game32_SAMP_setHtmlHud(JNIEnv *pEnv, jobject thiz, jboolean enabled)
+	{
+		g_bHtmlHud = enabled;
+	}
+	// [Crestwood] dialogues HTML (com.gta.game.ui.dialog.DialogManager, partage avec le client 64 bits)
+	JNIEXPORT void JNICALL Java_com_gta_game_ui_dialog_DialogManager_sendDialogResponse(JNIEnv* pEnv, jobject thiz, jint i3, jint i, jint i2, jbyteArray str)
+	{
+		if (!pEnv || !str) return;
+		jbyte* pMsg = pEnv->GetByteArrayElements(str, nullptr);
+		jsize length = pEnv->GetArrayLength(str);
+		if (!pMsg || length < 0) return;
+		std::string szStr((char*)pMsg, length);
+		if (pNetGame) pNetGame->SendDialogResponse(i, i3, i2, (char*)szStr.c_str());
+		pEnv->ReleaseByteArrayElements(str, pMsg, JNI_ABORT);
 	}
 	JNIEXPORT void JNICALL Java_com_gta_game32_SAMP_onEventBackPressed(JNIEnv *pEnv, jobject thiz)
 	{
@@ -305,6 +423,9 @@ void MainLoop()
 	if (pGame->bIsGameExiting) return;
 
 	DoInitStuff();
+
+	FlushHudCommands();
+	PushHudState();
 
 	if (bDebug) {
 		DoDebugLoop();

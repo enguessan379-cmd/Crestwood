@@ -10,12 +10,21 @@
     <link rel="stylesheet" href="literal-hud.css" />
     <link rel="stylesheet" href="hud-glass.css" />
     <link rel="stylesheet" href="minimap.css" />
+    <link rel="stylesheet" href="objectives.css" />
+    <script src="gps/gps-route.js" defer></script>
     <script src="minimap.js" defer></script>
+    <script src="objectives.js" defer></script>
     <script src="hud.js" defer></script>
   </head>
   <body>
     <main class="hud-root" aria-label="HUD Crestwood">
-      <div class="minimap-frame" aria-hidden="true"><canvas class="minimap-canvas"></canvas><i></i><i></i><i></i><i></i></div>
+      <div class="minimap-frame" role="button" tabindex="-1" aria-label="Ouvrir la carte"><canvas class="minimap-canvas"></canvas><i></i><i></i><i></i><i></i></div>
+
+      <!-- Objectifs de mission (metiers, missions...) : pilote par le serveur ("@obj", dialogue 9650) -->
+      <section class="obj-tracker" id="objTracker" aria-live="polite" aria-label="Objectifs" hidden>
+        <header class="obj-head"><strong id="objTitle">MISSION</strong><small id="objSub"></small></header>
+        <ol class="obj-list" id="objList"></ol>
+      </section>
 
       <img class="project-logo hud-movable" data-hud-key="logo" src="assets/project-logo.png" alt="Crestwood" />
 
@@ -391,7 +400,7 @@
           <button class="wheel-slot s3" type="button" data-slot="map" aria-label="Carte">
             <img src="assets/radial/slot-3-mapa.png" alt="" />
           </button>
-          <button class="wheel-slot s4" type="button" data-slot="audio" aria-label="Audio">
+          <button class="wheel-slot s4" type="button" data-slot="report" aria-label="Support / Report">
             <img src="assets/radial/slot-4-fone.png" alt="" />
           </button>
           <button class="wheel-slot s5" type="button" data-slot="settings" aria-label="Paramètres">

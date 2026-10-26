@@ -9,7 +9,10 @@
   const ROLES = ["Joueur", "Admin", "Rcon", "Développeur"];
   const FACTIONS = ["Civil", "Police"];
   const POLICE_RANKS = ["Cadet", "Officier", "Sergent", "Lieutenant", "Capitaine", "Commandant"];
-  const state = { lvl: 0, role: "Joueur", me: -1, count: 0, players: [], lockers: [], chat: [], sel: null, tab: "players", filter: "" };
+  const state = { lvl: 0, role: "Joueur", me: -1, count: 0, players: [], lockers: [], chat: [], sel: null, tab: "players", filter: "",
+    reports: [], repView: -1, thread: null, repFilter: "all", myName: "" };
+  const REP_CATS = ["Question", "Bug", "Signalement", "Remboursement", "Autre"];
+  const REP_QUICK = ["Salut ! Je regarde ça tout de suite.", "J'arrive vers toi.", "Peux-tu me donner plus de détails ?", "C'est réglé de mon côté, tout est bon pour toi ?"];
   // Lieux du serveur (meme ordre que /lieux : mappings puis interieurs)
   const PLACES = [
     { n: "Mécanicien de Los Santos" }, { n: "Centre de rééducation (Palomino Creek)" }, { n: "Base de Verdant Meadows" },
@@ -373,7 +376,9 @@
     $("tabFactions").classList.toggle("hidden", name !== "factions");
     $("tabServer").classList.toggle("hidden", name !== "server");
     $("tabStaff").classList.toggle("hidden", name !== "staff");
+    $("tabReports").classList.toggle("hidden", name !== "reports");
     if (name === "staff") scrollChat();
+    if (name === "reports") { renderReports(); scrollRep(); }
   }
 
   function apply(data, fromOpen) {
@@ -382,6 +387,8 @@
     state.me = data.me == null ? -1 : Number(data.me);
     state.count = Number(data.count) || 0;
     state.players = Array.isArray(data.players) ? data.players : [];
+    const meRow = state.players.find((p) => p.id === state.me);
+    if (meRow) state.myName = meRow.n;
     state.lockers = Array.isArray(data.lockers) ? data.lockers : [];
     if (Array.isArray(data.chat)) state.chat = data.chat;
     if (state.sel != null && !state.players.some((p) => p.id === state.sel)) state.sel = null;
@@ -504,6 +511,113 @@
     if (state.tab === "staff") scrollChat();
   }
 
+  /* ---- Onglet Reports : support des joueurs ---- */
+  function scrollRep() {
+    const box = document.getElementById("admRepMsgs");
+    if (box) box.scrollTop = box.scrollHeight;
+  }
+  function repBadge() {
+    const waiting = state.reports.filter((r) => Number(r.st) !== 2).length;
+    const unread = state.reports.reduce((n, r) => n + (Number(r.u) || 0), 0);
+    const b = $("admRepBadge");
+    const n = Math.max(waiting, unread);
+    b.textContent = String(n);
+    b.classList.toggle("hidden", n === 0);
+  }
+  function renderRepList() {
+    const list = $("admRepList");
+    list.replaceChildren();
+    const rows = state.reports.filter((r) => {
+      if (state.repFilter === "wait") return Number(r.st) !== 2;
+      if (state.repFilter === "mine") return Number(r.st) === 2 && r.by === state.myName;
+      return true;
+    });
+    if (!rows.length) { list.appendChild(el("div", "adm-empty", state.reports.length ? "Aucun report dans ce filtre." : "Aucun report ouvert. Tout est calme !")); return; }
+    rows.forEach((r) => {
+      const claimed = Number(r.st) === 2;
+      const b = el("button", "adm-row adm-rep-row" + (claimed ? "" : " wait") + (r.id === state.repView ? " sel" : ""));
+      b.type = "button";
+      b.appendChild(el("div", "adm-av", "#" + r.num));
+      const main = el("div", "adm-row-main");
+      main.appendChild(el("div", "adm-row-name", r.n + " (" + r.id + ")"));
+      const mins = Number(r.m) || 0;
+      main.appendChild(el("div", "adm-row-sub", (REP_CATS[Number(r.c)] || "Autre") + (r.tg ? " · " + r.tg : "") + " · il y a " + (mins < 1 ? "moins d'1 min" : mins + " min")));
+      b.appendChild(main);
+      if (Number(r.u) > 0) b.appendChild(el("span", "adm-rep-unread", String(r.u)));
+      b.appendChild(el("span", "adm-rep-state" + (claimed ? " on" : ""), claimed ? (r.by || "Pris") : "Attente"));
+      b.addEventListener("click", () => { state.repView = r.id; renderReports(); send("repview", r.id, ""); });
+      list.appendChild(b);
+    });
+  }
+  function renderRepDetail() {
+    const box = $("admRepDetail");
+    const keep = document.getElementById("admRepInput");
+    const draft = keep ? keep.value : "";
+    box.replaceChildren();
+    const t = state.thread && state.thread.id === state.repView ? state.thread : null;
+    if (!t) { box.appendChild(el("div", "adm-empty", state.reports.length ? "Choisis un report dans la liste pour lire et répondre." : "Les reports des joueurs apparaîtront ici en direct.")); return; }
+    const claimed = Number(t.st) === 2;
+    const mine = claimed && t.by === state.myName;
+
+    const head = el("div", "adm-card adm-rep-head");
+    const who = el("div", "adm-who");
+    who.appendChild(el("div", "adm-av", "#" + t.num));
+    const info = el("div");
+    info.appendChild(el("div", "adm-who-name", t.n + " (ID " + t.id + ")"));
+    info.appendChild(el("div", "adm-who-sub", (REP_CATS[Number(t.c)] || "Autre") + (t.tg ? " · signale " + t.tg : "") + " · " + (claimed ? "pris en charge par " + (t.by || "?") : "en attente")));
+    who.appendChild(info);
+    head.appendChild(who);
+    const acts = el("div", "adm-rep-actions");
+    const mk = (label, cls, fn) => { const b = el("button", "adm-btn " + cls, label); b.type = "button"; b.addEventListener("click", fn); acts.appendChild(b); return b; };
+    if (!mine) mk(claimed ? "Reprendre" : "Prendre en charge", "primary", () => send("repclaim", t.id, ""));
+    mk("Aller vers", "", () => send("goto", t.id, ""));
+    mk("Amener", "", () => send("bring", t.id, ""));
+    mk("Fermer", "danger", () => openModal({ title: "Fermer le report #" + t.num + " ?", text: "Le joueur sera prévenu que son report est fermé." }, { fn: () => send("repclose", t.id, "") }));
+    head.appendChild(acts);
+    box.appendChild(head);
+
+    const card = el("div", "adm-card adm-rep-thread");
+    const msgs = el("div", "adm-rep-msgs");
+    msgs.id = "admRepMsgs";
+    (Array.isArray(t.msgs) ? t.msgs : []).forEach((m) => {
+      const f = Number(m.f);
+      const row = el("div", "adm-rep-m" + (f === 1 ? " staff" : f === 2 ? " sys" : ""));
+      if (f !== 2) {
+        const w = el("span", "who", f === 1 ? (m.n === state.myName ? "Toi" : m.n) : m.n);
+        w.appendChild(el("time", "", m.h || ""));
+        row.appendChild(w);
+      }
+      row.appendChild(el("p", "", m.t || ""));
+      msgs.appendChild(row);
+    });
+    card.appendChild(msgs);
+    const quick = el("div", "adm-rep-quick");
+    REP_QUICK.forEach((q) => {
+      const c = el("button", "adm-chip", q.length > 26 ? q.slice(0, 24) + "…" : q);
+      c.type = "button";
+      c.addEventListener("click", () => send("repreply", t.id, q));
+      quick.appendChild(c);
+    });
+    card.appendChild(quick);
+    const input = inlineForm(card, claimed && !mine ? "Répondre (tu reprends le report)" : "Répondre au joueur…", "Envoyer", (v) => send("repreply", t.id, v));
+    input.id = "admRepInput";
+    input.value = draft;
+    input.addEventListener("keydown", (e) => { if (e.key === "Enter" && input.value.trim()) { send("repreply", t.id, input.value.trim()); input.value = ""; } });
+    box.appendChild(card);
+    scrollRep();
+  }
+  function renderReports() {
+    repBadge();
+    if (state.tab !== "reports") return;
+    renderRepList();
+    renderRepDetail();
+  }
+  Array.prototype.forEach.call(document.querySelectorAll("[data-rf]"), (b) => b.addEventListener("click", () => {
+    state.repFilter = b.dataset.rf;
+    Array.prototype.forEach.call(document.querySelectorAll("[data-rf]"), (x) => x.classList.toggle("on", x === b));
+    renderRepList();
+  }));
+
   /* ------------------------------------------------------------ evenements */
   Array.prototype.forEach.call(document.querySelectorAll(".adm-tab"), (b) => b.addEventListener("click", () => setTab(b.dataset.tab)));
   $("admSearch").addEventListener("input", (e) => { state.filter = e.target.value.trim(); renderList(); });
@@ -513,7 +627,21 @@
   });
 
   window.AdminApp = {
-    openFromNative(raw) { setTab("players"); apply(parse(raw), true); },
+    openFromNative(raw) {
+      setTab(state.tab === "reports" ? "reports" : "players");
+      apply(parse(raw), true);
+      send("replist", 0, "");
+    },
+    onReports(raw) {
+      const d = parse(raw);
+      const before = state.reports.length;
+      state.reports = Array.isArray(d.reports) ? d.reports : [];
+      state.repView = d.view == null ? -1 : Number(d.view);
+      state.thread = d.thread && typeof d.thread === "object" ? d.thread : null;
+      renderReports();
+      if (d.msg) toast(d.msg, d.ok === 1 || d.ok === true);
+      else if (state.tab !== "reports" && state.reports.length > before) toast("Nouveau report d'un joueur : onglet Reports.", true);
+    },
     onUpdateFromNative(raw) {
       const d = parse(raw);
       // message du chat staff en direct : seule la liste des messages est envoyee
@@ -540,6 +668,19 @@
         { id: 3, n: "Marie_Dupont", h: 52, a: 0, p: 90, l: 2, f: 1, r: 4 }
       ],
       lockers: [{ i: 1, f: 1, x: 1555, y: -1675, z: 16 }, { i: 2, f: 1, x: 1481, y: -1771, z: 18 }]
+    }));
+    window.AdminApp.onReports(JSON.stringify({
+      reports: [
+        { id: 1, num: 3, n: "Sir_Sugo", c: 2, st: 1, by: "", u: 1, m: 2, tg: "Carl_Johnson" },
+        { id: 3, num: 4, n: "Marie_Dupont", c: 1, st: 2, by: "Anzo_Smith", u: 0, m: 7, tg: "" }
+      ],
+      view: 3,
+      thread: { id: 3, num: 4, n: "Marie_Dupont", c: 1, st: 2, by: "Anzo_Smith", tg: "", msgs: [
+        { f: 0, n: "Marie_Dupont", t: "Ma voiture a disparu après le reboot", h: "17:58" },
+        { f: 2, n: "Support", t: "Anzo_Smith prend en charge ton report.", h: "17:59" },
+        { f: 1, n: "Anzo_Smith", t: "Salut ! Je regarde ça, c'était quel modèle ?", h: "17:59" },
+        { f: 0, n: "Marie_Dupont", t: "Une Sultan bleue", h: "18:00" }
+      ] }
     }));
   }
   try { if (bridge && typeof bridge.ready === "function") bridge.ready(); } catch (_) {}

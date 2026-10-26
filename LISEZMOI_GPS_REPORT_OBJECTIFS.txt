@@ -1,0 +1,62 @@
+GPS ITINERAIRE (style GTA V) + SUPPORT / REPORT + OBJECTIFS DE MISSION
+=====================================================================
+
+1) GPS ITINERAIRE VIOLET
+------------------------
+CLIENT
+ - assets/hud/gps/roads.js      : reseau routier de GTA SA (26 905 noeuds, sens uniques respectes),
+                                  genere par tools/build_gps_roads.py depuis le GPS.dat de SA-MP
+                                  (version "fixed by NaS", plugin GPS / RouteConnector). Charge
+                                  seulement quand un GPS est actif.
+ - assets/hud/gps/gps-route.js  : recherche A* (quelques ms), suivi de l'avancement, distance.
+ - assets/hud/minimap.js        : trace violet qui suit les routes, se raccourcit en roulant, se
+                                  recalcule si tu quittes la route (> 32 m), repere violet de
+                                  destination, distance restante en bas de la minimap.
+                                  Optimise : plus aucun dessin quand rien ne bouge, 40 img/s max.
+ - Toucher la minimap ouvre la grande carte (la meme que celle du menu rotatif).
+ - assets/map/index.html        : itineraire violet du GPS actif + apercu en pointilles vers le
+                                  point que tu places, distance, carte centree sur toi a
+                                  l'ouverture, bouton "Ma position", boutons toujours visibles.
+SERVEUR : rien a changer, le GPS des missions (@gps 9606) et le point place sur la carte
+          utilisent tous les deux l'itineraire.
+
+2) SUPPORT / REPORT (casque du menu rotatif)
+--------------------------------------------
+ - Le casque du menu rotatif ouvre assets/report/index.html (aussi /report ou /support).
+   Le joueur choisit : Question, Bug, Signaler un joueur (avec son ID), Remboursement, Autre.
+ - Tout le staff connecte est prevenu (chat + notification en bas de l'ecran).
+ - Panneau admin (/adminpanel) : nouvel onglet "Reports" (pastille rouge = en attente / non lus)
+     liste en direct, filtres Tous / En attente / Les miens, conversation avec le joueur,
+     reponses rapides, Prendre en charge, Aller vers, Amener, Fermer.
+ - Le joueur voit les reponses en direct sur sa page ; si elle est fermee : notification +
+   message "[SUPPORT]" dans le chat (il rouvre le casque pour repondre).
+ - Staff : /reports (liste dans le chat).
+ - Les reports sont en memoire : ils se ferment si le joueur se deconnecte. Si le staff qui
+   gere un report part, le report repasse "en attente".
+ Dialogues : @report 9640/9641/9642 (joueur), @reports 9643 (panneau admin),
+             @note 9644 (notification du HUD, utilisable partout : Note_Send(playerid, "admin", "Titre", "Texte"))
+ Commandes cachees : /repact ..., /adminact replist|repview|repclaim|repreply|repclose
+
+3) OBJECTIFS DE MISSION (haut droite, comme sur la capture)
+-----------------------------------------------------------
+ - Panneau titre + etapes reliees par une ligne jaune (en cours = losange jaune plein,
+   terminee = vert barre). assets/hud/objectives.js + objectives.css.
+ - Branche sur les 5 metiers : Bucheron (coupe 0/3, depose 0/3), Livreur, Bus, Eboueur,
+   Pizzas (monte dans le vehicule, livraisons/arrets x/n, retour au depot) + tournee, niveau
+   et gains du service. Mis a jour a chaque etape et en montant / descendant du vehicule.
+ - Utilisable pour n'importe quelle autre mission dans le .pwn :
+     Obj_Begin("Titre", "Sous-titre");
+     Obj_Line("Etape 1", 2);   // 0 a faire, 1 en cours, 2 terminee
+     Obj_Line("Etape 2", 1);
+     Obj_Send(playerid);
+     Obj_Hide(playerid);
+ Dialogue : @obj 9650 (rejoue automatiquement quand le HUD se recharge).
+
+FICHIERS MODIFIES
+ - server/basicgm/basicgm1.pwn (+ basicgm1.amx recompile, pawncc 3.10.10, 0 erreur)
+ - app/src/main/java/com/gta/game/SAMP.java
+ - assets/hud : index.html, hud.js, minimap.js, minimap.css, objectives.*, gps/*
+ - assets/map/index.html, assets/admin/*, assets/report/* (nouveau)
+ - tools/build_gps_roads.py (nouveau)
+NOTE : tout est cote client 64 bits (com.gta.game.SAMP). Le client 32 bits (com.gta.game32)
+       n'a pas le HUD HTML, donc pas ces interfaces.

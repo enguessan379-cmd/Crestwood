@@ -1,0 +1,26 @@
+CLIENT 32 BITS (armeabi-v7a, moteur 2.10) : MEMES SYSTEMES QUE LE 64 BITS
+========================================================================
+
+JAVA
+ - com/gta/game32/SAMP.java : copie adaptee de com/gta/game/SAMP.java (differences marquees "[32]").
+   Le 32 bits a maintenant le HUD HTML complet : minimap + GPS violet + objectifs, connexion HTML,
+   banque, inventaire, panneau admin + reports, support, boutique, emplois, interfaces joueur,
+   police, vestiaire, carte, telephone/camera, dialogues HTML (assets/dialog), ecran de chargement.
+   Non disponible en 32 bits : editeur de vetements (CharacterCreator n'existe que dans le 64 bits)
+   et reglage de resolution (gere par le moteur 2.10).
+ - MainActivity : settings.ini contient la position du chat SA-MP (a droite de la minimap HTML).
+
+NATIF (app/src/main/cpp/samp32)
+ - main.cpp :
+     * le serveur vient de SAMP/settings.ini (avant : IP 94.23.168.153:2305 ecrite en dur !)
+     * sendChatBytes / openChatNative / setHtmlHud : pont avec les pages HTML
+       (les commandes passent par une file videe dans MainLoop, sur le thread du jeu)
+     * etat du joueur envoye au HUD 10 fois par seconde (vie, gilet, vehicule, position, camera)
+     * Java_com_gta_game_ui_dialog_DialogManager_sendDialogResponse : dialogues HTML partages
+ - java/jniutil.* : CJavaWrapper::UpdateHudState
+ - game/hooks.cpp : le HUD de GTA (radar, vie, argent) n'est plus dessine quand le HUD HTML est actif
+ - vendor/encoding/encoding.cpp : texte en Windows-1252 (francais) au lieu de Windows-1251
+   (cyrillique) : les accents du serveur s'affichent correctement (chat, dialogues, JSON des pages)
+ - game/Textures/TextureDatabaseSafe.h : meme fichier que le 64 bits
+
+A COMPILER (GitHub Actions) PUIS TESTER sur un telephone 32 bits / Android 11.

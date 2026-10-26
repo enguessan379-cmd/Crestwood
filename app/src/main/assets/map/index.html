@@ -32,6 +32,11 @@
     display: flex; flex-direction: column; gap: 8px;
     padding: 10px; overflow-y: auto;
   }
+  .side { overflow: hidden !important; }
+  .side-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
+  .side-foot { flex: 0 0 auto; display: flex; flex-direction: column; gap: 6px; }
+  .btn-row { display: flex; gap: 6px; }
+  .btn-row .btn.ghost { flex: 0 0 38%; }
   .side h1 { margin: 0; font-size: 15px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; text-shadow: 0 1px 3px #000; }
   .side h1 small { display: block; margin-top: 2px; font-size: 10px; font-weight: 600; letter-spacing: .02em; text-transform: none; color: rgba(255,255,255,.65); }
   .side h2 { margin: 6px 0 0; font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: rgba(255,255,255,.6); }
@@ -43,11 +48,11 @@
   }
   .chip:active { background: rgba(0, 245, 225, 0.18); border-color: rgba(0, 245, 225, 0.75); }
 
-  .legend { display: grid; gap: 5px; font-size: 11px; color: rgba(255,255,255,.82); }
+  .legend { display: grid; grid-template-columns: 1fr 1fr; gap: 5px 6px; font-size: 10.5px; color: rgba(255,255,255,.82); }
   .legend span { display: flex; align-items: center; gap: 7px; }
   .legend i { width: 10px; height: 10px; border-radius: 3px; flex: 0 0 10px; }
 
-  .coords { margin-top: auto; padding: 8px; border-radius: 10px; font-size: 11px; line-height: 1.35; color: rgba(255,255,255,.8); background: rgba(0,0,0,.22); }
+  .coords { padding: 6px 8px; border-radius: 10px; font-size: 11px; line-height: 1.35; color: rgba(255,255,255,.8); background: rgba(0,0,0,.22); }
   .coords b { color: #12dfff; }
 
   .btn {
@@ -79,6 +84,19 @@
   .pin[hidden] { display: none; }
   .mapbox { background: #0b0b0d; }
 
+  /* Itineraire GPS (violet, style GTA V) */
+  #routes { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+  #routes polyline { fill: none; stroke-linecap: round; stroke-linejoin: round; }
+  #routes .edge { stroke: rgba(28, 6, 44, .9); }
+  #routes .main { stroke: #b44dff; }
+  #routes .preview { stroke: rgba(231, 200, 255, .9); }
+  .pin.gps .dot { background: #b44dff !important; box-shadow: 0 0 0 3px rgba(180,77,255,.35), 0 0 12px #b44dff !important; }
+  .route-info { display: none; padding: 6px 8px; border-radius: 10px; font-size: 11.5px; line-height: 1.35; color: #f3e6ff; background: rgba(180, 77, 255, .16); border: 1px solid rgba(180, 77, 255, .45); }
+  .route-info.on { display: block; }
+  .route-info b { color: #fff; font-size: 13px; }
+  .me-btn { position: absolute; left: 46px; top: 10px; z-index: 5; height: 38px; padding: 0 12px; border-radius: 10px; font: 700 12px/1 inherit; color: #fff; border: 1px solid rgba(255,255,255,.26); background: rgba(10, 14, 20, 0.55); }
+  .me-btn:active { background: rgba(52,226,126,.3); }
+
   /* Commandes flottantes */
   .close {
     position: absolute; top: 8px; right: 8px; z-index: 5;
@@ -99,25 +117,32 @@
 <body>
 <div class="screen">
   <aside class="side glass">
-    <h1>Carte<small>San Andreas &middot; Crestwood</small></h1>
+    <div class="side-scroll">
+      <h1>Carte<small>San Andreas &middot; Crestwood</small></h1>
 
-    <h2>Aller &agrave;</h2>
-    <div class="chips" id="chips"></div>
+      <h2>Aller &agrave;</h2>
+      <div class="chips" id="chips"></div>
 
-    <h2>L&eacute;gende</h2>
-    <div class="legend">
-      <span><i style="background:#12dfff"></i>Ville</span>
-      <span><i style="background:#ff3b5c"></i>Point plac&eacute;</span>
-      <span><i style="background:#ffb454"></i>GPS (mission)</span>
-      <span><i style="background:#34e27e"></i>Ma position</span>
-      <span><img src="../hud/radar/blips/blip_178.png" alt="" style="width:12px;height:12px">Banque</span>
-      <span><img src="../hud/radar/blips/blip_176.png" alt="" style="width:12px;height:12px">Boutique</span>
-      <span><img src="../hud/radar/blips/blip_35.png" alt="" style="width:12px;height:12px">Emplois</span>
+      <h2>L&eacute;gende</h2>
+      <div class="legend">
+        <span><i style="background:#12dfff"></i>Ville</span>
+        <span><i style="background:#ff3b5c"></i>Point plac&eacute;</span>
+        <span><i style="background:#b44dff"></i>GPS</span>
+        <span><i style="background:#34e27e"></i>Moi</span>
+        <span><img src="../hud/radar/blips/blip_178.png" alt="" style="width:12px;height:12px">Banque</span>
+        <span><img src="../hud/radar/blips/blip_176.png" alt="" style="width:12px;height:12px">Boutique</span>
+        <span><img src="../hud/radar/blips/blip_35.png" alt="" style="width:12px;height:12px">Emplois</span>
+      </div>
     </div>
 
-    <div class="coords" id="coords">Touche la carte pour placer un point.</div>
-    <button class="btn ghost" id="clearWp" type="button" disabled>Effacer le point</button>
-    <button class="btn" id="gps" type="button">Lancer le GPS</button>
+    <div class="side-foot">
+      <div class="route-info" id="routeInfo"></div>
+      <div class="coords" id="coords">Touche la carte pour placer un point.</div>
+      <div class="btn-row">
+        <button class="btn ghost" id="clearWp" type="button" disabled>Effacer</button>
+        <button class="btn" id="gps" type="button">Lancer le GPS</button>
+      </div>
+    </div>
   </aside>
 
   <main class="mapbox glass">
@@ -131,10 +156,12 @@
       <button id="zout" type="button" aria-label="Zoom arri&egrave;re">&minus;</button>
       <button id="zfit" type="button" aria-label="Recentrer">&#9678;</button>
     </div>
+    <button class="me-btn" id="zme" type="button">&#9673; Ma position</button>
     <div class="hint">Glisse pour d&eacute;placer &middot; pince pour zoomer &middot; touche pour placer un point</div>
   </main>
 </div>
 
+<script src="../hud/gps/gps-route.js"></script>
 <script>
 (function () {
   "use strict";
@@ -246,6 +273,56 @@
   var BLIP_NAMES = { 178: "Banque", 176: "Boutique", 99: "Bûcheron", 145: "Livreur", 105: "Bus", 75: "Éboueur", 139: "Pizzas" };
   var mePin = makePin("me", "Moi", 0, 0); mePin.hidden = true;
 
+  /* ------------------------------ Itineraire GPS ------------------------------ */
+  var SVGNS = "http://www.w3.org/2000/svg";
+  var routeSvg = document.createElementNS(SVGNS, "svg");
+  routeSvg.setAttribute("id", "routes");
+  routeSvg.setAttribute("viewBox", "0 0 " + WORLD + " " + WORLD);
+  routeSvg.setAttribute("preserveAspectRatio", "none");
+  function mkLine(cls) { var l = document.createElementNS(SVGNS, "polyline"); l.setAttribute("class", cls); routeSvg.appendChild(l); return l; }
+  var prevEdge = mkLine("edge"), prevMain = mkLine("preview");
+  var gpsEdge = mkLine("edge"), gpsMain = mkLine("main");
+  world.insertBefore(routeSvg, world.querySelector(".pin"));   /* sous les reperes */
+  var routeInfo = document.getElementById("routeInfo");
+  var me = null, gpsDest = null, gpsRoute = null, previewRoute = null, routeFrom = null, userMoved = false, centeredOnce = false;
+
+  function toSvgPoints(r) {
+    if (!r) return "";
+    var out = [], p = r.pts;
+    for (var i = 0; i < p.length; i += 2) out.push((p[i] + WORLD / 2).toFixed(1) + "," + (WORLD / 2 - p[i + 1]).toFixed(1));
+    return out.join(" ");
+  }
+  function strokeWidths() {
+    var unit = S > 0 ? WORLD / (S * s) : 10;   /* unites du monde par pixel ecran */
+    gpsEdge.setAttribute("stroke-width", (8 * unit).toFixed(2));
+    gpsMain.setAttribute("stroke-width", (4.5 * unit).toFixed(2));
+    prevEdge.setAttribute("stroke-width", (7 * unit).toFixed(2));
+    prevMain.setAttribute("stroke-width", (3.5 * unit).toFixed(2));
+    prevMain.setAttribute("stroke-dasharray", (9 * unit).toFixed(1) + " " + (7 * unit).toFixed(1));
+  }
+  function drawRoutes() {
+    var g = toSvgPoints(gpsRoute), pv = toSvgPoints(previewRoute);
+    gpsEdge.setAttribute("points", g); gpsMain.setAttribute("points", g);
+    prevEdge.setAttribute("points", pv); prevMain.setAttribute("points", pv);
+    var lines = [];
+    var F = window.CrestGPS && CrestGPS.formatDistance;
+    if (gpsRoute && F) lines.push("GPS actif : <b>" + F(gpsRoute.len) + "</b>");
+    if (previewRoute && F) lines.push("Vers le point : <b>" + F(previewRoute.len) + "</b>");
+    routeInfo.innerHTML = lines.join("<br>");
+    routeInfo.classList.toggle("on", lines.length > 0);
+    strokeWidths();
+  }
+  function recomputeRoutes() {
+    if (!window.CrestGPS) return;
+    CrestGPS.load(function (ok) {
+      if (!ok) return;
+      gpsRoute = me && gpsDest ? CrestGPS.route(me.x, me.y, gpsDest.x, gpsDest.y) : null;
+      previewRoute = me && waypoint ? CrestGPS.route(me.x, me.y, waypoint.x, waypoint.y) : null;
+      routeFrom = me ? { x: me.x, y: me.y } : null;
+      drawRoutes();
+    });
+  }
+
   /* ------------------------------ Zoom / déplacement ------------------------------ */
   var S = 0, s = 1, tx = 0, ty = 0;
 
@@ -261,6 +338,7 @@
     clamp();
     world.style.transform = "translate(" + tx + "px," + ty + "px) scale(" + s + ")";
     world.style.setProperty("--s", s);
+    if (typeof strokeWidths === "function") strokeWidths();
   }
 
   function fit() {
@@ -271,6 +349,7 @@
   }
 
   function zoomAt(factor, cx, cy) {
+    userMoved = true;
     var ns = Math.min(MAXZ, Math.max(1, s * factor)), k = ns / s;
     tx = cx - (cx - tx) * k; ty = cy - (cy - ty) * k; s = ns; apply();
   }
@@ -319,7 +398,7 @@
       return;
     }
     if (Math.hypot(e.clientX - startX, e.clientY - startY) > 8) moved = true;
-    if (moved) { tx += e.clientX - p.x; ty += e.clientY - p.y; apply(); }
+    if (moved) { userMoved = true; tx += e.clientX - p.x; ty += e.clientY - p.y; apply(); }
     p.x = e.clientX; p.y = e.clientY;
   });
 
@@ -351,11 +430,13 @@
     wpPin.hidden = false;
     coordsBox.innerHTML = "Point : <b>X " + x + "</b> &middot; <b>Y " + y + "</b>";
     clearBtn.disabled = false;
+    recomputeRoutes();
   }
 
   function clearWaypoint() {
     waypoint = null; wpPin.hidden = true; clearBtn.disabled = true;
     coordsBox.textContent = "Touche la carte pour placer un point.";
+    previewRoute = null; drawRoutes();
   }
 
   /* API pour le jeu : window.MapApp.setPlayer(x, y) affiche la position du joueur. */
@@ -366,6 +447,10 @@
       mePin.style.left = (frac(x) * 100) + "%";
       mePin.style.top = (frac(y, true) * 100) + "%";
       mePin.hidden = false;
+      me = { x: x, y: y };
+      /* a l'ouverture : carte centree sur le joueur (comme dans GTA V) */
+      if (!centeredOnce && !userMoved) { centeredOnce = true; focusOn(x, y, 2.6); }
+      if (!routeFrom || Math.hypot(routeFrom.x - x, routeFrom.y - y) > 40) recomputeRoutes();
     },
     setWaypoint: setWaypoint,
     clearWaypoint: clearWaypoint,
@@ -393,8 +478,9 @@
       gpsPin.style.left = (frac(x) * 100) + "%";
       gpsPin.style.top = (frac(y, true) * 100) + "%";
       gpsPin.hidden = false;
+      if (!gpsDest || gpsDest.x !== x || gpsDest.y !== y) { gpsDest = { x: x, y: y }; recomputeRoutes(); }
     },
-    clearGps: function () { gpsPin.hidden = true; }
+    clearGps: function () { gpsPin.hidden = true; gpsDest = null; gpsRoute = null; drawRoutes(); }
   };
 
   /* --------------------------------- Boutons --------------------------------- */
@@ -423,6 +509,7 @@
   document.getElementById("zin").addEventListener("click", function () { var r = box(); zoomAt(1.5, r.width / 2, r.height / 2); });
   document.getElementById("zout").addEventListener("click", function () { var r = box(); zoomAt(1 / 1.5, r.width / 2, r.height / 2); });
   document.getElementById("zfit").addEventListener("click", fit);
+  document.getElementById("zme").addEventListener("click", function () { if (me) focusOn(me.x, me.y, Math.max(2.6, s)); });
 
   window.addEventListener("resize", fit);
   fit();

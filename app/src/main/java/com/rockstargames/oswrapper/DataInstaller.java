@@ -1041,6 +1041,28 @@ public final class DataInstaller {
         FileIndex index = diskIndex(root);
         for (String name : MANAGED_ROOTS) if (!index.hasRoot(name)) return false;
         for (String name : CORE_FILES) if (!index.hasFile(name)) return false;
+        // Textures : chaque base doit avoir AU MOINS un format complet (.dat + .tmb + .toc). Le moteur
+        // bascule tout seul sur ce format si celui du GPU est abime (TextureDatabaseSafe). Sans aucun
+        // format complet (data copiee a moitie, .toc absent...) : crash au demarrage (Android 11 /
+        // PowerVR, SortEntries puis MobileMenu::Load) -> on retelecharge la data au lieu de lancer le jeu.
+        for (String base : TEXDB_BASES) {
+            boolean anyComplete = false;
+            for (String format : TEXDB_FORMATS) {
+                boolean all = true;
+                for (String part : TEXDB_PARTS) if (!index.hasFile(texdbPath(base, format, part))) { all = false; break; }
+                if (all) { anyComplete = true; break; }
+            }
+            if (!anyComplete) {
+                Log.w(TAG, "Textures incompletes : aucun format complet pour texdb/" + base + " -> data a reinstaller");
+                return false;
+            }
+        }
+        for (String format : new String[] { "pvr" }) {
+            // player / playerhi sont toujours charges en PVR par le moteur
+            for (String part : TEXDB_PARTS) {
+                if (!index.hasFile("texdb/player/player." + format + "." + part)) return false;
+            }
+        }
         return true;
     }
 

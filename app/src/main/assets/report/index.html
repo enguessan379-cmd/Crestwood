@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Support Crestwood</title>
+    <link rel="stylesheet" href="report.css">
+</head>
+<body>
+<main class="rp">
+    <section class="rp-panel">
+        <header class="rp-head">
+            <span class="rp-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path d="M4 13v-1a8 8 0 0 1 16 0v1"/><rect x="2.5" y="12.5" width="4.5" height="7" rx="1.6"/><rect x="17" y="12.5" width="4.5" height="7" rx="1.6"/><path d="M19.2 19.5c0 1.7-1.6 2.5-4.2 2.5h-2"/></svg>
+            </span>
+            <div class="rp-title">
+                <h1>Support<span>.</span></h1>
+                <p id="rpStaff">Connexion au support&hellip;</p>
+            </div>
+            <span class="rp-badge hidden" id="rpBadge"></span>
+            <button class="rp-close" id="rpClose" type="button" aria-label="Fermer">&#10005;</button>
+        </header>
+
+        <!-- Chargement -->
+        <div class="rp-body rp-loading" id="rpLoading">
+            <span class="rp-spin"></span>
+            <p>Connexion au support&hellip;</p>
+        </div>
+
+        <!-- Nouveau report -->
+        <div class="rp-body hidden" id="rpNew">
+            <aside class="rp-side">
+                <h2>De quoi s'agit-il&nbsp;?</h2>
+                <div class="rp-cats" id="rpCats"></div>
+            </aside>
+            <section class="rp-form">
+                <label class="rp-field hidden" id="rpTargetWrap">
+                    <span>ID du joueur &agrave; signaler</span>
+                    <input class="rp-input" id="rpTarget" type="text" inputmode="numeric" maxlength="3" placeholder="Ex : 12" autocomplete="off">
+                </label>
+                <label class="rp-field grow">
+                    <span>Ton message <em id="rpCount">0/100</em></span>
+                    <textarea class="rp-input rp-area" id="rpText" maxlength="100" placeholder="Explique ton probl&egrave;me en quelques mots&hellip;"></textarea>
+                </label>
+                <p class="rp-tip" id="rpTip">Un membre du staff te r&eacute;pondra ici. Tu recevras aussi une notification en jeu.</p>
+                <button class="rp-btn primary" id="rpSend" type="button" disabled>Envoyer au staff</button>
+            </section>
+        </div>
+
+        <!-- Report en cours : conversation avec le staff -->
+        <div class="rp-body hidden" id="rpChat">
+            <aside class="rp-side">
+                <div class="rp-card">
+                    <small>Report</small>
+                    <b id="rpNum">#0</b>
+                    <dl>
+                        <div><dt>Cat&eacute;gorie</dt><dd id="rpCat">&mdash;</dd></div>
+                        <div class="hidden" id="rpTgRow"><dt>Joueur signal&eacute;</dt><dd id="rpTg">&mdash;</dd></div>
+                        <div><dt>Statut</dt><dd><span class="rp-state" id="rpState">En attente</span></dd></div>
+                    </dl>
+                </div>
+                <p class="rp-tip" id="rpChatTip">Reste poli et pr&eacute;cis : le staff te r&eacute;pond d&egrave;s que possible.</p>
+                <button class="rp-btn danger" id="rpCancel" type="button">Fermer mon report</button>
+            </aside>
+            <section class="rp-thread">
+                <div class="rp-msgs" id="rpMsgs"></div>
+                <form class="rp-compose" id="rpCompose" autocomplete="off">
+                    <input class="rp-input" id="rpMsg" type="text" maxlength="100" placeholder="&Eacute;cris au staff&hellip;" enterkeyhint="send">
+                    <button class="rp-btn primary" type="submit" aria-label="Envoyer">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.4 20.4 21 12 3.4 3.6 3.4 10l12.6 2-12.6 2z"/></svg>
+                    </button>
+                </form>
+            </section>
+        </div>
+
+        <div class="rp-toast hidden" id="rpToast" role="status"></div>
+    </section>
+
+    <div class="rp-modal hidden" id="rpModal">
+        <div class="rp-modal-card">
+            <h2>Fermer ton report&nbsp;?</h2>
+            <p>Ferme-le seulement si ton probl&egrave;me est r&eacute;gl&eacute;. Tu pourras en ouvrir un autre.</p>
+            <div class="rp-modal-actions">
+                <button class="rp-btn" id="rpModalNo" type="button">Annuler</button>
+                <button class="rp-btn danger" id="rpModalYes" type="button">Fermer</button>
+            </div>
+        </div>
+    </div>
+</main>
+<script src="report.js"></script>
+</body>
+</html>
