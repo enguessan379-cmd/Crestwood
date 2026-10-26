@@ -23,6 +23,16 @@ import com.gta.game.R;
 import com.gta.launcher.util.CustomRecyclerView;
 import com.gta.launcher.util.Util;
 
+import android.annotation.SuppressLint;
+import android.graphics.Color;
+import android.util.Log;
+import android.webkit.JavascriptInterface;
+import android.webkit.WebSettings;
+import android.webkit.WebView;
+import android.webkit.WebViewClient;
+
+import org.json.JSONObject;
+
 import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
 
@@ -86,6 +96,16 @@ public class DialogManager {
 
     public native void sendDialogResponse(int i, int i2, int i3, byte[] bArr);
 
+    // ---- Dialogues SA-MP en HTML (assets/dialog/index.html) ----
+    // Le layout natif (R.layout.dialog) reste en secours si la WebView ne peut pas etre creee.
+    private WebView mWeb;
+    private boolean mHtml;
+    private volatile boolean mWebReady;
+    private String mPendingJson;
+    private static final String DIALOG_PAGE = "file:///android_asset/dialog/index.html";
+    // Encodage des textes tapes renvoyes au serveur (serveur francais : Latin-1 / Windows-1252)
+    private static final String RESPONSE_CHARSET = "windows-1252";
+
     public DialogManager(Activity activity) {
         instance = this;
         this.activity = activity;
@@ -142,6 +162,95 @@ public class DialogManager {
         isShow = false;
         Util.HideLayout(this.mMainLayout, false);
         Util.scaleViewAndChildren(this.activity, this.mMainLayout);
+
+        try {
+            createWebDialog();
+            mHtml = true;
+        } catch (Throwable t) {
+            Log.e("DialogManager", "WebView indisponible, dialogues natifs utilises", t);
+            mHtml = false;
+            mWeb = null;
+        }
+    }
+
+    @SuppressLint({"SetJavaScriptEnabled", "AddJavascriptInterface"})
+    private void createWebDialog() {
+        WebView web = new WebView(activity);
+        web.setBackgroundColor(Color.TRANSPARENT);
+        web.setLayerType(View.LAYER_TYPE_HARDWARE, null);
+        web.setVerticalScrollBarEnabled(false);
+        web.setHorizontalScrollBarEnabled(false);
+        WebSettings ws = web.getSettings();
+        ws.setJavaScriptEnabled(true);
+        ws.setDomStorageEnabled(true);
+        ws.setAllowFileAccess(true);
+        ws.setBuiltInZoomControls(false);
+        ws.setDisplayZoomControls(false);
+        ws.setSupportZoom(false);
+        web.addJavascriptInterface(new DialogBridge(), "AndroidDialog");
+        web.setWebViewClient(new WebViewClient() {
+            @Override public void onPageFinished(WebView view, String url) {
+                mWebReady = true;
+                if (mPendingJson != null && isShow) {
+                    view.evaluateJavascript("window.SampDialog && SampDialog.show(" + mPendingJson + ")", null);
+                }
+                mPendingJson = null;
+            }
+        });
+        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
+        activity.addContentView(web, lp);
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) web.setZ(50);
+        web.setVisibility(View.GONE);
+        web.loadUrl(DIALOG_PAGE);
+        mWeb = web;
+    }
+
+    private final class DialogBridge {
+        /** reponse : 1 = bouton gauche, 0 = bouton droit ; listitem = ligne choisie (-1 sinon) */
+        @JavascriptInterface public void respond(final int response, final int listitem, final String inputtext) {
+            activity.runOnUiThread(() -> {
+                if (!isShow) return;
+                mCurrentListitem = listitem;
+                mCurrentInputtext = inputtext == null ? "" : inputtext;
+                SendDialogResponse(response, mCurrentListitem, mCurrentInputtext);
+            });
+        }
+
+        @JavascriptInterface public void ready() {
+            mWebReady = true;
+        }
+    }
+
+    private void showHtml() {
+        try {
+            JSONObject o = new JSONObject();
+            o.put("id", mCurrentDialogId);
+            o.put("style", mDialogStyle);
+            o.put("caption", mCaption == null ? "" : mCaption);
+            o.put("text", mText == null ? "" : mText);
+            o.put("left", mButtonPositive == null ? "" : mButtonPositive);
+            o.put("right", mButtonNegative == null ? "" : mButtonNegative);
+            final String json = o.toString();
+            mCurrentListitem = (mDialogStyle == DIALOG_STYLE_LIST || mDialogStyle == DIALOG_STYLE_TABLIST || mDialogStyle == DIALOG_STYLE_TABLIST_HEADERS) ? 0 : -1;
+            mCurrentInputtext = "";
+            mWeb.setVisibility(View.VISIBLE);
+            mWeb.bringToFront();
+            mWeb.requestFocus();
+            if (mWebReady) {
+                mWeb.evaluateJavascript("window.SampDialog && SampDialog.show(" + json + ")", null);
+            } else {
+                mPendingJson = json;
+            }
+        } catch (Exception e) {
+            Log.e("DialogManager", "showHtml", e);
+        }
+    }
+
+    /** Bouton retour Android : equivaut au bouton droit du dialogue. Retourne true si un dialogue etait ouvert. */
+    public boolean onBackPressed() {
+        if (!isShow) return false;
+        SendDialogResponse(0, mCurrentListitem, mCurrentInputtext == null ? "" : mCurrentInputtext);
+        return true;
     }
 
     public void show(int i, int i2, String str, String str2, String str3, String str4) {
@@ -152,6 +261,11 @@ public class DialogManager {
         this.mText = str2;
         this.mButtonPositive = str3;
         this.mButtonNegative = str4;
+
+        if (mHtml && mWeb != null) {
+            showHtml();
+            return;
+        }
 
         ConstraintLayout.LayoutParams layoutParams = (ConstraintLayout.LayoutParams) this.mDialogTextLayout.getLayoutParams();
         layoutParams.height = -2;
@@ -169,10 +283,18 @@ public class DialogManager {
     }
 
     public void hideWithoutReset() {
+        if (mHtml && mWeb != null) {
+            mWeb.setVisibility(View.GONE);
+            return;
+        }
         this.mMainLayout.setVisibility(View.GONE);
     }
 
     public void showWithOldContent() {
+        if (mHtml && mWeb != null) {
+            if (isShow) mWeb.setVisibility(View.VISIBLE);
+            return;
+        }
         this.mMainLayout.setVisibility(View.VISIBLE);
 
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
@@ -187,10 +309,22 @@ public class DialogManager {
         }
 
         isShow = false;
+        if (mHtml && mWeb != null) {
+            mWeb.evaluateJavascript("window.SampDialog && SampDialog.hide()", null);
+            mWeb.setVisibility(View.GONE);
+            return;
+        }
         Util.HideLayout(this.mMainLayout, true);
     }
 
     public void onHeightChanged(int i) {
+        if (mHtml && mWeb != null) {
+            if (isShow) {
+                float density = activity.getResources().getDisplayMetrics().density;
+                mWeb.evaluateJavascript("window.SampDialog && SampDialog.setKeyboard(" + Math.round(i / Math.max(1f, density)) + ")", null);
+            }
+            return;
+        }
         if (mMainLayout.getVisibility() == View.VISIBLE) {
             int i2 = this.mDialogStyle;
             if (i2 != 1 && i2 != 3) {
@@ -223,7 +357,7 @@ public class DialogManager {
         }
 
         try {
-            byte[] Str2 = str.getBytes("windows-1251");
+            byte[] Str2 = (str == null ? "" : str).getBytes(RESPONSE_CHARSET);
 
             Hide();
             sendDialogResponse(i, DialogManager.this.mCurrentDialogId, i2, Str2);

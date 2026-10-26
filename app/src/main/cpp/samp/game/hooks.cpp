@@ -10,6 +10,9 @@
 #include "Textures/TextureDatabase.h"
 #include "Textures/TextureDatabaseEntry.h"
 #include "Textures/TextureDatabaseRuntime.h"
+#include "PlayerTap.h"
+#define TDBSAFE_LOG Log
+#include "Textures/TextureDatabaseSafe.h"
 #include "Scene.h"
 #include "sprite2d.h"
 #include "Entity/PlayerPedGta.h"
@@ -446,6 +449,9 @@ void AND_TouchEvent_hook(int type, int num, int posX, int posY)
 
     if (pGame->IsGamePaused())
         return AND_TouchEvent(type, num, posX, posY);
+
+    // Double tap sur un joueur -> menu d'interaction (/interaction <id>)
+    PlayerTap::OnTouch(type, posX, posY);
 
     if (pUI != nullptr)
     {
@@ -2218,6 +2224,8 @@ void InstallSpecialHooks()
    // InstallUrezHooks(); // desactive : redirigeait pvr->dxt, mais player/playerhi n'existent qu'en pvr
 
     CHook::InlineHook("_ZN5CGame20InitialiseRenderWareEv", &CGame__InitialiseRenderWare_hook, &CGame__InitialiseRenderWare);
+    // Crash SortEntries (texdb .dat/.tmb absent pour le format du GPU) : chargement texdb robuste.
+    TextureDatabaseSafe::Install();
     CHook::InstallPLT(g_libGTASA + 0x83DE90, &StartGameScreen__OnNewGameCheck_hook, &StartGameScreen__OnNewGameCheck);
     CHook::InlineHook("_Z10NvUtilInitv", &NvUtilInit_hook, &NvUtilInit);
 

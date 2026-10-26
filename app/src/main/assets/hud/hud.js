@@ -69,7 +69,13 @@
     bank: "Banque",
     vehicle_lock: "Verrouiller",
     vehicle_unlock: "Déverrouiller",
-    police: "Police"
+    police: "Police",
+    shop: "Boutique",
+    job: "Contrat",
+    locker: "Vestiaire",
+    enter: "Entrer",
+    exit: "Sortir",
+    player: "Joueur"
   };
   const radioFrequencyText = document.querySelector("[data-radio-frequency]");
   const radioFrequencyLayer = document.querySelector(".radio-frequency-layer");

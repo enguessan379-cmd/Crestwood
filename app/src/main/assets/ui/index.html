@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Interfaces Crestwood</title>
+<!--
+  Interfaces joueur (d'apres ui.zip) au style Crestwood.
+  Serveur -> page : UiApp.openFromNative(json) / UiApp.onUpdateFromNative(json)   (dialogues "@ui" 9630-9632)
+    {"view":"player","target":3,"targetName":"John Doe","police":0}
+    {"view":"vehicle","model":411,"engine":1,"locked":0,"boot":0,"bonnet":0,"doors":0,"driver":1}
+    {"view":"id","nom":"Smith","prenom":"Anzo","age":24,"origine":"Abidjan","shownBy":"","num":123456}
+    {"view":"licences","drive":"valide|retire","weapon":"none","truck":"none","boat":"none"}
+    {"view":"outfits","police":1,"uniform":0}
+    + "ok"/"msg" pour une notification
+  Page -> serveur : SampUi.action(type, {"arg":"..."}) puis /uiact <type> (voir SAMP.java)
+-->
+<style>
+:root{
+  --ink:#03060d; --royal:#2561f0; --blue:#3b82ff; --sky:#7db4ff;
+  --text:#e8eefc; --soft:#c3d0ee; --muted:#93a4c8;
+  --line:rgba(125,180,255,.16); --line-strong:rgba(125,180,255,.38);
+  --danger:#ff6b72; --ok:#5fdca0; --gold:#ffb454;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none}
+html,body{width:100%;height:100%;overflow:hidden;background:transparent;font-family:"Inter","Segoe UI",Roboto,Arial,sans-serif;color:var(--text)}
+button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
+.hidden{display:none!important}
+.ui{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(3,6,13,.45);animation:fade .18s ease-out}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+.card{width:min(92vw,360px);max-height:92vh;overflow-y:auto;border-radius:16px;border:1px solid var(--line-strong);
+  background:linear-gradient(180deg,rgba(12,23,51,.97),rgba(7,13,28,.98));box-shadow:0 18px 60px rgba(0,0,0,.6);padding:1.8vh 16px 1.8vh;
+  animation:pop .18s ease-out}
+@keyframes pop{from{transform:translateY(8px) scale(.98)}to{transform:none}}
+.head{display:flex;align-items:center;gap:10px;padding-bottom:1.2vh;margin-bottom:1.4vh;border-bottom:1px solid var(--line)}
+.head .ic{width:clamp(28px,7vh,36px);height:clamp(28px,7vh,36px);border-radius:10px;display:grid;place-items:center;flex:none;
+  background:rgba(59,130,255,.18);border:1px solid var(--line-strong);color:var(--sky)}
+.head .ic svg{width:58%;height:58%}
+.head h1{font-size:clamp(13px,3.4vh,17px);font-weight:800;line-height:1.15}
+.head p{font-size:clamp(9.5px,2.3vh,11.5px);color:var(--muted);margin-top:2px}
+.x{margin-left:auto;width:clamp(28px,6.6vh,34px);height:clamp(28px,6.6vh,34px);border-radius:50%;flex:none;background:rgba(255,255,255,.06);border:1px solid var(--line);font-size:15px}
+.x:active{background:rgba(255,107,114,.35)}
+.list{display:flex;flex-direction:column;gap:.9vh}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:.9vh}
+.btn{display:flex;align-items:center;gap:10px;padding:1.5vh 12px;border-radius:11px;font-weight:700;font-size:clamp(11px,2.8vh,13.5px);
+  background:rgba(255,255,255,.05);border:1px solid var(--line);text-align:left}
+.btn svg{width:18px;height:18px;flex:none;color:var(--sky)}
+.btn small{margin-left:auto;font-size:clamp(8.5px,2.1vh,10.5px);font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+.btn small.on{color:var(--ok)}
+.btn:active{transform:scale(.97);background:rgba(59,130,255,.3)}
+.btn.danger svg{color:var(--danger)}
+.btn.danger:active{background:rgba(255,107,114,.3)}
+.btn.span{grid-column:span 2}
+.btn[disabled]{opacity:.4}
+/* Carte d'identite */
+.idcard{width:min(92vw,400px);border-radius:16px;padding:1.8vh 16px;color:var(--text);position:relative;overflow:hidden;
+  background:radial-gradient(circle at 85% 10%,rgba(125,180,255,.25),transparent 45%),linear-gradient(135deg,#16244a,#0a1228);
+  border:1.5px solid rgba(125,180,255,.55);box-shadow:0 18px 60px rgba(0,0,0,.65);animation:pop .18s ease-out}
+.idcard::after{content:"";position:absolute;inset:0;background:repeating-linear-gradient(135deg,rgba(255,255,255,.025) 0 2px,transparent 2px 7px);pointer-events:none}
+.id-top{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:1.4vh}
+.id-top b{font-size:clamp(9.5px,2.4vh,12px);letter-spacing:.14em;color:var(--sky)}
+.id-top span{font-size:clamp(8.5px,2.1vh,10px);color:var(--muted);letter-spacing:.06em}
+.id-body{display:flex;gap:14px;align-items:center}
+.id-photo{width:clamp(64px,19vh,86px);aspect-ratio:.8;border-radius:10px;display:grid;place-items:center;flex:none;
+  background:linear-gradient(180deg,rgba(255,255,255,.12),rgba(255,255,255,.04));border:1px solid var(--line-strong);color:var(--muted)}
+.id-photo svg{width:55%;height:55%}
+.id-fields{display:grid;grid-template-columns:auto 1fr;gap:.6vh 10px;font-size:clamp(10.5px,2.7vh,13px)}
+.id-fields dt{color:var(--muted)}
+.id-fields dd{font-weight:800}
+.id-foot{display:flex;justify-content:space-between;align-items:flex-end;margin-top:1.4vh;font-size:clamp(8.5px,2.1vh,10px);color:var(--muted)}
+.id-foot .sig{font-family:"Segoe Script","Brush Script MT",cursive;font-size:clamp(14px,4vh,20px);color:#cfe0ff;transform:rotate(-4deg)}
+.idcard .btn{margin-top:1.4vh;justify-content:center;position:relative;z-index:1}
+/* Licences */
+.lic{display:flex;align-items:center;justify-content:space-between;padding:1.3vh 12px;border-radius:11px;background:rgba(255,255,255,.04);
+  border:1px solid var(--line);font-size:clamp(11px,2.8vh,13px);font-weight:600}
+.badge{font-size:clamp(8.5px,2.1vh,10.5px);font-weight:900;letter-spacing:.05em;text-transform:uppercase;padding:4px 9px;border-radius:999px}
+.badge.valide{background:rgba(95,220,160,.18);color:var(--ok);border:1px solid rgba(95,220,160,.5)}
+.badge.expire{background:rgba(255,107,114,.15);color:var(--danger);border:1px solid rgba(255,107,114,.45)}
+.badge.none{background:rgba(255,255,255,.06);color:var(--muted);border:1px solid var(--line)}
+.toast{position:fixed;left:50%;bottom:5vh;transform:translateX(-50%);max-width:80vw;padding:1.2vh 16px;border-radius:12px;font-weight:700;
+  font-size:clamp(11px,2.7vh,13px);background:rgba(10,40,26,.95);border:1px solid rgba(95,220,160,.6);color:var(--ok);z-index:5}
+.toast.err{background:rgba(48,10,14,.95);border-color:rgba(255,107,114,.6);color:var(--danger)}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <symbol id="i-users" viewBox="0 0 24 24"><path fill="currentColor" d="M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm7 0a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM2 20c0-3.3 3.1-6 7-6s7 2.7 7 6v1H2v-1Zm15.5 1v-1c0-1.8-.7-3.4-1.9-4.6 3.3.2 6.4 2.2 6.4 5.6v0H17.5Z"/></symbol>
+    <symbol id="i-hand" viewBox="0 0 24 24"><path fill="currentColor" d="M3 12.5 7.6 8a3 3 0 0 1 4.2 0l.7.7.7-.7a3 3 0 0 1 4.2 0L21 12.5l-1.4 1.4-1.6-1.6-4.6 4.6a2 2 0 0 1-2.8 0L9 15.3a1 1 0 0 1 1.4-1.4l1.6 1.6.4-.4-3.6-3.6-4.4 4.4L3 12.5Z"/></symbol>
+    <symbol id="i-wallet" viewBox="0 0 24 24"><path fill="currentColor" d="M4 5h14a2 2 0 0 1 2 2v1h-6a4 4 0 0 0 0 8h6v1a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Zm10 5h7v4h-7a2 2 0 1 1 0-4Z"/></symbol>
+    <symbol id="i-id" viewBox="0 0 24 24"><path fill="currentColor" d="M3 5h18a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Zm5 9a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Zm-4 3h8c0-1.7-1.8-3-4-3s-4 1.3-4 3Zm10-7v2h6v-2h-6Zm0 4v2h4v-2h-4Z"/></symbol>
+    <symbol id="i-cuff" viewBox="0 0 24 24"><path fill="currentColor" d="M7 7a5 5 0 1 0 4.6 7h.8a5 5 0 1 0 0-4h-.8A5 5 0 0 0 7 7Zm0 2a3 3 0 1 1 0 6 3 3 0 0 1 0-6Zm10 0a3 3 0 1 1 0 6 3 3 0 0 1 0-6Z"/></symbol>
+    <symbol id="i-car" viewBox="0 0 24 24"><path fill="currentColor" d="M5 11 6.6 6.5A2 2 0 0 1 8.5 5h7a2 2 0 0 1 1.9 1.5L19 11a2 2 0 0 1 2 2v4h-2v2h-3v-2H8v2H5v-2H3v-4a2 2 0 0 1 2-2Zm2.1 0h9.8l-1.2-3.5H8.3L7.1 11ZM6.5 15a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Zm11 0a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Z"/></symbol>
+    <symbol id="i-key" viewBox="0 0 24 24"><path fill="currentColor" d="M14 3a7 7 0 1 1-6.3 10H6v2H4v2H2v-4l5.7-5.7A7 7 0 0 1 14 3Zm2 4a2 2 0 1 0 0 4 2 2 0 0 0 0-4Z"/></symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24"><path fill="currentColor" d="M7 10V8a5 5 0 0 1 10 0v2h1a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1h1Zm2 0h6V8a3 3 0 0 0-6 0v2Z"/></symbol>
+    <symbol id="i-box" viewBox="0 0 24 24"><path fill="currentColor" d="M3 4h18v4H3V4Zm1 5h16v11H4V9Zm5 3v2h6v-2H9Z"/></symbol>
+    <symbol id="i-wrench" viewBox="0 0 24 24"><path fill="currentColor" d="M21 7.5a5.5 5.5 0 0 1-7.4 5.2l-7.4 7.4a2 2 0 0 1-2.8-2.8l7.4-7.4A5.5 5.5 0 0 1 17.9 2l-3.2 3.2.6 3.4 3.4.6L21.9 6c-.6.5-.9 1-.9 1.5Z"/></symbol>
+    <symbol id="i-door" viewBox="0 0 24 24"><path fill="currentColor" d="M5 3h10l4 4v14H5V3Zm9 9v2h2v-2h-2Z"/></symbol>
+    <symbol id="i-shirt" viewBox="0 0 24 24"><path fill="currentColor" d="m8 3 4 2 4-2 6 4-3 4-2-1v11H7V10l-2 1-3-4 6-4Z"/></symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24"><path fill="currentColor" d="M12 2 4 5v6c0 5 3.4 9.4 8 11 4.6-1.6 8-6 8-11V5l-8-3Z"/></symbol>
+    <symbol id="i-badge" viewBox="0 0 24 24"><path fill="currentColor" d="M12 2a5 5 0 0 1 3.5 8.6L17 22l-5-3-5 3 1.5-11.4A5 5 0 0 1 12 2Z"/></symbol>
+    <symbol id="i-user" viewBox="0 0 24 24"><path fill="currentColor" d="M12 12a5 5 0 1 0 0-10 5 5 0 0 0 0 10Zm-9 10c0-5 4-8 9-8s9 3 9 8H3Z"/></symbol>
+  </defs>
+</svg>
+
+<!-- 1. Interaction avec un joueur -->
+<div id="v-player" class="ui hidden"><div class="card">
+  <div class="head"><span class="ic"><svg><use href="#i-users"/></svg></span><div><h1>Interaction</h1><p id="pl-name">—</p></div><button class="x" data-close>&#10005;</button></div>
+  <div class="list">
+    <button class="btn" data-act="hello"><svg><use href="#i-hand"/></svg>Saluer</button>
+    <button class="btn" data-act="money"><svg><use href="#i-wallet"/></svg>Donner de l'argent</button>
+    <button class="btn" data-act="papers"><svg><use href="#i-id"/></svg>Montrer mes papiers</button>
+    <button class="btn danger" data-act="police" id="pl-police"><svg><use href="#i-cuff"/></svg>Menotter / Fouiller<small>Police</small></button>
+    <div class="list hidden" id="pl-gov">
+      <button class="btn" data-act="gov_give"><svg><use href="#i-badge"/></svg>Délivrer un permis<small>Gouv.</small></button>
+      <button class="btn danger" data-act="gov_take"><svg><use href="#i-badge"/></svg>Retirer un permis<small>Gouv.</small></button>
+      <button class="btn" data-act="gov_check"><svg><use href="#i-id"/></svg>Vérifier ses papiers<small>Gouv.</small></button>
+    </div>
+  </div>
+</div></div>
+
+<!-- 2. Vehicule -->
+<div id="v-vehicle" class="ui hidden"><div class="card">
+  <div class="head"><span class="ic"><svg><use href="#i-car"/></svg></span><div><h1>Gestion du véhicule</h1><p id="vh-name">—</p></div><button class="x" data-close>&#10005;</button></div>
+  <div class="grid">
+    <button class="btn" data-act="engine" id="vh-engine"><svg><use href="#i-key"/></svg>Moteur<small></small></button>
+    <button class="btn" data-act="lock" id="vh-lock"><svg><use href="#i-lock"/></svg>Portières<small></small></button>
+    <button class="btn" data-act="boot" id="vh-boot"><svg><use href="#i-box"/></svg>Coffre<small></small></button>
+    <button class="btn" data-act="bonnet" id="vh-bonnet"><svg><use href="#i-wrench"/></svg>Capot<small></small></button>
+    <button class="btn span" data-act="doors" id="vh-doors"><svg><use href="#i-door"/></svg>Ouvrir les portes<small></small></button>
+  </div>
+</div></div>
+
+<!-- 3. Carte d'identite -->
+<div id="v-id" class="ui hidden"><div class="idcard">
+  <div class="id-top"><b>RÉPUBLIQUE DE SAN ANDREAS</b><span id="id-num">N° —</span></div>
+  <div class="id-body">
+    <div class="id-photo"><svg><use href="#i-user"/></svg></div>
+    <dl class="id-fields">
+      <dt>Nom</dt><dd id="id-nom">—</dd>
+      <dt>Prénom</dt><dd id="id-prenom">—</dd>
+      <dt>Âge</dt><dd id="id-age">—</dd>
+      <dt>Origine</dt><dd id="id-origine">—</dd>
+    </dl>
+  </div>
+  <div class="id-foot"><span id="id-shown">Carte nationale d'identité</span><span class="sig" id="id-sig"></span></div>
+  <button class="btn" data-close>Fermer</button>
+</div></div>
+
+<!-- 4. Permis et licences -->
+<div id="v-licences" class="ui hidden"><div class="card">
+  <div class="head"><span class="ic"><svg><use href="#i-badge"/></svg></span><div><h1>Permis &amp; licences</h1><p>Documents officiels</p></div><button class="x" data-close>&#10005;</button></div>
+  <div class="list">
+    <div class="lic"><span>Permis de conduire</span><span id="lic-drive" class="badge none">—</span></div>
+    <div class="lic"><span>Permis port d'armes</span><span id="lic-weapon" class="badge none">—</span></div>
+    <div class="lic"><span>Permis poids lourds</span><span id="lic-truck" class="badge none">—</span></div>
+    <div class="lic"><span>Permis navire</span><span id="lic-boat" class="badge none">—</span></div>
+  </div>
+</div></div>
+
+<!-- 5. Tenues -->
+<div id="v-outfits" class="ui hidden"><div class="card">
+  <div class="head"><span class="ic"><svg><use href="#i-shirt"/></svg></span><div><h1>Garde-robe</h1><p id="of-state">—</p></div><button class="x" data-close>&#10005;</button></div>
+  <div class="list">
+    <button class="btn" data-act="civil"><svg><use href="#i-user"/></svg>Tenue civile</button>
+    <button class="btn" data-act="locker" id="of-locker"><svg><use href="#i-shield"/></svg>Tenue de service<small>Vestiaire</small></button>
+    <button class="btn" data-act="edit"><svg><use href="#i-shirt"/></svg>Modifier mon apparence</button>
+  </div>
+</div></div>
+
+<div class="toast hidden" id="toast"></div>
+
+<script>
+(function () {
+  "use strict";
+  const bridge = window.SampUi || null;
+  const $ = (id) => document.getElementById(id);
+  const VEH = { 400:"Landstalker",401:"Bravura",402:"Buffalo",404:"Perennial",405:"Sentinel",408:"Trashmaster",409:"Stretch",410:"Manana",411:"Infernus",
+    412:"Voodoo",414:"Mule",415:"Cheetah",416:"Ambulance",418:"Moonbeam",420:"Taxi",421:"Washington",426:"Premier",429:"Banshee",431:"Bus",
+    434:"Hotknife",436:"Previon",438:"Cabbie",439:"Stallion",445:"Admiral",448:"Pizzaboy",451:"Turismo",461:"PCJ-600",462:"Faggio",
+    463:"Freeway",466:"Glendale",467:"Oceanic",468:"Sanchez",474:"Hermes",475:"Sabre",477:"ZR-350",479:"Regina",480:"Comet",489:"Rancher",
+    490:"FBI Rancher",491:"Virgo",492:"Greenwood",494:"Hotring",496:"Blista",500:"Mesa",506:"Super GT",507:"Elegant",516:"Nebula",
+    517:"Majestic",518:"Buccaneer",521:"FCR-900",522:"NRG-500",526:"Fortune",527:"Cadrona",529:"Willard",533:"Feltzer",534:"Remington",
+    535:"Slamvan",536:"Blade",540:"Vincent",541:"Bullet",542:"Clover",543:"Sadler",545:"Hustler",546:"Intruder",547:"Primo",549:"Tampa",
+    550:"Sunrise",551:"Merit",554:"Yosemite",555:"Windsor",558:"Uranus",559:"Jester",560:"Sultan",561:"Stratum",562:"Elegy",565:"Flash",
+    566:"Tahoma",567:"Savanna",575:"Broadway",576:"Tornado",579:"Huntley",580:"Stafford",581:"BF-400",585:"Emperor",586:"Wayfarer",
+    587:"Euros",589:"Club",596:"Police LS",597:"Police SF",598:"Police LV",599:"Police Ranger",600:"Picador",602:"Alpha",603:"Phoenix" };
+
+  function parse(raw) { if (raw && typeof raw === "object") return raw; try { return JSON.parse(raw || "{}") || {}; } catch (_) { return {}; } }
+  function send(type, arg) {
+    const payload = JSON.stringify({ arg: arg == null ? "" : String(arg) });
+    if (bridge && typeof bridge.action === "function") { try { bridge.action(type, payload); } catch (_) {} return true; }
+    console.log("[ui] action", type, payload); return false;
+  }
+  function close() { if (bridge && typeof bridge.close === "function") { try { bridge.close(); } catch (_) {} } else hideAll(); }
+  function hideAll() { document.querySelectorAll(".ui").forEach((n) => n.classList.add("hidden")); }
+  function show(id) { hideAll(); const n = $(id); if (n) n.classList.remove("hidden"); }
+
+  let tt = null;
+  function toast(msg, ok) {
+    if (!msg) return;
+    const t = $("toast"); t.textContent = msg; t.classList.toggle("err", !ok); t.classList.remove("hidden");
+    clearTimeout(tt); tt = setTimeout(() => t.classList.add("hidden"), 3000);
+  }
+  function setSmall(btn, text, on) { const s = $(btn).querySelector("small"); s.textContent = text; s.classList.toggle("on", !!on); }
+  function badge(id, state) {
+    const el = $(id);
+    if (state === true || state === "valide") { el.className = "badge valide"; el.textContent = "Valide"; }
+    else if (state === "expire") { el.className = "badge expire"; el.textContent = "Expiré"; }
+    else if (state === "retire") { el.className = "badge expire"; el.textContent = "Retiré"; }
+    else { el.className = "badge none"; el.textContent = "Non possédé"; }
+  }
+
+  function render(d) {
+    switch (d.view) {
+      case "player":
+        $("pl-name").textContent = d.targetName || "Joueur";
+        $("pl-police").classList.toggle("hidden", !Number(d.police));
+        $("pl-gov").classList.toggle("hidden", !Number(d.gov));
+        show("v-player"); break;
+      case "vehicle":
+        $("vh-name").textContent = (VEH[d.model] || ("Modèle " + d.model)) + (Number(d.driver) ? " · au volant" : "");
+        setSmall("vh-engine", Number(d.engine) ? "Allumé" : "Éteint", Number(d.engine));
+        $("vh-engine").disabled = !Number(d.driver);
+        setSmall("vh-lock", Number(d.locked) ? "Verrouillé" : "Ouvert", !Number(d.locked));
+        setSmall("vh-boot", Number(d.boot) ? "Ouvert" : "Fermé", Number(d.boot));
+        setSmall("vh-bonnet", Number(d.bonnet) ? "Ouvert" : "Fermé", Number(d.bonnet));
+        $("vh-doors").firstChild.nextSibling.textContent = Number(d.doors) ? "Fermer les portes" : "Ouvrir les portes";
+        setSmall("vh-doors", Number(d.doors) ? "Ouvertes" : "Fermées", Number(d.doors));
+        show("v-vehicle"); break;
+      case "id":
+        $("id-nom").textContent = d.nom || "—";
+        $("id-prenom").textContent = d.prenom || "—";
+        $("id-age").textContent = (Number(d.age) || 0) + " ans";
+        $("id-origine").textContent = d.origine || "Los Santos";
+        $("id-num").textContent = "N° " + (d.num || "—");
+        $("id-sig").textContent = ((d.prenom || "") + " " + (d.nom || "")).trim();
+        $("id-shown").textContent = d.shownBy ? "Présentée par " + d.shownBy : "Carte nationale d'identité";
+        show("v-id"); break;
+      case "licences":
+        badge("lic-drive", d.drive); badge("lic-weapon", d.weapon); badge("lic-truck", d.truck); badge("lic-boat", d.boat);
+        show("v-licences"); break;
+      case "outfits":
+        $("of-locker").classList.toggle("hidden", !Number(d.police));
+        $("of-state").textContent = Number(d.uniform) ? "En tenue de service" : "Tenue civile";
+        show("v-outfits"); break;
+    }
+  }
+
+  document.querySelectorAll("[data-act]").forEach((b) => b.addEventListener("click", () => { if (!b.disabled) send(b.dataset.act); }));
+  document.querySelectorAll("[data-close]").forEach((b) => b.addEventListener("click", close));
+
+  window.UiApp = {
+    openFromNative(raw) { render(parse(raw)); },
+    onUpdateFromNative(raw) { const d = parse(raw); if (d.view) render(d); if (d.msg) toast(d.msg, Number(d.ok) === 1); }
+  };
+
+  /* Apercu navigateur : ?player ?vehicle ?id ?licences ?outfits */
+  if (!bridge) {
+    const v = (location.search || "?player").slice(1);
+    const demo = {
+      player: { view: "player", targetName: "John Doe", police: 1, gov: 1 },
+      vehicle: { view: "vehicle", model: 411, engine: 1, locked: 0, boot: 0, bonnet: 1, doors: 0, driver: 1 },
+      id: { view: "id", nom: "Smith", prenom: "Anzo", age: 24, origine: "Abidjan", num: 482913 },
+      licences: { view: "licences", drive: "valide", weapon: "none", truck: "none", boat: "none" },
+      outfits: { view: "outfits", police: 1, uniform: 0 }
+    };
+    render(demo[v] || demo.player);
+  }
+  try { if (bridge && typeof bridge.ready === "function") bridge.ready(); } catch (_) {}
+})();
+</script>
+</body>
+</html>

@@ -13,7 +13,7 @@
  *
  * API supplémentaire (pour brancher plus tard les blips/GPS venant du serveur) :
  *   MinimapBridge.setBlips([{ id, x, y, icon }])   icon = numéro de radar/blips/blip_<icon>.png
- *   MinimapBridge.setWaypoint(x, y) / clearWaypoint()
+ *   MinimapBridge.setWaypoint(x, y, auto) / clearWaypoint()   auto = efface a l'arrivee (point choisi sur la carte)
  *   MinimapBridge.setZoom(unitesVisibles)           (null = zoom automatique)
  */
 (function () {
@@ -23,7 +23,7 @@
   const TILE_WORLD = 500;
   const WORLD_HALF = 3000;
   const MAX_CACHED_TILES = 40;
-  const SEA_COLOR = "#16324a";
+  const SEA_COLOR = "#0b0b0d";   // fond de la carte sombre (assets/hud/radar/tiles)
   const FOOT_SPAN = 260;      // unités visibles sur la largeur du cadre, à pied
   const VEHICLE_SPAN = 260;   // base en véhicule, + vitesse
   const SPEED_SPAN_GAIN = 1.6;
@@ -215,6 +215,11 @@
     }
     ctx.globalAlpha = 1;
 
+    // Point GPS choisi sur la carte : efface a l'arrivee (les points du serveur sont geres par le serveur)
+    if (waypoint && waypoint.auto && hasData && Math.hypot(waypoint.x - target.x, waypoint.y - target.y) < 30) {
+      waypoint = null;
+      try { window.AndroidHUD && window.AndroidHUD.onHudAction && window.AndroidHUD.onHudAction("gps:arrived", "{}"); } catch (_) { /* aperçu */ }
+    }
     if (waypoint) {
       const pos = place(waypoint.x, waypoint.y);
       drawIcon(loadImage("radar/cross.png", icons), pos.x, pos.y, 18 * dpr);
@@ -304,8 +309,8 @@
         ? list.filter((b) => b && isFinite(b.x) && isFinite(b.y)).map((b) => ({ id: b.id, x: +b.x, y: +b.y, icon: Number(b.icon) || 0 }))
         : [];
     },
-    setWaypoint(x, y) {
-      waypoint = isFinite(x) && isFinite(y) ? { x: +x, y: +y } : null;
+    setWaypoint(x, y, auto) {
+      waypoint = isFinite(x) && isFinite(y) ? { x: +x, y: +y, auto: !!auto } : null;
     },
     clearWaypoint() { waypoint = null; },
     setZoom(span) {

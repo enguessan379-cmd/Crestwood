@@ -74,7 +74,10 @@
   .pin.county span { font-size: 10px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: rgba(255,255,255,.55); }
   .pin.wp .dot { width: 14px; height: 14px; background: #ff3b5c; box-shadow: 0 0 0 3px rgba(255,59,92,.35), 0 0 12px #ff3b5c; }
   .pin.me .dot { width: 14px; height: 14px; background: #34e27e; box-shadow: 0 0 0 3px rgba(52,226,126,.35), 0 0 12px #34e27e; }
+  .pin.gps .dot { width: 14px; height: 14px; background: #ffb454; box-shadow: 0 0 0 3px rgba(255,180,84,.35), 0 0 12px #ffb454; }
+  .pin.blip img { display: block; width: 20px; height: 20px; margin: 0 auto; filter: drop-shadow(0 1px 2px #000) drop-shadow(0 0 3px rgba(0,0,0,.8)); }
   .pin[hidden] { display: none; }
+  .mapbox { background: #0b0b0d; }
 
   /* Commandes flottantes */
   .close {
@@ -105,7 +108,11 @@
     <div class="legend">
       <span><i style="background:#12dfff"></i>Ville</span>
       <span><i style="background:#ff3b5c"></i>Point plac&eacute;</span>
+      <span><i style="background:#ffb454"></i>GPS (mission)</span>
       <span><i style="background:#34e27e"></i>Ma position</span>
+      <span><img src="../hud/radar/blips/blip_178.png" alt="" style="width:12px;height:12px">Banque</span>
+      <span><img src="../hud/radar/blips/blip_176.png" alt="" style="width:12px;height:12px">Boutique</span>
+      <span><img src="../hud/radar/blips/blip_35.png" alt="" style="width:12px;height:12px">Emplois</span>
     </div>
 
     <div class="coords" id="coords">Touche la carte pour placer un point.</div>
@@ -234,6 +241,9 @@
   });
 
   var wpPin = makePin("wp", "Point", 0, 0); wpPin.hidden = true;
+  var gpsPin = makePin("gps", "GPS", 0, 0); gpsPin.hidden = true;
+  var blipPins = [];
+  var BLIP_NAMES = { 178: "Banque", 176: "Boutique", 99: "Bûcheron", 145: "Livreur", 105: "Bus", 75: "Éboueur", 139: "Pizzas" };
   var mePin = makePin("me", "Moi", 0, 0); mePin.hidden = true;
 
   /* ------------------------------ Zoom / déplacement ------------------------------ */
@@ -358,7 +368,33 @@
       mePin.hidden = false;
     },
     setWaypoint: setWaypoint,
-    clearWaypoint: clearWaypoint
+    clearWaypoint: clearWaypoint,
+    /* Icones fixes envoyees par le serveur (banques, boutiques, sieges des metiers) */
+    setBlips: function (list) {
+      if (typeof list === "string") { try { list = JSON.parse(list); } catch (e) { return; } }
+      blipPins.forEach(function (p) { p.remove(); });
+      blipPins = [];
+      (Array.isArray(list) ? list : []).forEach(function (b) {
+        var x = Number(b.x), y = Number(b.y), icon = Number(b.icon) || 0;
+        if (!isFinite(x) || !isFinite(y)) return;
+        var el = makePin("blip", "", x, y);
+        el.title = BLIP_NAMES[icon] || "";
+        var im = document.createElement("img");
+        im.src = "../hud/radar/blips/blip_" + icon + ".png"; im.alt = "";
+        el.replaceChild(im, el.firstChild);
+        blipPins.push(el);
+      });
+      world.appendChild(mePin);
+    },
+    /* Destination GPS en cours (mission du serveur ou point choisi) */
+    setGps: function (x, y) {
+      x = Number(x); y = Number(y);
+      if (!isFinite(x) || !isFinite(y)) { gpsPin.hidden = true; return; }
+      gpsPin.style.left = (frac(x) * 100) + "%";
+      gpsPin.style.top = (frac(y, true) * 100) + "%";
+      gpsPin.hidden = false;
+    },
+    clearGps: function () { gpsPin.hidden = true; }
   };
 
   /* --------------------------------- Boutons --------------------------------- */
@@ -370,7 +406,19 @@
   }
 
   document.getElementById("close").addEventListener("click", function () { if (!send("settings:close")) history.back(); });
-  document.getElementById("gps").addEventListener("click", function () { send("map:gps"); });
+  /* GPS : envoie le point place (x, y) ; sans point, le bouton efface le GPS en cours */
+  var gpsBtn = document.getElementById("gps");
+  function refreshGpsBtn() { gpsBtn.textContent = waypoint ? "Lancer le GPS" : "Effacer le GPS"; }
+  gpsBtn.addEventListener("click", function () {
+    if (waypoint) send("map:gps", JSON.stringify({ x: waypoint.x, y: waypoint.y }));
+    else send("map:gps", JSON.stringify({ clear: 1 }));
+  });
+  var _setWp = setWaypoint, _clearWp = clearWaypoint;
+  setWaypoint = function (x, y) { _setWp(x, y); refreshGpsBtn(); };
+  clearWaypoint = function () { _clearWp(); refreshGpsBtn(); };
+  window.MapApp.setWaypoint = setWaypoint;
+  window.MapApp.clearWaypoint = clearWaypoint;
+  refreshGpsBtn();
   clearBtn.addEventListener("click", clearWaypoint);
   document.getElementById("zin").addEventListener("click", function () { var r = box(); zoomAt(1.5, r.width / 2, r.height / 2); });
   document.getElementById("zout").addEventListener("click", function () { var r = box(); zoomAt(1 / 1.5, r.width / 2, r.height / 2); });

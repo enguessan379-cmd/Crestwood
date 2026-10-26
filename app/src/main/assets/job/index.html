@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Emplois Crestwood</title>
+    <link rel="stylesheet" href="job.css">
+</head>
+<body>
+<main class="jb">
+    <!-- ================= Contrat de travail ================= -->
+    <section class="jb-contract hidden" id="jbContract">
+        <img class="jb-logo" src="../hud/crestwood-roleplay.png" alt="Crestwood Roleplay" onerror="this.style.display='none'">
+        <div class="jb-stack">
+            <article class="jb-paper" id="jbPaper">
+                <button class="jb-x" id="jbClose" type="button" aria-label="Fermer">&#10005;</button>
+                <h1>Contrat de Travail</h1>
+                <p class="jb-intro" id="jbIntro"></p>
+
+                <h2>Identification des parties</h2>
+                <dl class="jb-parties" id="jbParties"></dl>
+
+                <h3>Missions</h3>
+                <ul class="jb-missions" id="jbMissions"></ul>
+
+                <div class="jb-stats hidden" id="jbStats"></div>
+
+                <div class="jb-sign">
+                    <div class="jb-sign-pad" id="jbPad">
+                        <canvas id="jbCanvas"></canvas>
+                        <span class="jb-sign-hint" id="jbHint">Signe ici avec ton doigt</span>
+                        <span class="jb-sign-name hidden" id="jbSigned"></span>
+                        <span class="jb-check hidden" id="jbCheck">&#10003;</span>
+                    </div>
+                    <span class="jb-sign-label" id="jbSignLabel">Signature du Contractant</span>
+                </div>
+            </article>
+        </div>
+        <div class="jb-actions" id="jbActions"></div>
+    </section>
+
+    <!-- ================= Agence pour l'emploi ================= -->
+    <section class="jb-agency hidden" id="jbAgency">
+        <header class="jb-ahead">
+            <div class="jb-atitle">
+                <span class="jb-adot"></span>
+                <div>
+                    <h1>Agence pour l'emploi<span>.</span></h1>
+                    <p id="jbAStatus">—</p>
+                </div>
+            </div>
+            <button class="jb-aclose" id="jbAClose" type="button" aria-label="Fermer">&#10005;</button>
+        </header>
+        <div class="jb-alist" id="jbAList"></div>
+        <footer class="jb-afoot" id="jbAFoot"></footer>
+    </section>
+
+    <div class="jb-toast hidden" id="jbToast"></div>
+</main>
+<script src="job.js"></script>
+</body>
+</html>

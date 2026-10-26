@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Dialogue SA-MP</title>
+    <link rel="stylesheet" href="dialog.css">
+</head>
+<body>
+<main class="dg hidden" id="dg">
+    <section class="dg-card" id="dgCard" role="dialog" aria-modal="true" aria-labelledby="dgCaption">
+        <header class="dg-head">
+            <span class="dg-dot"></span>
+            <h1 class="dg-caption" id="dgCaption"></h1>
+        </header>
+
+        <div class="dg-body">
+            <div class="dg-text" id="dgText"></div>
+
+            <label class="dg-input hidden" id="dgInputWrap">
+                <input id="dgInput" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="128">
+                <button type="button" class="dg-eye hidden" id="dgEye" aria-label="Afficher le mot de passe">&#128065;</button>
+            </label>
+
+            <div class="dg-search hidden" id="dgSearchWrap">
+                <input id="dgSearch" type="search" placeholder="Rechercher..." autocomplete="off" spellcheck="false">
+            </div>
+            <div class="dg-list hidden" id="dgList" role="listbox">
+                <div class="dg-row dg-header hidden" id="dgHeader"></div>
+                <div class="dg-rows" id="dgRows"></div>
+            </div>
+        </div>
+
+        <footer class="dg-foot">
+            <button type="button" class="dg-btn primary" id="dgOk">OK</button>
+            <button type="button" class="dg-btn ghost" id="dgCancel">Annuler</button>
+        </footer>
+    </section>
+</main>
+<script src="dialog.js"></script>
+</body>
+</html>

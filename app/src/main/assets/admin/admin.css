@@ -119,3 +119,11 @@ input{font:inherit;color:var(--text)}
 .adm-locker-info b{display:block;font-size:clamp(11px,2.9vh,13px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .adm-locker-info small{display:block;font-size:clamp(9px,2.3vh,11px);color:var(--muted);margin-top:1px}
 .adm-locker .adm-btn{padding:.9vh 10px;flex:none}
+
+/* Chat du staff */
+.adm-chat{max-height:34vh;overflow-y:auto;display:flex;flex-direction:column;gap:4px;margin:6px 0 8px;padding:8px;border-radius:10px;
+    background:rgba(0,0,0,.25);border:1px solid rgba(125,180,255,.14);-webkit-overflow-scrolling:touch}
+.adm-chat-line{font-size:12px;line-height:1.35;color:#c3d0ee;word-break:break-word}
+.adm-chat-line small{color:#93a4c8;margin-right:6px;font-variant-numeric:tabular-nums}
+.adm-chat-line b{color:#ffb454;margin-right:6px}
+.adm-chat-line b::after{content:" :"}

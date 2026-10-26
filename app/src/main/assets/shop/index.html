@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Boutique Crestwood</title>
+    <link rel="stylesheet" href="shop.css">
+</head>
+<body>
+<main class="sh">
+    <section class="sh-panel">
+        <header class="sh-head">
+            <div class="sh-title">
+                <span class="sh-badge">24/7</span>
+                <div>
+                    <h1>Boutique<span class="sh-period">.</span></h1>
+                    <p id="shName">—</p>
+                </div>
+            </div>
+            <div class="sh-wallet">
+                <span class="sh-chip"><small>Liquide</small><b id="shCash">0 $</b></span>
+                <span class="sh-chip"><small>Banque</small><b id="shBank">0 $</b></span>
+            </div>
+            <button class="sh-close" id="shClose" type="button" aria-label="Fermer">&#10005;</button>
+        </header>
+
+        <div class="sh-body">
+            <nav class="sh-cats" id="shCats" aria-label="Catégories"></nav>
+            <div class="sh-grid" id="shGrid"></div>
+            <aside class="sh-detail" id="shDetail">
+                <div class="sh-detail-img"><img id="shImg" alt=""></div>
+                <span class="sh-tag" id="shTag">—</span>
+                <h2 id="shItemName">Choisis un article</h2>
+                <p class="sh-desc" id="shDesc">Touche un article pour voir son prix et l'acheter.</p>
+                <div class="sh-row">
+                    <span>Quantité</span>
+                    <div class="sh-qty">
+                        <button type="button" id="shMinus" aria-label="Moins">&minus;</button>
+                        <b id="shQty">1</b>
+                        <button type="button" id="shPlus" aria-label="Plus">+</button>
+                    </div>
+                </div>
+                <div class="sh-seg" role="radiogroup" aria-label="Paiement">
+                    <button type="button" class="sh-seg-btn on" data-pay="cash">Espèces</button>
+                    <button type="button" class="sh-seg-btn" data-pay="card">Carte</button>
+                </div>
+                <div class="sh-total"><span>Total</span><b id="shTotal">0 $</b></div>
+                <button type="button" class="sh-buy" id="shBuy" disabled>Acheter</button>
+            </aside>
+        </div>
+    </section>
+    <div class="sh-toast hidden" id="shToast"></div>
+</main>
+<script src="shop.js"></script>
+</body>
+</html>
