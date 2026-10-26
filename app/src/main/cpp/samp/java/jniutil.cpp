@@ -55,7 +55,36 @@ CJavaWrapper::CJavaWrapper(JNIEnv *env, jobject activity)
 	 s_hideEditObject = env->GetMethodID(clas, "hideEditObject", "()V");
 	 s_updateHudState = env->GetMethodID(clas, "updateHudState", "(FFFFFZZZZFFZFFFFF)V");
 
+	 s_clothesOpen = env->GetMethodID(clas, "clothesOpen", "(Ljava/lang/String;)V");
+	 s_clothesState = env->GetMethodID(clas, "clothesState", "(Ljava/lang/String;)V");
+	 s_clothesClose = env->GetMethodID(clas, "clothesClose", "()V");
+	 if (env->ExceptionCheck()) env->ExceptionClear(); // methodes absentes (ancien APK) : le panneau ImGui reste le repli
+
 	 env->DeleteLocalRef(clas);
+}
+
+static void CallClothesString(CJavaWrapper* w, jmethodID mid, const std::string& json)
+{
+    if (!javaVM || !w->activity || !mid) return;
+    JNIEnv* p = w->GetEnv();
+    if (!p) return;
+    jstring js = p->NewStringUTF(json.c_str());
+    if (!js) { if (p->ExceptionCheck()) p->ExceptionClear(); return; }
+    p->CallVoidMethod(w->activity, mid, js);
+    p->DeleteLocalRef(js);
+    if (p->ExceptionCheck()) { p->ExceptionDescribe(); p->ExceptionClear(); }
+}
+
+void CJavaWrapper::ClothesPanelOpen(const std::string& json)  { CallClothesString(this, s_clothesOpen, json); }
+void CJavaWrapper::ClothesPanelState(const std::string& json) { CallClothesString(this, s_clothesState, json); }
+
+void CJavaWrapper::ClothesPanelClose()
+{
+    if (!javaVM || !activity || !s_clothesClose) return;
+    JNIEnv* p = GetEnv();
+    if (!p) return;
+    p->CallVoidMethod(activity, s_clothesClose);
+    if (p->ExceptionCheck()) { p->ExceptionDescribe(); p->ExceptionClear(); }
 }
 
 void CJavaWrapper::ShowLoadingScreen()

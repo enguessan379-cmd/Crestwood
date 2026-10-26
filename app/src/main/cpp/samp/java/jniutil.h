@@ -1,6 +1,7 @@
 #pragma once
 
 #include "main.h"
+#include <string>
 
 #define EXCEPTION_CHECK(env) \
 	if ((env)->ExceptionCheck()) \ 
@@ -28,6 +29,11 @@ public:
 
 	void exitGame();
 
+    // Panneau HTML des vetements (assets/clothes/index.html)
+    void ClothesPanelOpen(const std::string& json);
+    void ClothesPanelState(const std::string& json);
+    void ClothesPanelClose();
+
     jbyteArray as_byte_array(unsigned char* buf, int len) {
         JNIEnv* p;
         javaVM->GetEnv((void**)&p, JNI_VERSION_1_6);
@@ -52,6 +58,9 @@ public:
 	 jmethodID s_showEditObject;
 	 jmethodID s_hideEditObject;
     jmethodID s_updateHudState;
+    jmethodID s_clothesOpen = nullptr;
+    jmethodID s_clothesState = nullptr;
+    jmethodID s_clothesClose = nullptr;
 };
 
 extern CJavaWrapper* g_pJavaWrapper;

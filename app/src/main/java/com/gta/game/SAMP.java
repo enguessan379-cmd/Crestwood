@@ -91,6 +91,12 @@ public class SAMP extends GTASA implements HeightProvider.HeightListener {
     private volatile boolean bankReady;
     private final Handler bankHandler = new Handler(Looper.getMainLooper());
     private Runnable bankWatchdog;
+    // Panneau de vetements HTML (assets/clothes/index.html), pilote par le moteur natif (CharacterCreator)
+    private boolean clothesPageOpen;
+    private volatile boolean clothesReady;
+    private volatile String pendingClothesJson;
+    private final Handler clothesHandler = new Handler(Looper.getMainLooper());
+    private Runnable clothesWatchdog;
     private boolean cameraOpen;
     private volatile int hudHunger = 100;
     private volatile int hudThirst = 100;
@@ -308,6 +314,8 @@ public class SAMP extends GTASA implements HeightProvider.HeightListener {
     private native void openClothesTest();
     /** Dialogues "@clothes" du serveur (ids 9550 appliquer, 9551 ouvrir l'editeur, 9552 fermer, 9553/9554 apparence d'un autre joueur : appliquer/retirer). */
     private native void onClothesDialog(int dialogId, String json);
+    /** Commandes du panneau HTML des vetements : 0 option (key, value), 1 genre, 2 enregistrer, 3 annuler, 4 page indisponible. */
+    private native void clothesCommand(int type, String key, int value);
 
     @Override
     public void onStart() {
@@ -354,6 +362,7 @@ public class SAMP extends GTASA implements HeightProvider.HeightListener {
         if (hudWebView != null) {
             hudWebView.loadUrl("about:blank");
             hudWebView.removeJavascriptInterface("AndroidHUD");
+            hudWebView.removeJavascriptInterface("AndroidClothes");
             hudWebView.destroy();
             hudWebView = null;
         }
@@ -481,6 +490,7 @@ public class SAMP extends GTASA implements HeightProvider.HeightListener {
         hudWebView.addJavascriptInterface(new SampPoliceBridge(), "SampPolice");
         hudWebView.addJavascriptInterface(new SampHudBridge(), "SampHud");
         hudWebView.addJavascriptInterface(new SampBankBridge(), "SampBank");
+        hudWebView.addJavascriptInterface(new SampClothesBridge(), "AndroidClothes");
         hudWebView.setVisibility(View.VISIBLE);
         hudWebView.loadUrl("file:///android_asset/hud/index.html");
     }
@@ -1229,10 +1239,137 @@ public class SAMP extends GTASA implements HeightProvider.HeightListener {
         }
     }
 
+    // ---- Vetements (page assets/clothes/index.html) ----
+    // Appelees par le code natif (CJavaWrapper::ClothesPanelOpen / State / Close).
+    public void clothesOpen(final String json) {
+        runOnUiThread(() -> openClothesPage(json));
+    }
+
+    public void clothesState(final String json) {
+        runOnUiThread(() -> {
+            if (!clothesPageOpen || hudWebView == null) return;
+            if (!clothesReady) {
+                pendingClothesJson = json;
+                return;
+            }
+            hudWebView.evaluateJavascript("window.ClothesApp && ClothesApp.onState(" + JSONObject.quote(json) + ")", null);
+        });
+    }
+
+    public void clothesClose() {
+        runOnUiThread(this::closeClothesPage);
+    }
+
+    private void openClothesPage(String json) {
+        if (hudWebView == null || isFinishing()) return;
+        Log.i(TAG, "[clothes] ouverture du panneau HTML");
+        clothesPageOpen = true;
+        clothesReady = false;
+        configOpen = true;
+        pendingClothesJson = json;
+        hudWebView.setWheelOpen(false);
+        hudWebView.setPhonePage(false);
+        // Pas de page plein ecran : seul le panneau capte le tactile (zones envoyees par la page),
+        // le reste de l'ecran laisse passer vers le jeu pour voir le personnage.
+        hudWebView.setFullscreenPage(false);
+        hudWebView.setInteractive(false);
+        hudWebView.setTouchBounds(null);
+        hudWebView.setVisibility(View.VISIBLE);
+        hudWebView.loadUrl("file:///android_asset/clothes/index.html");
+
+        // Garde-fou : si la page ne s'affiche pas en 5 s, on la ferme et le moteur retombe sur le panneau natif.
+        cancelClothesWatchdog();
+        clothesWatchdog = () -> {
+            if (clothesPageOpen && !clothesReady) {
+                Log.e(TAG, "[clothes] la page ne s'est pas affichee a temps -> panneau natif");
+                try {
+                    clothesCommand(4, "", 0);
+                } catch (UnsatisfiedLinkError e) {
+                    Log.e(TAG, "[clothes] natif indisponible : " + e.getMessage());
+                }
+                closeClothesPage();
+            }
+        };
+        clothesHandler.postDelayed(clothesWatchdog, 5000);
+    }
+
+    private void cancelClothesWatchdog() {
+        if (clothesWatchdog != null) {
+            clothesHandler.removeCallbacks(clothesWatchdog);
+            clothesWatchdog = null;
+        }
+    }
+
+    private void closeClothesPage() {
+        if (!clothesPageOpen) return;
+        cancelClothesWatchdog();
+        clothesPageOpen = false;
+        clothesReady = false;
+        pendingClothesJson = null;
+        configOpen = false;
+        if (hudWebView == null) return;
+        hudWebView.setTouchBounds(null);
+        hudWebView.setFullscreenPage(false);
+        hudWebView.setPhonePage(false);
+        hudWebView.setVisibility(View.VISIBLE);
+        hudWebView.loadUrl("file:///android_asset/hud/index.html");
+    }
+
+    private void sendClothesCommand(int type, String key, int value) {
+        try {
+            clothesCommand(type, key == null ? "" : key, value);
+        } catch (UnsatisfiedLinkError e) {
+            Log.e(TAG, "[clothes] natif indisponible : " + e.getMessage());
+        }
+    }
+
+    private final class SampClothesBridge {
+        // JS -> moteur : change une option ("topStyle", "topColor", ...)
+        @JavascriptInterface public void setOption(String key, int value) {
+            if (key == null || !key.matches("[A-Za-z]{1,24}")) return;
+            sendClothesCommand(0, key, value);
+        }
+
+        // JS -> moteur : 0 homme / 1 femme
+        @JavascriptInterface public void setGender(int gender) {
+            sendClothesCommand(1, "", gender == 1 ? 1 : 0);
+        }
+
+        @JavascriptInterface public void save() {
+            sendClothesCommand(2, "", 0);
+            runOnUiThread(() -> closeClothesPage());
+        }
+
+        @JavascriptInterface public void cancel() {
+            sendClothesCommand(3, "", 0);
+            runOnUiThread(() -> closeClothesPage());
+        }
+
+        // Zones tactiles du panneau ("viewport=W,H;panel=l,t,r,b") : le reste de l'ecran reste jouable.
+        @JavascriptInterface public void setTouchBounds(String raw) {
+            if (hudWebView != null && clothesPageOpen) hudWebView.setTouchBounds(raw);
+        }
+
+        // Appele par la page quand elle est prete : annule le garde-fou et envoie l'etat en attente.
+        @JavascriptInterface public void ready() {
+            clothesReady = true;
+            runOnUiThread(() -> {
+                cancelClothesWatchdog();
+                String json = pendingClothesJson;
+                pendingClothesJson = null;
+                if (json != null && hudWebView != null && clothesPageOpen) {
+                    hudWebView.evaluateJavascript("window.ClothesApp && ClothesApp.onState(" + JSONObject.quote(json) + ")", null);
+                }
+            });
+            Log.i(TAG, "[clothes] page affichee");
+        }
+    }
+
     private void closeConfig() {
         runOnUiThread(() -> {
             if (hudWebView == null) return;
             if (authOpen) return;
+            clothesPageOpen = false;
             invOpen = false;
             adminOpen = false;
             lockerOpen = false;
@@ -1272,6 +1409,11 @@ public class SAMP extends GTASA implements HeightProvider.HeightListener {
         }
         if (bankOpen) {
             closeBankPage(true);
+            return;
+        }
+        if (clothesPageOpen) {
+            sendClothesCommand(3, "", 0); // retour = ANNULER
+            closeClothesPage();
             return;
         }
         if (cameraOpen) {

@@ -343,6 +343,21 @@ extern "C" {
 			CharacterCreator::OnServerDialog(static_cast<int>(dialogId), payload);
 		}
 
+		// Panneau HTML des vetements (assets/clothes/index.html) : commandes JS -> Java -> ici.
+		// type : 0 option (key + value), 1 genre, 2 enregistrer, 3 annuler, 4 page indisponible.
+		JNIEXPORT void JNICALL Java_com_gta_game_SAMP_clothesCommand(JNIEnv *pEnv, jobject thiz, jint type, jstring key, jint value)
+		{
+			std::string k;
+			if (key) {
+				const char* text = pEnv->GetStringUTFChars(key, nullptr);
+				if (text) {
+					k = text;
+					pEnv->ReleaseStringUTFChars(key, text);
+				}
+			}
+			CharacterCreator::OnHtmlCommand(static_cast<int>(type), k, static_cast<int>(value));
+		}
+
 		JNIEXPORT void JNICALL Java_com_gta_game_SAMP_openChatInput(JNIEnv *pEnv, jobject thiz)
 		{
 			if (pUI && pUI->chat()) pUI->chat()->touchPopEvent();

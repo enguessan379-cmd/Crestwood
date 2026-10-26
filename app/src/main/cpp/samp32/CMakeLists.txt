@@ -23,6 +23,11 @@ file(GLOB_RECURSE SOURCES
         ${CMAKE_CURRENT_LIST_DIR}/**/**/**/**/**/**/**/**/**/*.c*
         )
 
+# Ignore les copies "fichier(1).cpp" / "fichier (2).h" créées par un copier-coller ou un
+# téléchargement : elles définissent les mêmes symboles et provoquent "duplicate symbol" au link.
+list(FILTER SOURCES EXCLUDE REGEX "[ ]?\\([0-9]+\\)\\.[^/]*$")
+list(REMOVE_DUPLICATES SOURCES)
+
 # Add include directories
 include_directories(
         ${CMAKE_CURRENT_LIST_DIR}

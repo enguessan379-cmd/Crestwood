@@ -51,6 +51,15 @@ public:
     // n'importe quel thread : tout est traite dans Render() (thread du jeu).
     static void OnServerDialog(int dialogId, const std::string& json);
 
+    // Commandes du panneau HTML des vetements (assets/clothes/index.html), recues du thread Java.
+    // Memorisees puis executees dans Render() (thread du jeu).
+    static constexpr int kHtmlSetOption = 0; // key + value
+    static constexpr int kHtmlSetGender = 1; // value : 0 homme / 1 femme
+    static constexpr int kHtmlSave      = 2; // ENREGISTRER
+    static constexpr int kHtmlCancel    = 3; // ANNULER
+    static constexpr int kHtmlUnavailable = 4; // la page HTML n'a pas pu s'afficher : repli sur le panneau ImGui
+    static void OnHtmlCommand(int type, const std::string& key, int value);
+
     static bool IsVisible();
 
     // Desenha a janela do estado atual (chamado dentro do drawList do ImGui).

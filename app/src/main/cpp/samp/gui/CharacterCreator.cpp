@@ -858,6 +858,99 @@ namespace {
 }
 
 // ============================================================
+// Panneau HTML des vetements (assets/clothes/index.html)
+// Les commandes arrivent du thread Java ; tout est execute ici, sur le thread du jeu.
+// ============================================================
+namespace {
+
+	struct HtmlCmd {
+		int type = 0;
+		std::string key;
+		int value = 0;
+	};
+
+	std::mutex g_htmlMutex;
+	std::vector<HtmlCmd> g_htmlQueue;
+	std::atomic<bool> g_htmlUnavailable{false}; // vrai : on utilise le panneau ImGui
+	bool g_htmlShown = false;                   // la page HTML est affichee cote Java
+
+	bool UseHtmlPanel()
+	{
+		return !g_htmlUnavailable.load() && pJavaWrapper != nullptr;
+	}
+
+	void HtmlPushState()
+	{
+		if (pJavaWrapper) pJavaWrapper->ClothesPanelState(ClothesCustomization::BuildOptionsJson());
+	}
+
+	void HtmlOpen()
+	{
+		g_htmlShown = true;
+		{
+			std::lock_guard<std::mutex> lock(g_htmlMutex);
+			g_htmlQueue.clear();
+		}
+		if (pJavaWrapper) pJavaWrapper->ClothesPanelOpen(ClothesCustomization::BuildOptionsJson());
+	}
+
+	void HtmlHide()
+	{
+		if (!g_htmlShown) return;
+		g_htmlShown = false;
+		if (pJavaWrapper) pJavaWrapper->ClothesPanelClose();
+	}
+
+	// Remplace RenderCreateWindow() en mode editeur : aucun dessin ImGui, juste la synchro avec la page HTML.
+	void RenderHtmlEditor()
+	{
+		if (!g_htmlShown) {
+			HtmlOpen();
+			return;
+		}
+
+		std::vector<HtmlCmd> cmds;
+		{
+			std::lock_guard<std::mutex> lock(g_htmlMutex);
+			cmds.swap(g_htmlQueue);
+		}
+
+		bool dirty = false;
+		for (const HtmlCmd& c : cmds) {
+			if (c.type == CharacterCreator::kHtmlSetOption) {
+				if (ClothesCustomization::SetOption(c.key, c.value)) dirty = true;
+			}
+			else if (c.type == CharacterCreator::kHtmlSetGender) {
+				const uint16_t model = LocalModelId();
+				const int gender = c.value ? 1 : 0;
+				if ((model == 9 || model == 163) && g_gender != gender) {
+					g_gender = gender;
+					PreviewGender(gender, true);
+					dirty = true;
+				}
+			}
+			else if (c.type == CharacterCreator::kHtmlSave) {
+				SendEditorSave();
+				CharacterCreator::CloseAll();
+				return; // Render() ferme la page HTML au prochain passage
+			}
+			else if (c.type == CharacterCreator::kHtmlCancel) {
+				RevertEdit();
+				CharacterCreator::CloseAll();
+				return;
+			}
+			else if (c.type == CharacterCreator::kHtmlUnavailable) {
+				// La page n'a pas pu s'afficher : on retombe sur le panneau ImGui, sans rien perdre.
+				g_htmlUnavailable = true;
+				g_htmlShown = false;
+				return;
+			}
+		}
+		if (dirty) HtmlPushState();
+	}
+}
+
+// ============================================================
 // Widget receptor do teclado do launcher
 // ============================================================
 void CreatorKeyboardHost::keyboardEvent(const std::string& input)
@@ -1003,6 +1096,18 @@ void CharacterCreator::OnServerDialog(int dialogId, const std::string& json)
 	g_pendingLook = true;
 }
 
+void CharacterCreator::OnHtmlCommand(int type, const std::string& key, int value)
+{
+	if (type == kHtmlUnavailable) g_htmlUnavailable = true; // visible tout de suite, meme si Render() ne tourne pas
+	std::lock_guard<std::mutex> lock(g_htmlMutex);
+	if (g_htmlQueue.size() > 256) g_htmlQueue.erase(g_htmlQueue.begin(), g_htmlQueue.begin() + 128);
+	HtmlCmd cmd;
+	cmd.type = type;
+	cmd.key = key.substr(0, 32);
+	cmd.value = value;
+	g_htmlQueue.push_back(cmd);
+}
+
 bool CharacterCreator::IsVisible()
 {
 	return g_state != State::Hidden;
@@ -1011,6 +1116,11 @@ bool CharacterCreator::IsVisible()
 void CharacterCreator::Render()
 {
 	ProcessRemoteLooks(); // apparences des autres joueurs (thread du jeu)
+
+	// Page HTML des vetements : fermee des que l'editeur n'est plus ouvert (ENREGISTRER, ANNULER, serveur...).
+	if (g_htmlShown && !(g_state == State::Creating && g_testMode)) {
+		HtmlHide();
+	}
 
 	// Demande du bouton de test du HUD : traitée ici, sur le thread du jeu.
 	// Un second appui sur le bouton referme le panneau.
@@ -1138,7 +1248,8 @@ void CharacterCreator::Render()
 			RenderNewCharModal();
 			break;
 		case State::Creating:
-			RenderCreateWindow();
+			if (g_testMode && UseHtmlPanel()) RenderHtmlEditor();
+			else RenderCreateWindow();
 			break;
 		case State::Waiting:
 			RenderWaiting();

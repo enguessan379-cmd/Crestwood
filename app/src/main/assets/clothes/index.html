@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Crestwood RP - Vêtements</title>
+<!--
+  Panneau de vêtements (adapté de "Panel NUI - Création de Personnage").
+  Page 100 % locale : aucune dépendance externe (pas de CDN), le WebView Android fonctionne hors ligne.
+
+  Fonctionnement :
+    - le moteur natif envoie la liste des options du skin courant (ClothesApp.onState(json)) ;
+    - la page affiche les contrôles de l'onglet choisi (HAUT / BAS / CHAUSSURES / CHEVEUX / VISAGE / TATOUAGES / POLICE) ;
+    - chaque changement part vers le jeu par AndroidClothes.setOption(clé, valeur) : le personnage change en direct.
+-->
+<style>
+  :root {
+    --blue: #00a2ff;
+    --cyan: #00d2ff;
+    --dark: #0c121e;
+    --panel: rgba(12, 18, 30, 0.90);
+    --line: rgba(255, 255, 255, 0.10);
+    --soft: rgba(255, 255, 255, 0.05);
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    height: 100%; width: 100%; margin: 0; padding: 0; overflow: hidden;
+    background: transparent;
+    font-family: 'Montserrat', 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    color: #fff;
+    -webkit-user-select: none; user-select: none;
+    touch-action: manipulation;
+  }
+  body.preview { background: #15181f; } /* aperçu navigateur uniquement */
+
+  /* Marque, en haut à gauche (ne capte pas le tactile) */
+  .brand { position: fixed; left: 18px; top: 14px; pointer-events: none; }
+  .brand h1 {
+    margin: 0; font-family: 'Rajdhani', 'Arial Narrow', sans-serif;
+    font-size: 24px; letter-spacing: 2px; font-weight: 700;
+    text-shadow: 0 2px 8px rgba(0,0,0,.8);
+  }
+  .brand h1 b { color: var(--cyan); text-shadow: 0 0 10px rgba(0,210,255,.6); }
+  .brand p { margin: 2px 0 0; font-size: 10px; letter-spacing: 3px; color: #cfd6e0; text-transform: uppercase; text-shadow: 0 1px 4px #000; }
+
+  /* Panneau de droite */
+  #panel {
+    position: fixed; top: 0; right: 0; bottom: 0;
+    width: clamp(290px, 40vw, 410px);
+    background: var(--panel);
+    border-left: 1px solid rgba(0,162,255,.25);
+    box-shadow: -10px 0 35px rgba(0,0,0,.65), inset 1px 0 0 rgba(255,255,255,.08);
+    display: flex; flex-direction: column;
+    padding: 12px 14px calc(12px + env(safe-area-inset-bottom, 0px)) 14px;
+    padding-right: calc(14px + env(safe-area-inset-right, 0px));
+    gap: 10px;
+  }
+  .title {
+    text-align: center; padding: 2px 0 8px; border-bottom: 1px solid var(--line);
+    font-size: 16px; font-weight: 800; letter-spacing: 3px; text-transform: uppercase;
+    text-shadow: 0 0 10px rgba(0,210,255,.6);
+  }
+
+  /* Homme / Femme */
+  .gender { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; background: rgba(0,0,0,.4); padding: 5px; border-radius: 12px; border: 1px solid rgba(255,255,255,.05); }
+  .gender[hidden] { display: none; }
+  .gender button {
+    border: 0; border-radius: 9px; padding: 9px 4px; font: inherit; font-size: 11px; font-weight: 700; letter-spacing: 1.5px;
+    background: transparent; color: #9aa4b2; text-transform: uppercase;
+  }
+  .gender button.active { background: var(--blue); color: #fff; box-shadow: 0 0 15px rgba(0,162,255,.4); }
+
+  /* Onglets */
+  .section { display: flex; align-items: center; font-size: 12px; font-weight: 700; letter-spacing: 1.5px; border-left: 4px solid var(--blue); padding-left: 10px; text-transform: uppercase; }
+  .tabs { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: none; }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tab {
+    flex: 0 0 auto; border: 0; border-radius: 9px; padding: 10px 12px; font: inherit; font-size: 11px; font-weight: 800; letter-spacing: 1.2px;
+    background: var(--soft); color: #9aa4b2; text-transform: uppercase; white-space: nowrap;
+  }
+  .tab.active { background: var(--blue); color: #fff; box-shadow: 0 4px 14px rgba(0,162,255,.3); }
+
+  /* Contrôles */
+  #controls { flex: 1 1 auto; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding-right: 2px; -webkit-overflow-scrolling: touch; }
+  #controls::-webkit-scrollbar { width: 4px; }
+  #controls::-webkit-scrollbar-thumb { background: rgba(0,162,255,.4); border-radius: 2px; }
+  .ctrl { background: var(--soft); border: 1px solid rgba(255,255,255,.05); border-radius: 12px; padding: 10px 11px; display: flex; flex-direction: column; gap: 8px; flex: 0 0 auto; }
+  .ctrl .head { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 12px; }
+  .ctrl .name { color: #d3d9e2; font-weight: 600; letter-spacing: .3px; }
+  .ctrl .val {
+    color: var(--cyan); font-weight: 700; font-family: 'Courier New', monospace; font-size: 13px; white-space: nowrap;
+    background: rgba(0,162,255,.10); border: 1px solid rgba(0,162,255,.2); padding: 2px 8px; border-radius: 6px;
+  }
+  .ctrl .row { display: flex; align-items: center; gap: 10px; }
+  .arrow {
+    flex: 0 0 auto; width: 42px; height: 38px; border-radius: 10px; display: flex; align-items: center; justify-content: center;
+    background: var(--soft); border: 1px solid var(--line); color: #d3d9e2; padding: 0;
+  }
+  .arrow:active { transform: scale(.92); background: rgba(0,162,255,.25); border-color: rgba(0,210,255,.5); color: var(--cyan); }
+  .arrow svg { width: 14px; height: 14px; }
+
+  input[type=range] { -webkit-appearance: none; appearance: none; flex: 1 1 auto; min-width: 0; height: 6px; border-radius: 4px; background: rgba(255,255,255,.12); outline: none; margin: 0; }
+  input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; height: 24px; width: 24px; border-radius: 50%; background: var(--cyan); box-shadow: 0 0 10px var(--blue); }
+
+  .empty { text-align: center; color: #9aa4b2; font-size: 12px; line-height: 1.5; padding: 22px 8px; }
+
+  /* Actions */
+  .actions { border-top: 1px solid var(--line); padding-top: 10px; display: grid; grid-template-columns: 1.7fr 1fr; gap: 8px; }
+  .btn { border: 0; border-radius: 12px; padding: 13px 6px; font: inherit; font-weight: 800; letter-spacing: 2px; font-size: 12px; text-transform: uppercase; color: #fff; }
+  .btn.ok { background: linear-gradient(90deg, var(--blue), var(--cyan)); box-shadow: 0 0 20px rgba(0,162,255,.45); }
+  .btn.ko { background: rgba(255,255,255,.08); border: 1px solid var(--line); color: #d3d9e2; }
+  .btn:active { transform: scale(.97); }
+
+  /* Message */
+  #toast {
+    position: fixed; left: 50%; bottom: 18px; transform: translate(-50%, 30px); opacity: 0; transition: all .25s;
+    background: rgba(12,18,30,.95); border: 1px solid rgba(0,162,255,.4); border-radius: 12px; padding: 10px 16px;
+    font-size: 12px; font-weight: 600; pointer-events: none; max-width: 60vw; text-align: center;
+  }
+  #toast.show { transform: translate(-50%, 0); opacity: 1; }
+
+  /* Petits écrans en hauteur (téléphone en paysage) */
+  @media (max-height: 420px) {
+    #panel { gap: 7px; padding-top: 8px; padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px)); }
+    .title { font-size: 14px; padding-bottom: 5px; }
+    .section { display: none; }
+    .btn { padding: 11px 6px; }
+    .brand h1 { font-size: 20px; }
+  }
+</style>
+</head>
+<body>
+
+  <div class="brand">
+    <h1><b>CRESTWOOD</b> ROLEPLAY</h1>
+    <p>Boutique de vêtements</p>
+  </div>
+
+  <aside id="panel">
+    <div class="title">Vêtements</div>
+
+    <div class="gender" id="gender" hidden>
+      <button id="g0" type="button">♂ Homme</button>
+      <button id="g1" type="button">♀ Femme</button>
+    </div>
+
+    <div class="section"><span id="sectionTitle">Vêtements et chaussures</span></div>
+    <div class="tabs" id="tabs"></div>
+
+    <div id="controls"></div>
+
+    <div class="actions">
+      <button class="btn ok" id="saveBtn" type="button">Enregistrer ✓</button>
+      <button class="btn ko" id="cancelBtn" type="button">Annuler</button>
+    </div>
+  </aside>
+
+  <div id="toast"></div>
+
+<script>
+(function () {
+  'use strict';
+
+  // ---- Pont Android (AndroidClothes). Hors du jeu : simulation pour tester dans un navigateur. ----
+  var native = window.AndroidClothes;
+  var preview = !native;
+  if (preview) {
+    document.body.classList.add('preview');
+    native = {
+      setOption: function (k, v) { console.log('[clothes] setOption', k, v); mockSet(k, v); },
+      setGender: function (g) { console.log('[clothes] setGender', g); },
+      save: function () { console.log('[clothes] save'); },
+      cancel: function () { console.log('[clothes] cancel'); },
+      setTouchBounds: function () {},
+      ready: function () {}
+    };
+  }
+
+  var TABS = [
+    { id: 'haut', label: 'Haut' },
+    { id: 'bas', label: 'Bas' },
+    { id: 'chaussures', label: 'Chaussures' },
+    { id: 'cheveux', label: 'Cheveux' },
+    { id: 'visage', label: 'Visage' },
+    { id: 'tatouages', label: 'Tatouages' },
+    { id: 'police', label: 'Police' }
+  ];
+  var SECTION_TITLES = {
+    haut: 'Vêtements — haut', bas: 'Vêtements — bas', chaussures: 'Vêtements — chaussures',
+    cheveux: 'Cheveux', visage: 'Visage', tatouages: 'Tatouages', police: 'Équipement de police'
+  };
+
+  var state = { fields: [], tab: 'haut', gender: 0, canSwitch: false, supported: true };
+  var rendered = {};          // clé -> { valEl, slider }
+  var renderedSig = '';
+  var pending = {};           // clé -> valeur à envoyer
+  var sendTimer = null;
+  var dragging = false;
+  var deferred = null;        // dernier état reçu pendant une interaction
+
+  var $ = function (id) { return document.getElementById(id); };
+
+  // ---- Utilitaires ----
+  var toastTimer = null;
+  function toast(text) {
+    var t = $('toast');
+    t.textContent = text;
+    t.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { t.classList.remove('show'); }, 1800);
+  }
+
+  function formatValue(f) {
+    if (f.min === 0 && f.max === 1) return f.val ? 'Oui' : 'Non';
+    if (f.min === 0 && f.val === 0) return 'Aucun';
+    return f.val + ' / ' + f.max;
+  }
+
+  function el(tag, cls, text) {
+    var e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text !== undefined) e.textContent = text;
+    return e;
+  }
+
+  var SVG_LEFT  = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 4 7 12 15 20"/></svg>';
+  var SVG_RIGHT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 4 17 12 9 20"/></svg>';
+
+  // ---- Envoi vers le jeu (regroupé : un slider glissé n'inonde pas le moteur) ----
+  function flush() {
+    clearTimeout(sendTimer);
+    sendTimer = null;
+    var keys = Object.keys(pending);
+    for (var i = 0; i < keys.length; i++) {
+      try { native.setOption(keys[i], pending[keys[i]]); } catch (e) { console.log('[clothes] setOption error', e); }
+    }
+    pending = {};
+    applyDeferred();
+  }
+  function queueSend(key, val, now) {
+    pending[key] = val;
+    if (now) { flush(); return; }
+    if (!sendTimer) sendTimer = setTimeout(flush, 90);
+  }
+  function applyDeferred() {
+    if (dragging || sendTimer || !deferred) return;
+    var d = deferred;
+    deferred = null;
+    applyState(d);
+  }
+
+  function findField(key) {
+    for (var i = 0; i < state.fields.length; i++) if (state.fields[i].key === key) return state.fields[i];
+    return null;
+  }
+
+  function setLocalValue(f, v, now) {
+    f.val = v;
+    var r = rendered[f.key];
+    if (r) {
+      r.valEl.textContent = formatValue(f);
+      if (+r.slider.value !== v) r.slider.value = v;
+    }
+    queueSend(f.key, v, now);
+  }
+
+  function step(f, delta) {
+    var v = f.val + delta;
+    if (v < f.min) v = f.max;
+    if (v > f.max) v = f.min;
+    setLocalValue(f, v, true);
+  }
+
+  // ---- Rendu ----
+  function tabFields(tab) {
+    return state.fields.filter(function (f) { return f.tab === tab; });
+  }
+
+  function renderTabs() {
+    var box = $('tabs');
+    var available = TABS.filter(function (t) { return tabFields(t.id).length > 0; });
+    if (!available.length) { box.textContent = ''; return; }
+    if (!available.some(function (t) { return t.id === state.tab; })) state.tab = available[0].id;
+
+    box.textContent = '';
+    available.forEach(function (t) {
+      var b = el('button', 'tab' + (t.id === state.tab ? ' active' : ''), t.label);
+      b.type = 'button';
+      b.addEventListener('click', function () {
+        state.tab = t.id;
+        renderTabs();
+        renderControls(true);
+      });
+      box.appendChild(b);
+    });
+    $('sectionTitle').textContent = SECTION_TITLES[state.tab] || 'Vêtements';
+  }
+
+  function renderControls(force) {
+    var box = $('controls');
+    var fields = tabFields(state.tab);
+
+    if (!state.supported) {
+      box.textContent = '';
+      rendered = {}; renderedSig = '';
+      box.appendChild(el('div', 'empty', 'Ce skin n’est pas personnalisable. Changez de skin ou de personnage pour modifier les vêtements.'));
+      return;
+    }
+    if (!fields.length) {
+      box.textContent = '';
+      rendered = {}; renderedSig = '';
+      box.appendChild(el('div', 'empty', 'Aucune option disponible.'));
+      return;
+    }
+
+    var sig = state.tab + '|' + fields.map(function (f) { return f.key + ':' + f.min + ':' + f.max; }).join(',');
+    if (!force && sig === renderedSig) {
+      // Même structure : on met seulement les valeurs à jour (pas de saut de défilement).
+      fields.forEach(function (f) {
+        var r = rendered[f.key];
+        if (!r) return;
+        r.valEl.textContent = formatValue(f);
+        r.slider.value = f.val;
+      });
+      return;
+    }
+
+    var scroll = box.scrollTop;
+    box.textContent = '';
+    rendered = {};
+    renderedSig = sig;
+
+    fields.forEach(function (f) {
+      var c = el('div', 'ctrl');
+      var head = el('div', 'head');
+      head.appendChild(el('span', 'name', f.label));
+      var valEl = el('span', 'val', formatValue(f));
+      head.appendChild(valEl);
+
+      var row = el('div', 'row');
+      var left = el('button', 'arrow'); left.type = 'button'; left.innerHTML = SVG_LEFT;
+      var right = el('button', 'arrow'); right.type = 'button'; right.innerHTML = SVG_RIGHT;
+      var slider = el('input'); slider.type = 'range'; slider.min = f.min; slider.max = f.max; slider.step = 1; slider.value = f.val;
+
+      left.addEventListener('click', function () { step(f, -1); });
+      right.addEventListener('click', function () { step(f, 1); });
+      slider.addEventListener('input', function () { setLocalValue(f, parseInt(slider.value, 10), false); });
+      slider.addEventListener('change', function () { dragging = false; setLocalValue(f, parseInt(slider.value, 10), true); });
+      slider.addEventListener('touchstart', function () { dragging = true; }, { passive: true });
+      slider.addEventListener('touchend', function () { dragging = false; applyDeferred(); }, { passive: true });
+      slider.addEventListener('touchcancel', function () { dragging = false; applyDeferred(); }, { passive: true });
+
+      row.appendChild(left); row.appendChild(slider); row.appendChild(right);
+      c.appendChild(head); c.appendChild(row);
+      box.appendChild(c);
+      rendered[f.key] = { valEl: valEl, slider: slider };
+    });
+    box.scrollTop = scroll;
+  }
+
+  function renderGender() {
+    var g = $('gender');
+    g.hidden = !state.canSwitch;
+    $('g0').className = state.gender === 0 ? 'active' : '';
+    $('g1').className = state.gender === 1 ? 'active' : '';
+  }
+
+  function applyState(s) {
+    state.fields = Array.isArray(s.fields) ? s.fields : [];
+    state.gender = s.gender === 1 ? 1 : 0;
+    state.canSwitch = !!s.canSwitchGender;
+    state.supported = s.supported !== false;
+    renderGender();
+    renderTabs();
+    renderControls(false);
+    reportBounds();
+  }
+
+  // Zone tactile du panneau : le reste de l'écran reste jouable (on voit et on tourne autour du personnage).
+  function reportBounds() {
+    var r = $('panel').getBoundingClientRect();
+    try {
+      native.setTouchBounds('viewport=' + window.innerWidth + ',' + window.innerHeight +
+        ';panel=' + Math.floor(r.left) + ',0,' + window.innerWidth + ',' + window.innerHeight);
+    } catch (e) {}
+  }
+
+  // ---- API appelée par le code natif ----
+  window.ClothesApp = {
+    onState: function (json) {
+      var s;
+      try { s = typeof json === 'string' ? JSON.parse(json) : json; } catch (e) { console.log('[clothes] JSON invalide', e); return; }
+      if (!s) return;
+      if (dragging || sendTimer) { deferred = s; return; }  // on n'écrase pas ce que le joueur est en train de régler
+      applyState(s);
+    }
+  };
+
+  // ---- Boutons ----
+  function setGender(g) {
+    if (state.gender === g) return;
+    state.gender = g;
+    renderGender();
+    try { native.setGender(g); } catch (e) {}
+    toast(g === 0 ? 'Personnage : homme' : 'Personnage : femme');
+  }
+  $('g0').addEventListener('click', function () { setGender(0); });
+  $('g1').addEventListener('click', function () { setGender(1); });
+
+  $('saveBtn').addEventListener('click', function () {
+    flush();
+    toast('Apparence enregistrée !');
+    try { native.save(); } catch (e) {}
+  });
+  $('cancelBtn').addEventListener('click', function () {
+    pending = {};
+    try { native.cancel(); } catch (e) {}
+  });
+
+  window.addEventListener('resize', reportBounds);
+
+  // ---- Simulation (navigateur uniquement) ----
+  var mock = null;
+  function mockState() {
+    function f(key, label, tab, min, max, val) { return { key: key, label: label, tab: tab, min: min, max: max, val: val }; }
+    return {
+      model: 163, gender: 0, canSwitchGender: true, supported: true,
+      fields: [
+        f('skinTone', 'Couleur de peau', 'visage', 1, 6, 1), f('face', 'Forme du visage', 'visage', 1, 5, 1),
+        f('hairStyle', 'Style de cheveux', 'cheveux', 1, 3, 1), f('hairColor', 'Couleur des cheveux', 'cheveux', 1, 12, 1),
+        f('topStyle', 'Haut', 'haut', 0, 40, 2), f('topColor', 'Couleur du haut', 'haut', 1, 15, 1),
+        f('bottomStyle', 'Bas', 'bas', 1, 30, 3), f('bottomColor', 'Couleur du bas', 'bas', 1, 10, 1),
+        f('shoesStyle', 'Chaussures', 'chaussures', 0, 7, 1), f('shoesColor', 'Couleur des chaussures', 'chaussures', 1, 8, 1),
+        f('tattooArmLeft', 'Tatouage bras gauche', 'tatouages', 0, 38, 0)
+      ]
+    };
+  }
+  function mockSet(k, v) {
+    if (!mock) return;
+    mock.fields.forEach(function (f) { if (f.key === k) f.val = v; });
+    setTimeout(function () { window.ClothesApp.onState(mock); }, 30);
+  }
+  if (preview) { mock = mockState(); setTimeout(function () { window.ClothesApp.onState(mock); }, 0); }
+
+  reportBounds();
+  try { native.ready(); } catch (e) {}
+})();
+</script>
+</body>
+</html>

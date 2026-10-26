@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <string>
 
 // ============================================================
 // ClothesCustomization — sistema de customização de personagem
@@ -78,6 +79,16 @@ public:
     // Demande au serveur d'appliquer un skin du registre (SkinRegistry.h).
     // Le serveur fait SetPlayerSkin : le skin est donc visible par TOUS les joueurs.
     static bool RequestSkin(uint16_t modelId);
+
+    // --- Panneau HTML (assets/clothes/index.html) ---
+    // JSON des options disponibles pour le skin local actuel :
+    // {"model":163,"gender":0,"canSwitchGender":true,"fields":[{"key","label","tab","min","max","val"},...]}
+    // A appeler depuis le thread du jeu.
+    static std::string BuildOptionsJson();
+
+    // Change une option par sa cle (ex. "topStyle", "topColor"), borne la valeur, remet la couleur a 1
+    // quand le style change, puis applique sur le ped local. Retourne false si la cle est inconnue.
+    static bool SetOption(const std::string& key, int value);
 
 private:
     static bool IsSupportedSkin(uint16_t modelId);

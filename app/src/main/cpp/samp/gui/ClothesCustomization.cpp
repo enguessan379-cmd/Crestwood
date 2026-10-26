@@ -8,6 +8,7 @@
 #include <cstring>
 #include <string>
 #include <unordered_map>
+#include <vector>
 
 #include "../main.h"
 #include "../game/game.h"
@@ -1423,4 +1424,202 @@ void ClothesCustomization::RenderPanel()
 	}
 	RenderSkinPicker(modelId);
 	ImGui::EndChild();
+}
+
+// ============================================================
+// Panneau HTML des vetements : liste des options + application
+// (meme logique et memes bornes que RenderPanel ci-dessus)
+// ============================================================
+namespace {
+
+	struct OptField {
+		const char* key;
+		const char* label;
+		const char* tab;      // haut / bas / chaussures / cheveux / visage / tatouages / police
+		uint8_t*    ref;
+		int         minV;
+		int         maxV;
+		uint8_t*    colorRef; // non nul : remis a 1 quand ce style change
+	};
+
+	// Cheveux + haut + bas + chaussures (tables homme/femme/police : meme structure, champ maxValue).
+	template <class H, class T, class B, class S>
+	void AddBaseClothes(std::vector<OptField>& f, const H& hair, const T& top, const B& bottom, const S& shoes,
+		int topMin, int shoesMin)
+	{
+		f.push_back({ "hairStyle", "Style de cheveux", "cheveux", &g_look.hairStyle, 1, static_cast<int>(hair.size()), &g_look.hairColor });
+		f.push_back({ "hairColor", "Couleur des cheveux", "cheveux", &g_look.hairColor, 1, hair[g_look.hairStyle - 1].maxValue, nullptr });
+		f.push_back({ "topStyle", "Haut", "haut", &g_look.topStyle, topMin, static_cast<int>(top.size()), &g_look.topColor });
+		if (g_look.topStyle > 0) {
+			f.push_back({ "topColor", "Couleur du haut", "haut", &g_look.topColor, 1, top[g_look.topStyle - 1].maxValue, nullptr });
+		}
+		f.push_back({ "bottomStyle", "Bas", "bas", &g_look.bottomStyle, 1, static_cast<int>(bottom.size()), &g_look.bottomColor });
+		f.push_back({ "bottomColor", "Couleur du bas", "bas", &g_look.bottomColor, 1, bottom[g_look.bottomStyle - 1].maxValue, nullptr });
+		f.push_back({ "shoesStyle", "Chaussures", "chaussures", &g_look.shoesStyle, shoesMin, static_cast<int>(shoes.size()), &g_look.shoesColor });
+		if (g_look.shoesStyle > 0) {
+			f.push_back({ "shoesColor", "Couleur des chaussures", "chaussures", &g_look.shoesColor, 1, shoes[g_look.shoesStyle - 1].maxValue, nullptr });
+		}
+	}
+
+	void AddArmTattoos(std::vector<OptField>& f)
+	{
+		f.push_back({ "tattooArmLeft", "Tatouage bras gauche", "tatouages", &g_look.tattooArmLeft, 0, kMaleTattooArmCount, nullptr });
+		f.push_back({ "tattooArmRight", "Tatouage bras droit", "tatouages", &g_look.tattooArmRight, 0, kMaleTattooArmCount, nullptr });
+	}
+
+	void AddAllTattoos(std::vector<OptField>& f)
+	{
+		AddArmTattoos(f);
+		f.push_back({ "tattooLegLeft", "Tatouage jambe gauche", "tatouages", &g_look.tattooLegLeft, 0, kMaleTattooLegCount, nullptr });
+		f.push_back({ "tattooLegRight", "Tatouage jambe droite", "tatouages", &g_look.tattooLegRight, 0, kMaleTattooLegCount, nullptr });
+		f.push_back({ "tattooBack", "Tatouage dos", "tatouages", &g_look.tattooBack, 0, kMaleTattooBackCount, nullptr });
+		f.push_back({ "tattooFront", "Tatouage ventre", "tatouages", &g_look.tattooFront, 0, kMaleTattooFrontCount, nullptr });
+	}
+
+	void AddPoliceGear(std::vector<OptField>& f)
+	{
+		f.push_back({ "policeBelt", "Arme à la ceinture", "police", &g_look.policeBelt, 0, 1, nullptr });
+		f.push_back({ "policeVest", "Gilet", "police", &g_look.policeVest, 0, 1, nullptr });
+		f.push_back({ "policeHat", "Béret", "police", &g_look.policeHat, 0, 1, nullptr });
+	}
+
+	void AddMaleEyebrowsAndBeard(std::vector<OptField>& f)
+	{
+		f.push_back({ "eyebrowStyle", "Style de sourcils", "visage", &g_look.eyebrowStyle, 0, kMaleEyebrowStyleCount, &g_look.eyebrowColor });
+		if (g_look.eyebrowStyle > 0) {
+			f.push_back({ "eyebrowColor", "Couleur des sourcils", "visage", &g_look.eyebrowColor, 1, kMaleEyebrowColorCount, nullptr });
+		}
+		f.push_back({ "beardStyle", "Style de barbe", "visage", &g_look.beardStyle, 0, kMaleBeardStyleCount, &g_look.beardColor });
+		if (g_look.beardStyle > 0) {
+			f.push_back({ "beardColor", "Couleur de la barbe", "visage", &g_look.beardColor, 1, kMaleBeardColorCount, nullptr });
+		}
+	}
+
+	void AddFemaleFace(std::vector<OptField>& f, bool police)
+	{
+		f.push_back({ "skinTone", "Couleur de peau", "visage", &g_look.skinTone, 1, 6, nullptr });
+		if (police) ClampPoliceFemaleSelection(); else ClampFemaleSelection();
+		f.push_back({ "face", "Texture du visage", "visage", &g_look.face, 1, kFemaleFaceCountByTone[g_look.skinTone], nullptr });
+		f.push_back({ "makeupStyle", "Style de maquillage", "visage", &g_look.makeupStyle, 0, kFemaleMakeupStyleCount, &g_look.makeupColor });
+		if (g_look.makeupStyle > 0) {
+			f.push_back({ "makeupColor", "Couleur du maquillage", "visage", &g_look.makeupColor, 1, kFemaleMakeupColorCount, nullptr });
+		}
+		f.push_back({ "eyebrowStyle", "Style de sourcils", "visage", &g_look.eyebrowStyle, 0, kMaleEyebrowStyleCount, &g_look.eyebrowColor });
+		if (g_look.eyebrowStyle > 0) {
+			f.push_back({ "eyebrowColor", "Couleur des sourcils", "visage", &g_look.eyebrowColor, 1, kMaleEyebrowColorCount, nullptr });
+		}
+	}
+
+	void CollectOptionFields(std::vector<OptField>& f)
+	{
+		const uint16_t modelId = CurrentLocalModelId();
+
+		if (modelId == ClothesCatalog::kCustomMaleSkinId) {
+			namespace CC = ClothesCatalog;
+			ClampCustomSelection();
+			f.push_back({ "face", "Texture du visage", "visage", &g_look.face, 1, CC::kFaceCount, nullptr });
+			f.push_back({ "beardStyle", "Style de barbe", "visage", &g_look.beardStyle, 0, CC::Count(CC::kBeard), &g_look.beardColor });
+			f.push_back({ "eyebrowStyle", "Montre", "haut", &g_look.eyebrowStyle, 0, CC::Count(CC::kWatch), nullptr });
+			f.push_back({ "hairStyle", "Style de cheveux", "cheveux", &g_look.hairStyle, 1, CC::Count(CC::kHair), &g_look.hairColor });
+			f.push_back({ "hairColor", "Couleur des cheveux", "cheveux", &g_look.hairColor, 1, CC::kHair[g_look.hairStyle - 1].variants, nullptr });
+			f.push_back({ "topStyle", "Haut", "haut", &g_look.topStyle, 0, CC::Count(CC::kTop), &g_look.topColor });
+			if (g_look.topStyle > 0) {
+				f.push_back({ "topColor", "Couleur du haut", "haut", &g_look.topColor, 1, CC::kTop[g_look.topStyle - 1].variants, nullptr });
+			}
+			f.push_back({ "bottomStyle", "Bas", "bas", &g_look.bottomStyle, 1, CC::Count(CC::kBottom), &g_look.bottomColor });
+			f.push_back({ "bottomColor", "Couleur du bas", "bas", &g_look.bottomColor, 1, CC::kBottom[g_look.bottomStyle - 1].variants, nullptr });
+			f.push_back({ "shoesStyle", "Chaussures", "chaussures", &g_look.shoesStyle, 0, CC::Count(CC::kShoes), &g_look.shoesColor });
+			if (g_look.shoesStyle > 0) {
+				f.push_back({ "shoesColor", "Couleur des chaussures", "chaussures", &g_look.shoesColor, 1, CC::kShoes[g_look.shoesStyle - 1].variants, nullptr });
+			}
+		}
+		else if (modelId == 9) {
+			AddFemaleFace(f, false);
+			AddBaseClothes(f, kFemaleHairStyles, kFemaleTopStyles, kFemaleBottomStyles, kFemaleShoesStyles, 1, 1);
+			AddAllTattoos(f);
+		}
+		else if (modelId == 246) {
+			AddFemaleFace(f, true);
+			AddBaseClothes(f, kPoliceFemaleHairStyles, kPoliceFemaleTopStyles, kPoliceFemaleBottomStyles, kPoliceFemaleShoesStyles, 1, 1);
+			AddPoliceGear(f);
+			AddArmTattoos(f);
+		}
+		else if (modelId == 280) {
+			ClampPoliceMaleSelection();
+			f.push_back({ "skinTone", "Couleur de peau", "visage", &g_look.skinTone, 1, 6, nullptr });
+			ClampPoliceMaleSelection();
+			f.push_back({ "face", "Forme du visage", "visage", &g_look.face, 1, std::min(kFaceCountByTone[g_look.skinTone], kDffFaceSlots), nullptr });
+			AddMaleEyebrowsAndBeard(f);
+			AddBaseClothes(f, kPoliceMaleHairStyles, kPoliceMaleTopStyles, kPoliceMaleBottomStyles, kPoliceMaleShoesStyles, 1, 1);
+			AddPoliceGear(f);
+			AddAllTattoos(f);
+		}
+		else if (modelId == 163) {
+			ClampSelection();
+			f.push_back({ "skinTone", "Couleur de peau", "visage", &g_look.skinTone, 1, 6, nullptr });
+			ClampSelection();
+			f.push_back({ "face", "Forme du visage", "visage", &g_look.face, 1, std::min(kFaceCountByTone[g_look.skinTone], kDffFaceSlots), nullptr });
+			AddMaleEyebrowsAndBeard(f);
+			AddBaseClothes(f, kHairStyles, kTopStyles, kBottomStyles, kShoesStyles, 0, 0);
+			AddAllTattoos(f);
+		}
+	}
+
+	void AppendJsonString(std::string& out, const char* s)
+	{
+		out += '"';
+		for (; s && *s; ++s) {
+			if (*s == '"' || *s == '\\') out += '\\';
+			out += *s;
+		}
+		out += '"';
+	}
+}
+
+std::string ClothesCustomization::BuildOptionsJson()
+{
+	std::vector<OptField> fields;
+	CollectOptionFields(fields);
+
+	const uint16_t modelId = CurrentLocalModelId();
+	std::string json = "{\"model\":" + std::to_string(static_cast<int>(modelId));
+	json += ",\"gender\":" + std::string(modelId == 9 || modelId == 246 ? "1" : "0");
+	json += ",\"canSwitchGender\":" + std::string(modelId == 9 || modelId == 163 ? "true" : "false");
+	json += ",\"supported\":" + std::string(IsSupportedSkin(modelId) ? "true" : "false");
+	json += ",\"fields\":[";
+	for (size_t i = 0; i < fields.size(); ++i) {
+		const OptField& o = fields[i];
+		if (i > 0) json += ',';
+		json += "{\"key\":";
+		AppendJsonString(json, o.key);
+		json += ",\"label\":";
+		AppendJsonString(json, o.label);
+		json += ",\"tab\":";
+		AppendJsonString(json, o.tab);
+		json += ",\"min\":" + std::to_string(o.minV);
+		json += ",\"max\":" + std::to_string(o.maxV);
+		json += ",\"val\":" + std::to_string(static_cast<int>(*o.ref));
+		json += '}';
+	}
+	json += "]}";
+	return json;
+}
+
+bool ClothesCustomization::SetOption(const std::string& key, int value)
+{
+	if (!IsSupportedSkin(CurrentLocalModelId())) return false;
+
+	std::vector<OptField> fields;
+	CollectOptionFields(fields);
+	for (const OptField& o : fields) {
+		if (key != o.key) continue;
+		const int v = std::clamp(value, o.minV, o.maxV);
+		if (*o.ref != v) {
+			*o.ref = static_cast<uint8_t>(v);
+			if (o.colorRef) *o.colorRef = 1; // nouveau style -> premiere couleur
+		}
+		ApplyCurrent();
+		return true;
+	}
+	return false;
 }
