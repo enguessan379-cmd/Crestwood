@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Inventaire</title>
+    <link rel="stylesheet" href="inventory.css">
+</head>
+<body>
+<main class="inv" id="inv">
+    <section class="inv-panel">
+        <header class="inv-head">
+            <div class="inv-title">
+                <span class="inv-dot"></span>
+                <div>
+                    <h1>Sac à dos</h1>
+                    <p id="invCount">0 / 20 emplacements</p>
+                </div>
+            </div>
+            <div class="inv-cash" id="invCash">$0</div>
+            <button class="inv-close" id="invClose" type="button" aria-label="Fermer">✕</button>
+        </header>
+
+        <div class="inv-body">
+            <div class="inv-grid-wrap">
+                <div class="inv-grid" id="invGrid"></div>
+            </div>
+
+            <aside class="inv-detail" id="invDetail">
+                <div class="inv-empty" id="invDetailEmpty">Touche un objet pour voir ses détails.</div>
+                <div class="inv-info hidden" id="invInfo">
+                    <div class="inv-preview"><img id="invImg" alt=""></div>
+                    <span class="inv-tag" id="invTag"></span>
+                    <h2 id="invName"></h2>
+                    <p class="inv-desc" id="invDesc"></p>
+                    <div class="inv-qty">
+                        <button type="button" id="qtyMinus" aria-label="Moins">−</button>
+                        <span id="qtyValue">1</span>
+                        <button type="button" id="qtyPlus" aria-label="Plus">+</button>
+                        <small id="qtyOwned"></small>
+                    </div>
+                    <div class="inv-actions">
+                        <button type="button" class="btn-use" id="btnUse">Utiliser</button>
+                        <button type="button" class="btn-drop" id="btnDrop">Jeter</button>
+                    </div>
+                </div>
+            </aside>
+        </div>
+        <div class="inv-toast" id="invToast"></div>
+    </section>
+</main>
+<script src="inventory.js"></script>
+</body>
+</html>

@@ -1,4 +1,6 @@
 #include "ClothesCustomization.h"
+#include "SkinRegistry.h"
+#include "ClothesCatalog.h"
 
 #include <algorithm>
 #include <array>
@@ -11,9 +13,11 @@
 #include "../game/game.h"
 #include "../game/playerped.h"
 #include "../game/BrlTextureShader.h"
+#include "../net/netgame.h"
 #include "../vendor/imgui/imgui.h"
 
 extern CGame* pGame;
+extern CNetGame* pNetGame;
 
 namespace {
 
@@ -680,6 +684,16 @@ namespace {
 	// Textures actuellement posees sur le ped local (videe par Reset() quand le modele change).
 	std::unordered_map<std::string, std::string> g_appliedTextures;
 
+	// Textures de vêtements (par opposition à la peau / au corps) : cherchées dans la texdb
+	// sous ces préfixes (voir ClothingTextureName & co). Introuvables => pièce masquée.
+	const std::string kClearTextureName = kClearTexture;
+
+	bool IsClothingTexture(const std::string& name)
+	{
+		return name.rfind("brl_m7_clothes_", 0) == 0 || name.rfind("brl_f9_clothes_", 0) == 0 || name.rfind("brl_cw_clothes_", 0) == 0 ||
+			name.rfind("brl_m271_police_", 0) == 0 || name.rfind("brl_f272_police_", 0) == 0;
+	}
+
 	void CommitWantedTextures(const std::unordered_map<std::string, std::string>& wanted)
 	{
 		const bool remote = g_ctxPlayer != 0xFFFF;
@@ -699,7 +713,11 @@ namespace {
 			}
 		}
 
-		for (const auto& [material, texture] : wanted) {
+		for (const auto& [material, wantedTexture] : wanted) {
+			// Vêtement dont la texture principale est introuvable : on n'affiche JAMAIS
+			// la texture vanilla du modèle, on masque la pièce (texture transparente).
+			const std::string& texture = (IsClothingTexture(wantedTexture) && !BrlTextureShader::HasTexture(wantedTexture))
+				? kClearTextureName : wantedTexture;
 			if (texture == kClearTexture && !BrlTextureShader::HasTexture(texture)) {
 				clearTex(material);
 				applied.erase(material);
@@ -843,6 +861,74 @@ namespace {
 	}
 
 	// ------------------------------------------------------------
+	// Skin personnalise Crestwood (ClothesCatalog.h) : vetements du pack Clothes.zip.
+	// Le jeu cherche chaque texture par son nom : brl_cw_clothes_<cle>_<NN>.
+	// ------------------------------------------------------------
+	void ClampCustomSelection()
+	{
+		g_look.face = ClampU8(g_look.face, 1, ClothesCatalog::kFaceCount);
+		g_look.beardStyle = ClampU8(g_look.beardStyle, 0, ClothesCatalog::Count(ClothesCatalog::kBeard));
+		// eyebrowStyle (inutilise sur ce skin) sert a commander la montre : 0 = aucune
+		g_look.eyebrowStyle = ClampU8(g_look.eyebrowStyle, 0, ClothesCatalog::Count(ClothesCatalog::kWatch));
+		g_look.hairStyle = ClampU8(g_look.hairStyle, 1, ClothesCatalog::Count(ClothesCatalog::kHair));
+		g_look.hairColor = ClampU8(g_look.hairColor, 1, ClothesCatalog::kHair[g_look.hairStyle - 1].variants);
+		g_look.topStyle = ClampU8(g_look.topStyle, 0, ClothesCatalog::Count(ClothesCatalog::kTop));
+		if (g_look.topStyle > 0) {
+			g_look.topColor = ClampU8(g_look.topColor, 1, ClothesCatalog::kTop[g_look.topStyle - 1].variants);
+		}
+		g_look.bottomStyle = ClampU8(g_look.bottomStyle, 1, ClothesCatalog::Count(ClothesCatalog::kBottom));
+		g_look.bottomColor = ClampU8(g_look.bottomColor, 1, ClothesCatalog::kBottom[g_look.bottomStyle - 1].variants);
+		g_look.shoesStyle = ClampU8(g_look.shoesStyle, 0, ClothesCatalog::Count(ClothesCatalog::kShoes));
+		if (g_look.shoesStyle > 0) {
+			g_look.shoesColor = ClampU8(g_look.shoesColor, 1, ClothesCatalog::kShoes[g_look.shoesStyle - 1].variants);
+		}
+	}
+
+	void WantCatalogStyle(std::unordered_map<std::string, std::string>& wanted, const ClothesCatalog::Style& style, int variant)
+	{
+		char name[96]{};
+		ClothesCatalog::TextureName(name, sizeof(name), style.key, std::clamp(variant, 1, style.variants));
+		for (int i = 0; i < style.materialCount; ++i) {
+			WantTexture(wanted, style.materials[i], name);
+		}
+	}
+
+	// selected : 0 = rien, 1..N = style choisi. Le dff contient toutes les pieces en meme
+	// temps : on masque d'abord tous les materiaux du groupe, puis on habille le style choisi
+	// (plusieurs styles peuvent partager le meme materiau).
+	template <size_t N>
+	void WantCatalogGroup(std::unordered_map<std::string, std::string>& wanted, const ClothesCatalog::Style (&styles)[N], int selected, int variant)
+	{
+		for (size_t i = 0; i < N; ++i) {
+			for (int m = 0; m < styles[i].materialCount; ++m) {
+				WantTexture(wanted, styles[i].materials[m], kClearTexture);
+			}
+		}
+		if (selected >= 1 && selected <= static_cast<int>(N)) {
+			WantCatalogStyle(wanted, styles[selected - 1], variant);
+		}
+	}
+
+	void ApplyCustomCurrent()
+	{
+		ClampCustomSelection();
+
+		std::unordered_map<std::string, std::string> wanted;
+		char face[96]{};
+		ClothesCatalog::TextureName(face, sizeof(face), ClothesCatalog::kFaceKey, g_look.face);
+		WantTexture(wanted, ClothesCatalog::kFaceMaterial, face);
+
+		WantCatalogGroup(wanted, ClothesCatalog::kHair, g_look.hairStyle, g_look.hairColor);
+		WantCatalogGroup(wanted, ClothesCatalog::kBeard, g_look.beardStyle, 1);
+		WantCatalogGroup(wanted, ClothesCatalog::kTop, g_look.topStyle, g_look.topColor);
+		WantCatalogGroup(wanted, ClothesCatalog::kBottom, g_look.bottomStyle, g_look.bottomColor);
+		WantCatalogGroup(wanted, ClothesCatalog::kShoes, g_look.shoesStyle, g_look.shoesColor);
+		WantCatalogGroup(wanted, ClothesCatalog::kWatch, g_look.eyebrowStyle, 1);
+
+		CommitWantedTextures(wanted);
+	}
+
+	// ------------------------------------------------------------
 	// Interface du panneau : onglets + sélecteurs tactiles
 	// ------------------------------------------------------------
 	// 0 visage, 1 cheveux, 2 habits, 3 tatouages, 4 police
@@ -855,7 +941,7 @@ namespace {
 		if (std::strstr(label, "Tatouage")) return 3;
 		if (std::strstr(label, "Arme") || std::strstr(label, "Gilet") || std::strstr(label, "Béret")) return 4;
 		if (std::strstr(label, "cheveux")) return 1;
-		if (std::strstr(label, "Hauts") || std::strstr(label, "du haut") || std::strcmp(label, "Bas") == 0 ||
+		if (std::strstr(label, "Montre") || std::strstr(label, "Hauts") || std::strstr(label, "du haut") || std::strcmp(label, "Bas") == 0 ||
 			std::strstr(label, "du bas") || std::strstr(label, "Chaussures") || std::strstr(label, "des chaussures")) return 2;
 		return 0; // peau, visage, maquillage, sourcils, barbe
 	}
@@ -953,6 +1039,14 @@ namespace {
 		}
 	}
 
+	// Affiche le NOM du vetement choisi sous son selecteur (meme onglet que lui).
+	void DrawNameLine(const char* selectorLabel, const char* text)
+	{
+		if (TabOfLabel(selectorLabel) != g_panelTab) return;
+		ImGui::TextColored(ImVec4(0.0f, 0.85f, 0.45f, 1.0f), "%s", text);
+		ImGui::Dummy(ImVec2(0.0f, 4.0f));
+	}
+
 	// Barre d'onglets (boutons de largeur égale, adaptés au tactile)
 	void DrawTabBar(bool withPolice)
 	{
@@ -1026,7 +1120,8 @@ void ClothesCustomization::ClearLocal()
 
 bool ClothesCustomization::IsSupportedSkin(uint16_t modelId)
 {
-	return modelId == 9 || modelId == 163 || modelId == 246 || modelId == 280;
+	return modelId == 9 || modelId == 163 || modelId == 246 || modelId == 280 ||
+		modelId == ClothesCatalog::kCustomMaleSkinId;
 }
 
 bool ClothesCustomization::IsSupportedLocalSkin()
@@ -1053,6 +1148,11 @@ void ClothesCustomization::ApplyCurrent()
 
 	if (modelId == 280) {
 		ApplyPoliceMaleCurrent();
+		return;
+	}
+
+	if (modelId == ClothesCatalog::kCustomMaleSkinId) {
+		ApplyCustomCurrent();
 		return;
 	}
 
@@ -1115,18 +1215,95 @@ void ClothesCustomization::ClearRemote(uint16_t playerId)
 	BrlTextureShader::ClearPlayer(playerId);
 }
 
+bool ClothesCustomization::RequestSkin(uint16_t modelId)
+{
+	if (!SkinRegistry::Find(modelId) || !pNetGame) {
+		return false;
+	}
+	// Le serveur valide puis fait SetPlayerSkin : tous les joueurs voient le skin.
+	pNetGame->SendCharSkinRequest(modelId);
+	return true;
+}
+
+namespace {
+	// Liste des skins du registre affichée dans le panneau (noms + ID).
+	void RenderSkinPicker(uint16_t currentModelId)
+	{
+		ImGui::Separator();
+		if (!ImGui::CollapsingHeader("Skins disponibles")) {
+			return;
+		}
+		ImGui::TextWrapped("Touchez un skin pour le choisir. Tous les joueurs le verront.");
+		for (size_t i = 0; i < SkinRegistry::kCount; ++i) {
+			const SkinRegistry::Entry& e = SkinRegistry::kEntries[i];
+			char label[112]{};
+			std::snprintf(label, sizeof(label), "%s%d - %s##skin_%d",
+				e.id == currentModelId ? "> " : "", static_cast<int>(e.id), e.name, static_cast<int>(e.id));
+			if (ImGui::Button(label, ImVec2(-1.0f, 40.0f))) {
+				ClothesCustomization::RequestSkin(e.id);
+			}
+		}
+	}
+}
+
 void ClothesCustomization::RenderPanel()
 {
 	const uint16_t modelId = CurrentLocalModelId();
 	const bool femaleSkin = modelId == 9;
 	const bool policeFemaleSkin = modelId == 246;
 	const bool policeMaleSkin = modelId == 280;
+	const bool customSkin = modelId == ClothesCatalog::kCustomMaleSkinId;
 	const bool supportedSkin = IsSupportedSkin(modelId);
 
 	DrawTabBar(policeFemaleSkin || policeMaleSkin);
 	ImGui::BeginChild("clothes_scroll", ImVec2(0.0f, 0.0f), false, ImGuiWindowFlags_AlwaysVerticalScrollbar);
+
+	// Nom du skin affiché en jeu (registre SkinRegistry.h)
+	const SkinRegistry::Entry* skinInfo = SkinRegistry::Find(modelId);
+	{
+		char fallback[16]{};
+		ImGui::TextColored(ImVec4(0.0f, 0.85f, 0.45f, 1.0f), "SKIN : %s (ID %d)",
+			SkinRegistry::Name(modelId, fallback, sizeof(fallback)), static_cast<int>(modelId));
+		ImGui::Separator();
+	}
+
 	if (!supportedSkin) {
-		ImGui::TextWrapped("Utilisez le skin 9, 163, 246 ou 280 pour tester les shaders de peau/vêtements.");
+		if (skinInfo) {
+			ImGui::TextWrapped("Skin fixe : la personnalisation de la peau et des vêtements n'est disponible que pour les skins de base (9, 163, 246, 280 et 289).");
+		}
+		else {
+			ImGui::TextWrapped("Skin ID %d absent du registre. Ajoutez-le dans SkinRegistry.h, data/skins.dat et skins.inc.", static_cast<int>(modelId));
+		}
+	}
+	else if (customSkin) {
+		namespace CC = ClothesCatalog;
+		ClampCustomSelection();
+		DrawSelector("Texture du visage", g_look.face, 1, CC::kFaceCount);
+		DrawNameLine("Texture du visage", CC::kFaceNames[g_look.face - 1]);
+		DrawSelectorResettingColor("Style de barbe", g_look.beardStyle, g_look.beardColor, 0, CC::Count(CC::kBeard));
+		DrawNameLine("Style de barbe", g_look.beardStyle > 0 ? CC::kBeard[g_look.beardStyle - 1].name : "Sans barbe");
+		DrawSelectorResettingColor("Style de cheveux", g_look.hairStyle, g_look.hairColor, 1, CC::Count(CC::kHair));
+		DrawNameLine("Style de cheveux", CC::kHair[g_look.hairStyle - 1].name);
+		DrawSelector("Couleur des cheveux", g_look.hairColor, 1, CC::kHair[g_look.hairStyle - 1].variants);
+		DrawNameLine("Couleur des cheveux", CC::kHair[g_look.hairStyle - 1].variantNames[g_look.hairColor - 1]);
+		DrawSelectorResettingColor("Hauts", g_look.topStyle, g_look.topColor, 0, CC::Count(CC::kTop));
+		DrawNameLine("Hauts", g_look.topStyle > 0 ? CC::kTop[g_look.topStyle - 1].name : "Torse nu");
+		if (g_look.topStyle > 0) {
+			DrawSelector("Couleur du haut", g_look.topColor, 1, CC::kTop[g_look.topStyle - 1].variants);
+			DrawNameLine("Couleur du haut", CC::kTop[g_look.topStyle - 1].variantNames[g_look.topColor - 1]);
+		}
+		DrawSelectorResettingColor("Bas", g_look.bottomStyle, g_look.bottomColor, 1, CC::Count(CC::kBottom));
+		DrawNameLine("Bas", CC::kBottom[g_look.bottomStyle - 1].name);
+		DrawSelector("Couleur du bas", g_look.bottomColor, 1, CC::kBottom[g_look.bottomStyle - 1].variants);
+		DrawNameLine("Couleur du bas", CC::kBottom[g_look.bottomStyle - 1].variantNames[g_look.bottomColor - 1]);
+		DrawSelectorResettingColor("Chaussures", g_look.shoesStyle, g_look.shoesColor, 0, CC::Count(CC::kShoes));
+		DrawNameLine("Chaussures", g_look.shoesStyle > 0 ? CC::kShoes[g_look.shoesStyle - 1].name : "Pieds nus");
+		if (g_look.shoesStyle > 0) {
+			DrawSelector("Couleur des chaussures", g_look.shoesColor, 1, CC::kShoes[g_look.shoesStyle - 1].variants);
+			DrawNameLine("Couleur des chaussures", CC::kShoes[g_look.shoesStyle - 1].variantNames[g_look.shoesColor - 1]);
+		}
+		DrawSelector("Montre", g_look.eyebrowStyle, 0, CC::Count(CC::kWatch));
+		DrawNameLine("Montre", g_look.eyebrowStyle > 0 ? CC::kWatch[g_look.eyebrowStyle - 1].name : "Sans montre");
 	}
 	else if (femaleSkin) {
 		DrawSelector("Couleur de peau", g_look.skinTone, 1, 6);
@@ -1244,5 +1421,6 @@ void ClothesCustomization::RenderPanel()
 		DrawSelector("Tatouage dos", g_look.tattooBack, 0, kMaleTattooBackCount);
 		DrawSelector("Tatouage ventre", g_look.tattooFront, 0, kMaleTattooFrontCount);
 	}
+	RenderSkinPicker(modelId);
 	ImGui::EndChild();
 }

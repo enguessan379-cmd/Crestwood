@@ -139,6 +139,7 @@ public:
 			uint8_t day, uint8_t month, uint16_t year);
 	void SendCharSave(const ClothesLook& look);
 	void SendCharSpawnRequest();
+	void SendCharSkinRequest(uint16_t skinId);
 
 private:
 	void InitializePools();

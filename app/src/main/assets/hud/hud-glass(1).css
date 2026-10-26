@@ -1,0 +1,479 @@
+/* ==========================================================================
+   Crestwood HUD - thème "verre" transparent, plus compact.
+   Chargé en DERNIER (après hud.css / hud-finance.css / literal-hud.css).
+   Les sélecteurs commencent par .hud-root pour gagner contre les règles
+   !important des feuilles précédentes. Pour revenir à l'ancien style :
+   retirer simplement la ligne <link href="hud-glass.css"> de index.html.
+   ========================================================================== */
+
+:root {
+  --glass-bg: rgba(255, 255, 255, 0.045);
+  --glass-bg-active: rgba(0, 245, 225, 0.14);
+  --glass-border: rgba(255, 255, 255, 0.2);
+  --glass-border-active: rgba(0, 245, 225, 0.75);
+  --glass-text-shadow: 0 1px 3px rgba(0, 0, 0, 0.95), 0 0 7px rgba(0, 0, 0, 0.55);
+  --glass-icon-shadow: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.8));
+}
+
+/* Échelle par défaut des éléments (le réglage de l'éditeur de HUD reste prioritaire). */
+.hud-root .quick-actions,
+.hud-root .radio-talk-button,
+.hud-root .engine-toggle-button,
+.hud-root .vehicle-lock-button,
+.hud-root .animations-toggle-button,
+.hud-root .radarbot-alert,
+.hud-root .phone-notification-layer,
+.hud-root .literal-status-bars,
+.hud-root .project-logo { --hud-item-scale: 0.76; }
+/* Panneau d'infos en haut à droite : encore un peu plus petit. */
+.hud-root .hud-info-panel { --hud-item-scale: 0.66; }
+
+/* --------------------------- Logo --------------------------------------- */
+.hud-root .project-logo {
+  width: clamp(84px, 9.6vw, 126px);
+  opacity: 0.6;
+  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.5));
+}
+
+/* ----------------------- Panneau d'infos (haut droite) ------------------- */
+.hud-root .hud-info-panel {
+  top: max(10px, env(safe-area-inset-top)) !important;
+  right: max(14px, env(safe-area-inset-right)) !important;
+  width: auto !important;
+  max-width: calc(100vw - 24px) !important;
+  transform-origin: top right !important;
+}
+
+.hud-root .hud-info-panel .info-grid {
+  display: grid !important;
+  grid-template-columns: repeat(4, max-content) !important;
+  grid-template-rows: auto auto !important;
+  justify-content: end !important;
+  align-items: center !important;
+  gap: 5px !important;
+  width: auto !important;
+  max-width: none !important;
+}
+
+.hud-root .hud-info-panel .info-pill {
+  width: auto !important;
+  height: 28px !important;
+  min-width: 56px !important;
+  padding: 0 9px 0 6px !important;
+  gap: 5px !important;
+  border: 1px solid var(--glass-border) !important;
+  border-radius: 10px !important;
+  background: var(--glass-bg) !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.hud-root .hud-info-panel .info-pill.account { min-width: 64px !important; }
+.hud-root .hud-info-panel .info-pill.coin { min-width: 58px !important; }
+.hud-root .hud-info-panel .info-pill.location { min-width: 88px !important; }
+.hud-root .hud-info-panel .info-pill.money { min-width: 88px !important; }
+
+.hud-root .hud-info-panel .capital-pill-icon {
+  width: 20px !important;
+  height: 20px !important;
+  padding: 0 !important;
+  flex: 0 0 20px !important;
+  border-right: 0 !important;
+}
+
+.hud-root .hud-info-panel .capital-pill-icon svg {
+  width: 19px !important;
+  height: 19px !important;
+  stroke-width: 1.9 !important;
+  filter: var(--glass-icon-shadow) !important;
+}
+
+.hud-root .hud-info-panel .capital-pill-icon .cyan-stroke,
+.hud-root .hud-info-panel .capital-pill-icon .cyan-fill {
+  filter: var(--glass-icon-shadow) !important;
+}
+
+.hud-root .hud-info-panel .info-pill strong {
+  font-size: 12.5px !important;
+  font-weight: 600 !important;
+  text-shadow: var(--glass-text-shadow) !important;
+}
+
+.hud-root .hud-info-panel .info-pill.location strong,
+.hud-root .hud-info-panel .info-pill.money strong { font-size: 12.5px !important; }
+
+.hud-root .hud-info-panel .info-pill.account strong,
+.hud-root .hud-info-panel .info-pill.coin strong {
+  flex: 0 1 auto !important;
+  text-align: left !important;
+}
+
+/* ----------------------- Statuts (bas gauche) ---------------------------- */
+.hud-root .literal-status-bars { gap: 6px; }
+
+.hud-root .literal-life-box {
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+  background-color: rgba(0, 0, 0, 0.2);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.22);
+}
+
+.hud-root .literal-life-box .literal-life-bar {
+  border-radius: 6px;
+  opacity: 0.72;
+}
+
+.hud-root .literal-life-box .literal-image-box img {
+  max-width: 15px;
+  height: 13px;
+  filter: var(--glass-icon-shadow);
+}
+
+.hud-root:not(.vehicle-hud-active) .animations-toggle-button { left: max(217px, calc(env(safe-area-inset-left) + 217px)); }
+.hud-root .animations-toggle-button { left: max(164px, calc(env(safe-area-inset-left) + 164px)); }
+
+/* --------------- Boutons rapides / chat / animations / véhicule ---------- */
+.hud-root .corner-action,
+.hud-root .chat-action {
+  width: 38px;
+  height: 38px;
+  border: 1px solid var(--glass-border);
+  border-radius: 10px;
+  background: var(--glass-bg);
+  box-shadow: none;
+}
+
+.hud-root .corner-action::before,
+.hud-root .corner-action::after,
+.hud-root .chat-action::before,
+.hud-root .chat-action::after { display: none; }
+
+.hud-root .corner-action .menu-icon,
+.hud-root .chat-action img {
+  width: 22px;
+  height: 22px;
+  opacity: 0.92;
+}
+
+.hud-root .chat-action.chat-open,
+.hud-root .corner-action.menu-open {
+  border-color: var(--glass-border-active);
+  background: var(--glass-bg-active);
+}
+
+.hud-root .animations-toggle-button,
+.hud-root .engine-toggle-button,
+.hud-root .vehicle-lock-button,
+.hud-root .radio-talk-button {
+  border: 1px solid var(--glass-border);
+  background: var(--glass-bg);
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.hud-root .animations-toggle-button { width: 40px; height: 40px; border-radius: 10px; }
+.hud-root .animations-toggle-button img { width: 24px; height: 24px; }
+
+.hud-root .animations-toggle-button:active,
+.hud-root .radio-talk-button.talking,
+.hud-root .engine-toggle-button.engine-on {
+  border-color: var(--glass-border-active);
+  background: var(--glass-bg-active);
+}
+
+/* ----------------------- Notifications téléphone ------------------------- */
+.hud-root .phone-toast {
+  width: min(100%, 226px);
+  min-height: 46px;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 8px;
+  padding: 7px 9px;
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  color: #fff;
+  background: rgba(10, 14, 20, 0.4);
+  box-shadow: none;
+}
+
+.hud-root .phone-call-toast { grid-template-columns: 28px minmax(0, 1fr) auto; }
+.hud-root .phone-toast-title { color: #fff; text-shadow: var(--glass-text-shadow); }
+.hud-root .phone-toast-text { color: rgba(255, 255, 255, 0.82); text-shadow: var(--glass-text-shadow); }
+
+/* ------------------------------- Chat ------------------------------------ */
+.hud-root .floating-chat-composer {
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  background: rgba(8, 12, 18, 0.38);
+  box-shadow: none;
+}
+
+.hud-root .floating-chat-composer input {
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.hud-root .chat-send {
+  border-radius: 8px;
+  color: #fff;
+  background: rgba(0, 245, 225, 0.5);
+}
+
+/* ------------------------- Menu rapide (roue) ---------------------------- */
+.hud-root .radial-menu { background: transparent; }
+
+.hud-root .radial-wheel {
+  width: clamp(210px, 24vw, 280px);
+  border: 1px solid var(--glass-border);
+  background:
+    radial-gradient(circle, rgba(255, 255, 255, 0.14) 0 22%, transparent 23%),
+    rgba(10, 16, 22, 0.26);
+  box-shadow: none;
+}
+
+.hud-root .wheel-center {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.1);
+  text-shadow: var(--glass-text-shadow);
+  box-shadow: none;
+}
+
+.hud-root .wheel-slot {
+  width: 44px;
+  height: 44px;
+  background: rgba(255, 255, 255, 0.09);
+  border: 1px solid var(--glass-border);
+}
+
+.hud-root .wheel-slot img { width: 26px; height: 26px; }
+/* Aucun texte dans la roue du menu rapide */
+.hud-root .wheel-slot::after { content: none !important; display: none !important; }
+.hud-root .wheel-center span { display: none !important; }
+
+/* ------------------------------ Radar ------------------------------------ */
+.hud-root .radarbot-alert {
+  border: 1px solid var(--glass-border);
+  background: rgba(10, 14, 20, 0.38);
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+/* ------------------------ Cadre de la minimap (haut gauche) ----------------------
+   Le radar natif est caché ; ce cadre contient la minimap HTML (minimap.js / minimap.css),
+   sans bloquer le toucher. Pour déplacer ou agrandir la minimap, ajuste ces 3 valeurs. */
+.hud-root .minimap-frame {
+  --mm-left: 0px;
+  --mm-top: 0px;
+  --mm-size: min(33vh, 15.3vw);
+  --mm-accent: #12dfff;
+  position: absolute;
+  left: calc(var(--mm-left) + env(safe-area-inset-left));
+  top: calc(var(--mm-top) + env(safe-area-inset-top));
+  width: var(--mm-size);
+  height: var(--mm-size);
+  z-index: 3;
+  pointer-events: none;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 7px;
+  background:
+    linear-gradient(135deg, rgba(18, 223, 255, 0.1), transparent 34%),
+    linear-gradient(315deg, rgba(0, 0, 0, 0.24), transparent 40%);
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.4),
+    0 0 12px rgba(18, 223, 255, 0.28),
+    inset 0 0 14px rgba(0, 0, 0, 0.42);
+}
+
+.hud-root .minimap-frame i {
+  position: absolute;
+  width: 12%;
+  height: 12%;
+  min-width: 8px;
+  min-height: 8px;
+  border: 0 solid var(--mm-accent);
+  filter: drop-shadow(0 0 2px rgba(18, 223, 255, 0.7));
+}
+
+.hud-root .minimap-frame i:nth-child(1) { left: -1px; top: -1px; border-left-width: 2px; border-top-width: 2px; border-top-left-radius: 7px; }
+.hud-root .minimap-frame i:nth-child(2) { right: -1px; top: -1px; border-right-width: 2px; border-top-width: 2px; border-top-right-radius: 7px; }
+.hud-root .minimap-frame i:nth-child(3) { left: -1px; bottom: -1px; border-left-width: 2px; border-bottom-width: 2px; border-bottom-left-radius: 7px; }
+.hud-root .minimap-frame i:nth-child(4) { right: -1px; bottom: -1px; border-right-width: 2px; border-bottom-width: 2px; border-bottom-right-radius: 7px; }
+
+.hud-root .minimap-frame::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -1px;
+  width: 34%;
+  height: 2px;
+  transform: translateX(-50%);
+  border-radius: 999px;
+  background: linear-gradient(90deg, transparent, var(--mm-accent), transparent);
+  box-shadow: 0 0 6px var(--mm-accent);
+}
+
+/* Boutons rapides : juste sous le cadre de la minimap, sans le chevaucher. */
+.hud-root .quick-actions { top: calc(min(33vh, 15.3vw) + 8px + env(safe-area-inset-top)); }
+
+/* Ajustements demandés : minimap circulaire, sans halo bleu, HUD gauche décalé vers le bord. */
+.hud-root .minimap-frame{--mm-left:0px;--mm-top:2px;--mm-size:min(34vh,16vw);left:var(--mm-left)!important;box-sizing:border-box!important;border:2px solid #fff!important;border-radius:50%!important;background:rgba(5,8,12,.2)!important;box-shadow:0 2px 8px rgba(0,0,0,.38)!important;overflow:hidden!important}
+.hud-root .minimap-frame .minimap-canvas{border-radius:50%!important;clip-path:circle(50% at 50% 50%)}
+.hud-root .minimap-frame::before,.hud-root .minimap-frame::after,.hud-root .minimap-frame i{display:none!important;content:none!important;box-shadow:none!important;filter:none!important}
+.hud-root .quick-actions{left:0!important;top:calc(min(34vh,16vw) + 6px + env(safe-area-inset-top))!important}
+
+/* ------------------------------------------------------------------
+   Logo Crestwood agrandi (en haut au centre)
+   ------------------------------------------------------------------ */
+.hud-root .project-logo {
+  --hud-item-scale: 0.8;
+  width: clamp(150px, 17vw, 230px);
+  opacity: 0.92;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.55));
+}
+
+/* ------------------------------------------------------------------
+   Bouton TEST « Vêtements » (à côté du chat) : ouvre le panneau en local
+   ------------------------------------------------------------------ */
+.hud-root .clothes-test-action {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 0;
+  padding: 0;
+  color: #fff;
+  border: 2px solid rgba(232, 252, 255, 0.7);
+  border-radius: 6px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.21), rgba(255, 255, 255, 0.08));
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18), 0 7px 14px rgba(0, 0, 0, 0.24);
+  transition: transform 100ms ease, opacity 120ms ease;
+}
+.hud-root .clothes-test-action:active { transform: scale(0.94); }
+.hud-root .clothes-test-action svg {
+  width: 20px;
+  height: 20px;
+  fill: #fff;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.34));
+  pointer-events: none;
+}
+.hud-root .clothes-test-action small {
+  margin-top: -1px;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: #36d6ff;
+  pointer-events: none;
+}
+.hud-root .corner-action.menu-open ~ .clothes-test-action {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* ------------------------------------------------------------------
+   Panneau d'infos (haut droite) façon référence :
+   ligne 1 = 3 pastilles « icône | séparateur | valeur » (lieu, heure, pièces)
+   lignes suivantes = banque et argent en texte simple, alignés à droite
+   ------------------------------------------------------------------ */
+.hud-root .hud-info-panel { --hud-item-scale: 0.64; }
+
+.hud-root .hud-info-panel .info-grid {
+  grid-template-columns: repeat(3, max-content) !important;
+  grid-template-rows: auto auto auto !important;
+  gap: 6px 7px !important;
+}
+
+/* Placement explicite : lieu, heure, pièces sur la 1re ligne */
+.hud-root .hud-info-panel .info-pill.location { grid-column: 1; grid-row: 1; }
+.hud-root .hud-info-panel .info-pill.time     { grid-column: 2; grid-row: 1; }
+.hud-root .hud-info-panel .info-pill.coin     { grid-column: 3; grid-row: 1; }
+.hud-root .hud-info-panel .info-pill.account  { grid-column: 1 / -1; grid-row: 2; justify-self: end; }
+.hud-root .hud-info-panel .info-pill.money    { grid-column: 1 / -1; grid-row: 3; justify-self: end; }
+
+/* Pastilles : double contour clair, fond translucide */
+.hud-root .hud-info-panel .info-pill.location,
+.hud-root .hud-info-panel .info-pill.time,
+.hud-root .hud-info-panel .info-pill.coin {
+  height: 34px !important;
+  padding: 0 12px 0 8px !important;
+  gap: 8px !important;
+  border: 1.5px solid rgba(255, 240, 240, 0.6) !important;
+  border-radius: 11px !important;
+  background: rgba(20, 12, 12, 0.34) !important;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.16), 0 2px 6px rgba(0, 0, 0, 0.28) !important;
+}
+.hud-root .hud-info-panel .info-pill.location { min-width: 116px !important; }
+.hud-root .hud-info-panel .info-pill.time     { min-width: 84px !important; }
+.hud-root .hud-info-panel .info-pill.coin     { min-width: 96px !important; }
+
+/* Séparateur vertical entre l'icône et la valeur */
+.hud-root .hud-info-panel .info-pill.location .capital-pill-icon,
+.hud-root .hud-info-panel .info-pill.time .capital-pill-icon,
+.hud-root .hud-info-panel .info-pill.coin .capital-pill-icon {
+  width: 26px !important;
+  height: 24px !important;
+  flex: 0 0 26px !important;
+  border-right: 1px solid rgba(255, 255, 255, 0.28) !important;
+  padding-right: 6px !important;
+  box-sizing: content-box !important;
+}
+.hud-root .hud-info-panel .info-pill.location .capital-pill-icon svg,
+.hud-root .hud-info-panel .info-pill.time .capital-pill-icon svg,
+.hud-root .hud-info-panel .info-pill.coin .capital-pill-icon svg {
+  width: 22px !important;
+  height: 22px !important;
+}
+.hud-root .hud-info-panel .info-pill.location strong,
+.hud-root .hud-info-panel .info-pill.time strong,
+.hud-root .hud-info-panel .info-pill.coin strong {
+  font-size: 15px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.01em !important;
+}
+
+/* Banque et argent : texte simple, sans pastille */
+.hud-root .hud-info-panel .info-pill.account,
+.hud-root .hud-info-panel .info-pill.money {
+  height: auto !important;
+  min-width: 0 !important;
+  padding: 0 2px !important;
+  gap: 5px !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+.hud-root .hud-info-panel .info-pill.account .capital-pill-icon,
+.hud-root .hud-info-panel .info-pill.money .capital-pill-icon {
+  width: 18px !important;
+  height: 18px !important;
+  flex: 0 0 18px !important;
+  border-right: 0 !important;
+}
+.hud-root .hud-info-panel .info-pill.account .capital-pill-icon svg,
+.hud-root .hud-info-panel .info-pill.money .capital-pill-icon svg {
+  width: 17px !important;
+  height: 17px !important;
+}
+.hud-root .hud-info-panel .info-pill.account strong,
+.hud-root .hud-info-panel .info-pill.money strong {
+  font-size: 14px !important;
+  font-weight: 700 !important;
+}
+
+/* ------------------------------------------------------------------
+   Jauges de statut (vie, faim, soif, energie, gilet) : a droite, sous le panneau d'infos.
+   (En vehicule elles restent dans le compteur de vitesse.)
+   Pour ajuster : top = distance depuis le haut, right = distance depuis le bord droit.
+   ------------------------------------------------------------------ */
+.hud-root .literal-status-bars {
+  left: auto !important;
+  bottom: auto !important;
+  right: max(14px, env(safe-area-inset-right)) !important;
+  top: calc(70px + env(safe-area-inset-top)) !important;
+  transform-origin: top right !important;
+}

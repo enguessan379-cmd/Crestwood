@@ -75,6 +75,10 @@ public:
     // True se o ped local está com um dos skins suportados (9/163/246/280).
     static bool IsSupportedLocalSkin();
 
+    // Demande au serveur d'appliquer un skin du registre (SkinRegistry.h).
+    // Le serveur fait SetPlayerSkin : le skin est donc visible par TOUS les joueurs.
+    static bool RequestSkin(uint16_t modelId);
+
 private:
     static bool IsSupportedSkin(uint16_t modelId);
 };

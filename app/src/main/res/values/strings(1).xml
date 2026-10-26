@@ -1,0 +1,30 @@
+<resources>
+    <string name="app_name">Crestwood RP</string>
+    <string name="play_bth">JOUER !</string>
+    <string name="samp_ver">SA:MP 0.3.7</string>
+    <string name="client_name">SA:MP 2.11 </string>
+    <string name="bug_info">Un bug ? Signale-le, on va le corriger !</string>
+    <string name="authors">merci à bkuzn et afobazl</string>
+    <string name="downloaderAssetsHeader">Préparation des fichiers :</string>
+    <string name="downloaderError">Erreur</string>
+    <string name="downloaderNoData">Les données du jeu n\'ont pas été installées ou ont été supprimées. Connecte-toi à internet et relance l\'application pour les télécharger !</string>
+    <string name="downloaderPausedCellular">Autoriser le téléchargement via les données mobiles ? Selon ton forfait, cela peut engendrer des frais.</string>
+    <string name="downloaderPausedCellular2">Si tu n\'actives pas le téléchargement via les données mobiles, il reprendra automatiquement dès que le Wi-Fi sera disponible.</string>
+    <string name="downloaderResumeCellular">Reprendre le téléchargement</string>
+    <string name="downloaderStateAwaitingWifi">En attente du Wi-Fi</string>
+    <string name="downloaderStateCancelled">Annulé</string>
+    <string name="downloaderStateCompleted">Terminé</string>
+    <string name="downloaderStateConnecting">Connexion…</string>
+    <string name="downloaderStateFailed">Échec</string>
+    <string name="downloaderStateFetchingUrl">Requête en cours…</string>
+    <string name="downloaderStateIdle">En attente…</string>
+    <string name="downloaderStateTransferring">Installation…</string>
+    <string name="downloaderStateUnknown">En attente…</string>
+    <string name="downloaderStatusPercentage">%d%%</string>
+    <string name="downloaderStatusSize">%1$d Mo / %2$d Mo</string>
+    <string name="downloaderWifiSettings">Paramètres Wi-Fi</string>
+    <string name="asset_pack_main">Données du jeu</string>
+    <string name="asset_pack_sfx1">Audio (partie 1)</string>
+    <string name="asset_pack_sfx2">Audio (partie 2)</string>
+    <string name="asset_pack_streams">Audio (partie 3)</string>
+</resources>

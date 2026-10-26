@@ -1,0 +1,143 @@
+/* HUD financeiro oficial. Carregado por ultimo para isolar o layout das
+   regras legadas do restante do HUD. */
+.hud-info-panel {
+  top: max(18px, env(safe-area-inset-top));
+  right: max(22px, env(safe-area-inset-right));
+  left: auto;
+  width: 578px !important;
+  max-width: calc(100vw - 24px) !important;
+  padding: 0 !important;
+  overflow: visible !important;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  transform-origin: top left !important;
+}
+
+.hud-info-panel .wanted-row,
+.hud-info-panel .weapon-panel,
+.hud-info-panel .ammo-row { display: none !important; }
+
+.hud-info-panel .info-grid {
+  display: grid !important;
+  grid-template-columns: 120px 112px 132px 184px !important;
+  grid-template-rows: 46px 46px !important;
+  justify-content: start !important;
+  align-items: stretch !important;
+  gap: 10px !important;
+  width: 578px !important;
+  max-width: 100% !important;
+}
+
+.hud-info-panel .info-pill {
+  position: relative !important;
+  box-sizing: border-box !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  height: 46px !important;
+  margin: 0 !important;
+  padding: 0 15px 0 11px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 12px !important;
+  overflow: hidden !important;
+  border: 1px solid rgba(147, 169, 190, .44) !important;
+  border-radius: 13px !important;
+  background: radial-gradient(circle at 24% 35%, rgba(72,111,148,.10), transparent 44%), linear-gradient(145deg, rgba(7,12,18,.91), rgba(3,7,12,.82)) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.055), inset 0 0 18px rgba(42,108,154,.055), 0 5px 17px rgba(0,0,0,.30) !important;
+  backdrop-filter: blur(8px) !important;
+}
+
+.hud-info-panel .info-pill.time { grid-column: 1; grid-row: 1; }
+.hud-info-panel .info-pill.account { grid-column: 2; grid-row: 1; }
+.hud-info-panel .info-pill.coin { grid-column: 3; grid-row: 1; }
+.hud-info-panel .info-pill.location { grid-column: 4; grid-row: 1; }
+.hud-info-panel .info-pill.money { grid-column: 4; grid-row: 2; }
+
+.hud-info-panel .capital-pill-icon {
+  width: 35px !important;
+  height: 29px !important;
+  padding-right: 10px !important;
+  display: grid !important;
+  place-items: center !important;
+  flex: 0 0 35px !important;
+  border-right: 1px solid rgba(174,196,214,.25) !important;
+}
+
+.hud-info-panel .capital-pill-icon svg {
+  width: 27px !important;
+  height: 27px !important;
+  overflow: visible !important;
+  fill: none !important;
+  stroke: #e9f7ff !important;
+  stroke-width: 1.75 !important;
+  stroke-linecap: round !important;
+  stroke-linejoin: round !important;
+  filter: drop-shadow(0 0 3px rgba(113,189,255,.76)) !important;
+}
+
+.hud-info-panel .capital-pill-icon .cyan-stroke {
+  stroke: #12dfff !important;
+  filter: drop-shadow(0 0 3px rgba(18,223,255,.95)) !important;
+}
+
+.hud-info-panel .capital-pill-icon .cyan-fill {
+  fill: #12dfff !important;
+  stroke: #b9f8ff !important;
+  stroke-width: .85 !important;
+  filter: drop-shadow(0 0 3px rgba(18,223,255,.95)) !important;
+}
+
+.hud-info-panel .info-pill strong {
+  min-width: 0 !important;
+  color: #f8fbff !important;
+  font-family: Inter, "Segoe UI", Arial, sans-serif !important;
+  font-size: 17px !important;
+  font-weight: 500 !important;
+  line-height: 1 !important;
+  letter-spacing: 0 !important;
+  white-space: nowrap !important;
+  text-shadow: 0 1px 4px rgba(0,0,0,.92) !important;
+}
+
+.hud-info-panel .info-pill.account strong,
+.hud-info-panel .info-pill.coin strong {
+  flex: 1 1 auto !important;
+  text-align: center !important;
+}
+
+.hud-info-panel .info-pill.location strong,
+.hud-info-panel .info-pill.money strong { font-size: 16px !important; }
+
+@media (max-width: 900px), (max-height: 470px) {
+  .hud-info-panel {
+    top: max(10px, env(safe-area-inset-top));
+    right: max(12px, env(safe-area-inset-right));
+    width: 496px !important;
+    max-width: calc(100vw - 24px) !important;
+    transform: none;
+  }
+  .hud-info-panel .info-grid {
+    grid-template-columns: 104px 96px 112px 160px !important;
+    grid-template-rows: 40px 40px !important;
+    gap: 8px !important;
+    width: 496px !important;
+  }
+  .hud-info-panel .info-pill {
+    height: 40px !important;
+    padding: 0 11px 0 8px !important;
+    gap: 9px !important;
+    border-radius: 11px !important;
+  }
+  .hud-info-panel .capital-pill-icon {
+    width: 30px !important;
+    height: 25px !important;
+    padding-right: 8px !important;
+    flex-basis: 30px !important;
+  }
+  .hud-info-panel .capital-pill-icon svg { width: 23px !important; height: 23px !important; }
+  .hud-info-panel .info-pill strong { font-size: 15px !important; }
+  .hud-info-panel .info-pill.location strong,
+  .hud-info-panel .info-pill.money strong { font-size: 14px !important; }
+}

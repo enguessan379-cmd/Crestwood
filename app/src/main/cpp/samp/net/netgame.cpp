@@ -486,6 +486,15 @@ void CNetGame::SendCharSave(const ClothesLook& l)
 	m_pRakClient->Send(&bs, SYSTEM_PRIORITY, RELIABLE, 0);
 }
 
+void CNetGame::SendCharSkinRequest(uint16_t skinId)
+{
+	RakNet::BitStream bs;
+	bs.Write((uint8_t) ID_CUSTOM_CHAR);
+	bs.Write((uint32_t) CharacterCreator::kCmdSkinReq);
+	bs.Write(skinId);
+	m_pRakClient->Send(&bs, SYSTEM_PRIORITY, RELIABLE, 0);
+}
+
 void CNetGame::SendCharSpawnRequest()
 {
 	RakNet::BitStream bs;

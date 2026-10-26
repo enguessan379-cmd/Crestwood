@@ -1,0 +1,5 @@
+/* Minimap ronde, propre et sans reflet bleu/cyan. */
+.hud-root .minimap-frame .minimap-canvas{position:absolute;inset:0;z-index:0;width:100%;height:100%;display:block;border-radius:50%;opacity:0;transition:opacity .25s ease;clip-path:circle(50% at 50% 50%)}
+.hud-root .minimap-frame[data-ready="1"] .minimap-canvas{opacity:1}
+.hud-root .minimap-frame::before{content:none!important;display:none!important}
+.hud-root .minimap-frame i,.hud-root .minimap-frame::after{display:none!important}

@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#0d1117">
+    <title>Crestwood RP - Connexion</title>
+
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <main class="auth-page">
+        <div class="corner-brand" aria-label="Crestwood RP">
+            <img src="assets/images/logo.png" alt="Crestwood RP">
+        </div>
+        <div class="background-layer"></div>
+        <div class="background-shade"></div>
+
+        <section class="left-character" aria-hidden="true">
+            <div class="left-glow glow-one"></div>
+            <div class="left-glow glow-two"></div>
+        </section>
+
+        <section class="auth-center">
+<nav class="auth-tabs" aria-label="Autenticação">
+                <span class="tab-slider" aria-hidden="true"></span>
+                <button class="auth-tab active" data-screen="login">Connexion</button>
+                <button class="auth-tab" data-screen="register">Inscription</button>
+                <button class="auth-tab" data-screen="recover">Récupération</button>
+            </nav>
+
+            <section class="auth-screen active" id="screen-login">
+                <header class="screen-header">
+                    <h1>Connexion</h1>
+                    <p>Connectez-vous avec vos identifiants pour accéder à votre compte en toute sécurité.</p>
+                </header>
+
+                <form id="loginForm" autocomplete="off">
+                    <div class="field">
+                        <span class="field-icon user-icon"></span>
+                        <input
+                            id="loginUsername"
+                            name="username"
+                            type="text"
+                            placeholder="Nom d’utilisateur"
+                            autocomplete="username"
+                        >
+                    </div>
+
+                    <div class="field">
+                        <span class="field-icon lock-icon"></span>
+                        <input
+                            id="loginPassword"
+                            name="password"
+                            type="password"
+                            placeholder="Mot de passe"
+                            autocomplete="current-password"
+                        >
+                        <button
+                            class="password-toggle"
+                            type="button"
+                            data-password-target="loginPassword"
+                            aria-label="Afficher le mot de passe"
+                        ></button>
+                    </div>
+
+                    <label class="remember-row">
+                        <input id="rememberConnexion" type="checkbox">
+                        <span class="custom-check"></span>
+                        <span>Se souvenir de mes identifiants.</span>
+                    </label>
+
+                    <button class="primary-button" type="submit">
+                        <span>Se connecter</span>
+                        <span class="button-arrow">›</span>
+                    </button>
+                </form>
+            </section>
+
+            <section class="auth-screen" id="screen-register">
+                <header class="screen-header">
+                    <h1>Inscription</h1>
+                    <p>Créez votre compte pour commencer votre histoire en ville.</p>
+                </header>
+
+                <form id="registerForm" autocomplete="off">
+                    <div class="form-grid">
+                        <div class="field">
+                            <span class="field-icon user-icon"></span>
+                            <input id="registerUsername" type="text" placeholder="Nom d’utilisateur">
+                        </div>
+
+                        <div class="field">
+                            <span class="field-icon email-icon"></span>
+                            <input id="registerEmail" type="email" placeholder="Adresse e-mail">
+                        </div>
+
+                        <div class="field">
+                            <span class="field-icon lock-icon"></span>
+                            <input id="registerPassword" type="password" placeholder="Mot de passe">
+                            <button
+                                class="password-toggle"
+                                type="button"
+                                data-password-target="registerPassword"
+                                aria-label="Afficher le mot de passe"
+                            ></button>
+                        </div>
+
+                        <div class="field">
+                            <span class="field-icon lock-icon"></span>
+                            <input id="registerConfirmPassword" type="password" placeholder="Confirmer le mot de passe">
+                            <button
+                                class="password-toggle"
+                                type="button"
+                                data-password-target="registerConfirmPassword"
+                                aria-label="Afficher le mot de passe"
+                            ></button>
+                        </div>
+                    </div>
+
+                    <label class="remember-row terms-row">
+                        <input id="acceptTerms" type="checkbox">
+                        <span class="custom-check"></span>
+                        <span>J’ai lu et j’accepte le règlement du serveur.</span>
+                    </label>
+
+                    <button class="primary-button" type="submit">
+                        <span>Créer un compte</span>
+                        <span class="button-arrow">›</span>
+                    </button>
+                </form>
+            </section>
+
+            <section class="auth-screen" id="screen-recover">
+                <header class="screen-header">
+                    <h1>Récupération</h1>
+                    <p>Récupérez l’accès à votre compte en toute sécurité.</p>
+                </header>
+
+                <form id="recoverForm" autocomplete="off">
+                    <div class="field">
+                        <span class="field-icon user-icon"></span>
+                        <input id="recoverUsername" type="text" placeholder="Nom d’utilisateur">
+                    </div>
+
+                    <div class="recover-code-row">
+                        <div class="field">
+                            <span class="field-icon code-icon"></span>
+                            <input id="recoverCode" type="text" inputmode="numeric" placeholder="Code">
+                        </div>
+
+                        <button id="requestCodeButton" class="secondary-button" type="button">
+                            Enviar código
+                        </button>
+                    </div>
+
+                    <div class="field">
+                        <span class="field-icon lock-icon"></span>
+                        <input id="recoverNewPassword" type="password" placeholder="Nova senha">
+                        <button
+                            class="password-toggle"
+                            type="button"
+                            data-password-target="recoverNewPassword"
+                            aria-label="Afficher le mot de passe"
+                        ></button>
+                    </div>
+
+                    <button class="primary-button" type="submit">
+                        <span>Modifier le mot de passe</span>
+                        <span class="button-arrow">›</span>
+                    </button>
+                </form>
+            </section>
+</section>
+
+        <aside class="news-panel">
+            <header class="news-header">
+                <div class="news-title-line">
+                    <span class="news-dot"></span>
+                    <h2>Novidades</h2>
+                </div>
+                <p>Restez informé des nouveautés<br>du serveur.</p>
+            </header>
+
+            <article class="news-card">
+                <img src="assets/images/banner.png" alt="Atualização do servidor">
+                <h3>NOVA EXPERIÊNCIA REVOLT</h3>
+                <p>
+                    Uma nova interface de autenticação, mais organizada,
+                    moderna e preparada para o sistema du serveur.
+                </p>
+            </article>
+
+            <div class="news-pagination" aria-hidden="true">
+                <span class="active"></span>
+                <span></span>
+                <span></span>
+            </div>
+        </aside>
+
+        <div id="notificationContainer" class="notification-container" aria-live="polite"></div>
+
+        <div class="notification-audio-preload" aria-hidden="true" style="display:none">
+            <audio preload="auto" src="assets/sounds/success.mp3"></audio>
+            <audio preload="auto" src="assets/sounds/error.wav"></audio>
+            <audio preload="auto" src="assets/sounds/info.mp3"></audio>
+            <audio preload="auto" src="assets/sounds/warning.mp3"></audio>
+        </div>
+
+    </main>
+
+
+    <!-- Música ambiente da tela de login -->
+    <audio
+        id="loginBackgroundMusic"
+        src="assets/audio/login_music.mp3"
+        preload="auto"
+        autoplay
+        loop>
+    </audio>
+<section class="revolt-music-player" id="revoltMusicPlayer" aria-label="Player de música">
+        <div class="revolt-music-cover">
+            <img
+                src="assets/images/music_cover.png"
+                alt="Capa da música"
+                class="revolt-music-cover-image"
+            />
+        </div>
+
+        <div class="revolt-music-main">
+            <div class="revolt-music-topline">
+                <div class="revolt-music-meta">
+                    <strong id="revoltTrackTitle">Tribo da Periferia</strong>
+                    <span id="revoltTrackArtist">Imprevisível (Official Music)</span>
+                </div>
+
+                <button class="revolt-music-btn revolt-music-play" id="musicToggle" type="button" aria-label="Pausar música">
+                    <span class="revolt-play-icon" aria-hidden="true"></span>
+                </button>
+            </div>
+
+            <div class="revolt-music-progress-row">
+                <span id="musicCurrentTime">0:00</span>
+                <input
+                    id="musicProgress"
+                    class="revolt-music-range revolt-progress-range"
+                    type="range"
+                    min="0"
+                    max="1000"
+                    value="0"
+                    aria-label="Progresso da música"
+                />
+                <span id="musicDuration">0:00</span>
+            </div>
+
+            <div class="revolt-music-bottomline">
+                <button class="revolt-music-btn revolt-volume-icon" id="musicMute" type="button" aria-label="Silenciar música">
+                    <span aria-hidden="true">🔊</span>
+                </button>
+
+                <input
+                    id="musicVolume"
+                    class="revolt-music-range revolt-volume-range"
+                    type="range"
+                    min="0"
+                    max="100"
+                    value="55"
+                    aria-label="Volume da música"
+                />
+
+                <span class="revolt-music-status" id="musicStatus">En lecture</span>
+            </div>
+        </div>
+    </section>
+
+    <script src="../hud/common/keyboard-bridge.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>

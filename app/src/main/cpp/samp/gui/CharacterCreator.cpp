@@ -415,7 +415,7 @@ namespace {
 		SetPedVisible(true);
 
 		uint16_t model = LocalModelId();
-		const bool supported = (model == 9 || model == 163 || model == 246 || model == 280);
+		const bool supported = (model == 9 || model == 163 || model == 246 || model == 280 || model == 289);
 		if (!supported) {
 			// Modèle non géré (ex. skin par défaut) : on passe en homme habillé.
 			g_gender = 0;

@@ -32,6 +32,7 @@ public:
     static constexpr uint32_t kCmdCreateReq = 1; // modal confirmado (gênero + nomes + nascimento)
     static constexpr uint32_t kCmdSave      = 2; // criação confirmada (valores de clothes)
     static constexpr uint32_t kCmdSpawnReq  = 3; // NASCER (personagem existente)
+    static constexpr uint32_t kCmdSkinReq   = 4; // choix d'un skin du registre (uint16 id) -> serveur SetPlayerSkin (visible par tous)
 
     // Chamadas vindas do netgame.cpp (servidor -> cliente).
     static void OpenSelect(const std::string& json);
