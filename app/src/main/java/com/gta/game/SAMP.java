@@ -105,6 +105,9 @@ public class SAMP extends GTASA implements HeightProvider.HeightListener {
     private volatile float lastPosX = 0f, lastPosY = 0f;
     private volatile boolean hasLastPos = false;
     private volatile boolean authReady;
+    // Redemande de l'ecran de connexion au serveur (le 1er dialogue peut arriver avant que le HUD soit pret)
+    private boolean authBootstrapDone;
+    private int authOpenAttempts;
     private volatile String pendingAuthJson;
     private final Handler authHandler = new Handler(Looper.getMainLooper());
     private Runnable authWatchdog;
@@ -1479,9 +1482,21 @@ public class SAMP extends GTASA implements HeightProvider.HeightListener {
                 Log.e(TAG, "[auth] la page ne s'est pas affichee a temps -> fermeture de secours");
                 Toast.makeText(SAMP.this, "Ecran de connexion indisponible, reessaie.", Toast.LENGTH_SHORT).show();
                 closeAuthPage();
+                requestAuthOpenLater(2000);
             }
         };
         authHandler.postDelayed(authWatchdog, 6000);
+    }
+
+    /** Si la page de connexion n'est pas ouverte, demande au serveur (/authact open) de l'envoyer ; 5 essais max. */
+    private void requestAuthOpenLater(long delayMs) {
+        authHandler.postDelayed(() -> {
+            if (authOpen || authOpenAttempts >= 5 || isFinishing()) return;
+            authOpenAttempts++;
+            Log.i(TAG, "[auth] ecran de connexion absent -> demande au serveur (essai " + authOpenAttempts + "/5)");
+            sendHudCommand("/authact open");
+            requestAuthOpenLater(4000);
+        }, delayMs);
     }
 
     private void cancelAuthWatchdog() {
@@ -2175,6 +2190,10 @@ public class SAMP extends GTASA implements HeightProvider.HeightListener {
                 info.put("ready", 1);
             } catch (Exception ignored) { }
             hudJs("window.HudApp && HudApp.openFromNative(" + info + ")");
+            if (!authBootstrapDone) {
+                authBootstrapDone = true;
+                runOnUiThread(() -> requestAuthOpenLater(2500));
+            }
             final String pendingInteract = lastInteractJson;
             if (pendingInteract != null) {
                 hudJs("window.HudBridge && HudBridge.setInteract && HudBridge.setInteract(" + JSONObject.quote(pendingInteract) + ")");
